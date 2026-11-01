@@ -398,8 +398,8 @@ test('fiches : fonctions des bâtiments revus, coût en or et Forge sur la fiche
 test('marché : armées libres et leur charge, l\'armée qui partira (la plus petite qui suffit, comme le serveur) et ses refus', { skip }, async () => {
   const els = { 'send-army': { innerHTML: '', value: '' }, 'send-help': { innerHTML: '' }, 'send-wood': { value: '700' } };
   const ctx = makeContext({ document: { getElementById: id => els[id] || null }, fetchJson: async () => ({}) });
-  run(ctx, '01-core.js', ['RES_KEYS']);
-  run(ctx, '11b-market-trade.js', ['marketState', 'marketArmies', 'armyLabel', 'transportNeedHtml', 'fillArmySelect', 'deliveryTimesText', 'refreshSendForm', 'updateSendHelp']);
+  run(ctx, '01-core.js', ['RES_KEYS', 'RES_NAMES', 'playerStock']);
+  run(ctx, '11b-market-trade.js', ['marketState', 'marketArmies', 'armyLabel', 'transportNeedHtml', 'fillArmySelect', 'deliveryTimesText', 'availableStockHtml', 'helpLines', 'refreshSendForm', 'updateSendHelp']);
   const ev = (code) => vm.runInContext(code, ctx);   // les let et const du fichier ne sont pas des propriétés du contexte
   ev('marketState = { armies: [{ id: \'a1\', name: \'Petite\', capacity: 600 }, { id: \'a2\', name: \'Grande\', capacity: 6000 }] }');
   assert.equal(ev('transportNeedHtml(0)'), '');
@@ -416,6 +416,13 @@ test('marché : armées libres et leur charge, l\'armée qui partira (la plus pe
   ctx.refreshSendForm();
   assert.equal(els['send-army'].innerHTML, '<option value="">Choix automatique</option><option value="a1">Petite · 600 de charge</option><option value="a2">Grande · 6000 de charge</option>');
   assert.match(els['send-help'].innerHTML, /^Grande/, '700 : la petite ne suffit pas');
+  assert.doesNotMatch(els['send-help'].innerHTML, /Disponible/, 'stock inconnu : rien d\'affiché');
+  // stock commun (décision du 1er novembre 2026) : ce qui peut partir est le total de toutes ses villes, en rouge ce qui
+  // ne suffit pas pour la saisie
+  ctx.currentCity = { id: 'c1', playerStock: { wood: 500, stone: 0, iron: 9000, food: 20 } };
+  ctx.refreshSendForm();
+  assert.equal(els['send-help'].innerHTML.split('<br>')[1], 'Disponible dans toutes vos villes : <span class="missing">500 bois</span> · <span>0 pierre</span> · <span>9000 fer</span> · <span>20 nourriture</span>');
+  ctx.currentCity = null;
   ev('marketState = { armies: [] }');
   ctx.refreshSendForm();
   assert.equal(els['send-army'].innerHTML, '<option value="">Aucune armée libre en ville</option>');
@@ -432,9 +439,9 @@ test('marché : l\'offre réserve l\'armée choisie ; taxe du Comptoir et de la 
     API: '', token: 't', loadMarket: async () => {}, loadCities: async () => {}, loadArmies: async () => {}
   });
   ctx.player.economy.market = { p2pTaxPctBase: config.market.p2pTaxPctBase, treasureTaxReductionPctPerLevel: config.market.treasureTaxReductionPctPerLevel, offerHours: config.market.offerHours };
-  run(ctx, '01-core.js', ['buildingEffectOf']);
+  run(ctx, '01-core.js', ['RES_KEYS', 'RES_NAMES', 'playerStock', 'buildingEffectOf']);
   run(ctx, '06b-research.js', ['fmtTechPct']);
-  run(ctx, '11b-market-trade.js', ['MARKET_RES', 'marketState', 'marketArmies', 'armyLabel', 'transportNeedHtml', 'fillArmySelect', 'deliveryTimesText', 'refreshOfferForm', 'updateOfferHelp', 'openAcceptOffer']);
+  run(ctx, '11b-market-trade.js', ['MARKET_RES', 'marketState', 'marketArmies', 'armyLabel', 'transportNeedHtml', 'fillArmySelect', 'deliveryTimesText', 'availableStockHtml', 'helpLines', 'refreshOfferForm', 'updateOfferHelp', 'openAcceptOffer']);
   run(ctx, '11-market.js', ['confirmAcceptOffer']);
   vm.runInContext(`marketState = { taxPct: 27.5, basePct: ${config.market.p2pTaxPctBase}, offerHours: 48, armies: [{ id: 'a1', name: 'Petite', capacity: 600 }, { id: 'a2', name: 'Grande', capacity: 6000 }] }`, ctx);
   ctx.refreshOfferForm();
@@ -449,6 +456,13 @@ test('marché : l\'offre réserve l\'armée choisie ; taxe du Comptoir et de la 
   assert.match(modal, /<option value="a2">Grande · 6000 de charge<\/option>/);
   assert.doesNotMatch(modal, /value="a1"/);
   assert.doesNotMatch(modal, /marchand/);
+  assert.match(modal, /avec votre part, prise dans vos villes \(celle-ci d'abord\)/);
+  // stock commun : la contrepartie se prend dans toutes ses villes ; en rouge si leur total ne suffit pas
+  ctx.currentCity.playerStock = { wood: 0, stone: 0, iron: 500, food: 0 };
+  ctx.openAcceptOffer({ id: 'o1', buyAmount: 800, buyResource: 'iron', sellAmount: 1000, sellResource: 'wood', city: { name: 'Massalia' } });
+  assert.match(modal, /<p class="diplo-help">Disponible dans toutes vos villes : <span class="missing">500 fer<\/span><\/p>/);
+  ctx.refreshOfferForm();
+  assert.equal(els['market-offer-transport'].innerHTML, 'Grande · 6000 de charge : elle attend en ville avec les 1200 ressources jusqu\'à l\'échange<br>Disponible dans toutes vos villes : <span class="missing">0 bois</span>', 'la ressource vendue (bois par défaut)');
   await ctx.confirmAcceptOffer('o1', 'a2');
   assert.deepEqual({ ...posted[0].body }, { cityId: 'c1', armyId: 'a2' });
   assert.match(ctx.toast, /Échange conclu · arrivée dans bientôt, retour de l'armée dans bientôt/);

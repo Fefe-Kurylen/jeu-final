@@ -147,7 +147,10 @@ async function cancelMarketOffer(offerId) {
     });
     
     if (res.ok) {
-      showToast((await res.json().catch(() => ({}))).message || 'Offre annulée : marchandises rendues, armée libre', 'success');
+      // stock commun (décision du 1er novembre 2026) : les marchandises vont à la ville de l'offre puis aux autres ; ce qui
+      // ne tient dans aucune est perdu, le message le dit (« … perdus ») : un avertissement plutôt qu'un succès
+      const message = (await res.json().catch(() => ({}))).message || 'Offre annulée : marchandises rendues, armée libre';
+      showToast(message, / perdus$/.test(message) ? 'warning' : 'success');
       if (typeof loadArmies === 'function') loadArmies();
       await loadMarket();
       await loadCities();

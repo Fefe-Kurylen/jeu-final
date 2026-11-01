@@ -397,6 +397,8 @@ async function place(bot, ctx, B, m, hero, cap) {
 }
 
 // ---------- expéditions avec l'armée que mène le héros ----------
+// le pas jusqu'où l'alliance garde les armées en ville pour le Bastion (mem.war.muster du premier membre suivi de son groupe)
+const musterOf = (bot, ctx) => (typeof ctx.byGroup === 'function' ? ctx.byGroup(bot.group).find(b => b.playerId)?.mem?.war?.muster || 0 : 0);
 async function expedition(bot, ctx, B, m, hero, cap) {
   if (B.left <= 0 || ctx.step < (m.ne || 0) || cap.isSieged || (bot.mem.heroHold || 0) > ctx.step) return;
   const army = bot.armies.find(a => a.heroId === hero.id);
@@ -406,6 +408,9 @@ async function expedition(bot, ctx, B, m, hero, cap) {
   const col = bot.mem.mil?.col;
   if (col && (col.ph === 'approach' || col.ph === 'ready')) return;
   if (keptForWonder(bot, army.id, ctx.step)) { bump(m, 'expKeptForWonder'); return; }
+  // l'alliance rassemble ses armées pour un assaut de Bastion ou une chaîne d'assauts (50-war.cjs : mem.war.muster du
+  // gardien de l'alliance) : la plus forte armée reste à la maison
+  if (musterOf(bot, ctx) > ctx.step) { bump(m, 'expKeptForMuster'); return; }
   const now = ctx.clock.now();
   const open = (bot.me?.expeditions || []).filter(e => e.status === 'AVAILABLE' && Date.parse(e.expiresAt) > now + 300000);
   if (!open.length) { bump(m, 'expNone'); m.ne = ctx.step + 2; return; }
@@ -429,7 +434,8 @@ async function catchUpExpeditions(ctx) {
   if (process.env.SIM_HERO_EXPEDITIONS === '0') return 0;
   EP ||= require(path.join(ROOT, 'src/game/processors/expeditionProcessor'));
   if (typeof EP.generateNewExpeditions !== 'function' || EP.generateNewExpeditions.length >= 1) return 0;
-  const ticks = Math.round((Number(ctx.OPT.stepHours) || 6) / (config.tick.tickHours || 30 / 3600)) - 1;   // le pas en a déjà joué un
+  // le pas en a déjà joué ctx.ticks (un pas qui presse en joue plusieurs : sim.cjs playTicks)
+  const ticks = Math.max(0, Math.round((Number(ctx.OPT.stepHours) || 6) / (config.tick.tickHours || 30 / 3600)) - (ctx.ticks || 1));
   for (let i = 0; i < ticks; i++) await EP.generateNewExpeditions();
   return ticks;
 }
@@ -463,6 +469,7 @@ async function summary(ctx) {
 
 module.exports = {
   name: 'hero',
+  expedition,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
   setup(bot, ctx) { memOf(bot, ctx); },
   async act(bot, ctx) {
     const cap = bot.capital;
@@ -483,7 +490,7 @@ module.exports = {
   },
   async afterStep(ctx) {
     const made = await catchUpExpeditions(ctx);
-    if (made && ctx.step === 1) ctx.event('hero_expedition_catchup', { ticksPerStep: made + 1 });
+    if (made && ctx.step === 1) ctx.event('hero_expedition_catchup', { ticksPerStep: made + (ctx.ticks || 1) });
     const total = Math.round(ctx.OPT.days * 24 / ctx.OPT.stepHours);
     if (ctx.step % SUMMARY_EVERY === 0 || ctx.step === total) await summary(ctx);
   }

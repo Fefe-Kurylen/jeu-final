@@ -2,7 +2,10 @@
 // 09g-bastion.js — Bastion d'alliance (décision du 26 octobre 2026) : onglet Alliance › Bastion (emplacement, convois,
 // chantier, bonus, garnison) et panneau de la carte (ravitailler, tenir garnison, assiéger). Depuis le 31 octobre 2026 :
 // un assaut = un rassemblement ou une armée seule, garnison de rules.maxGarrisonArmies armées au plus, mur bouclier
-// rules.wallMultiplier fois un mur 20. Serveur : src/services/bastionService.js, routes /api/bastion.
+// rules.wallMultiplier fois un mur 20. Depuis le 1er novembre 2026 (simulation de 200 jours) : une vie ne revient qu'après
+// rules.regenPauseHours sans assaut gagné (E3, fin de la pause affichée), les armées qui brisent un siège dans la même
+// minute se battent ensemble (E4), un convoi se paie sur le stock de toutes ses villes (E1).
+// Serveur : src/services/bastionService.js, routes /api/bastion.
 // ============================================================
 let bastionState = null, bastionLoadedAt = 0;
 async function loadBastion(force = false) {
@@ -22,6 +25,16 @@ function bastionBonusesHtml(rules) {
     <li>${resIconHtml('item_crate')} +${b.carryPct ?? 10} % de capacité de transport</li>
     <li>${resIconHtml('defense')} +${b.garrisonDefensePct ?? 10} % de défense pour la garnison</li>
   </ul>`;
+}
+
+// Vies qui reviennent (décision du 1er novembre 2026, E3) : aucune pendant rules.regenPauseHours après un assaut gagné,
+// puis une toutes les regenHours / assaults. `v` : le Bastion (regenPausedUntil, nextLifeAt donnés par le serveur)
+function bastionRegenHtml(v, rules) {
+  const pause = rules?.regenPauseHours ?? 24;
+  const every = `${String(Math.round(10 * (rules ? rules.regenHours / rules.assaults : 7.2)) / 10).replace('.', ',')} h`;
+  if (v?.regenPausedUntil) return `<p class="diplo-help">${resIconHtml('clock')} Aucune vie ne revient pendant encore <span class="qd-timer" data-ends-at="${v.regenPausedUntil}">${formatTime(v.regenPausedUntil)}</span> (${pause} h sans assaut gagné), puis une toutes les ${every}.</p>`;
+  if (v?.nextLifeAt) return `<p class="diplo-help">${resIconHtml('clock')} Prochaine vie dans <span class="qd-timer" data-ends-at="${v.nextLifeAt}">${formatTime(v.nextLifeAt)}</span>, puis une toutes les ${every}. Un assaut gagné arrête la remontée ${pause} h.</p>`;
+  return `<p class="diplo-help">Toutes les vies sont là. Un assaut gagné en ôte une, et aucune ne revient avant ${pause} h sans assaut gagné.</p>`;
 }
 
 // Onglet Alliance › Bastion
@@ -61,13 +74,13 @@ async function renderBastionSection(box) {
       ${b.status === 'FUNDING' ? `${progress}<p class="diplo-help">${b.convoys} convoi${b.convoys > 1 ? 's' : ''} en route. Envoyez une armée chargée depuis la carte : touchez le Bastion puis « Ravitailler ».</p>
         <button class="btn btn-primary" onclick="openBastionSend('${chatSafeId(b.id)}', 'SUPPLY')">${resIconHtml('item_crate')} Ravitailler</button>` : ''}
       ${b.status === 'BUILDING' ? `<p>Toutes les ressources sont là : achevé dans <span class="qd-timer" data-ends-at="${b.buildEndsAt}">${formatTime(b.buildEndsAt)}</span>.</p>` : ''}
-      ${b.status === 'ACTIVE' || b.status === 'BUILDING' ? `<p>${resIconHtml('defense')} Vies : <strong>${lives} / ${b.assaults}</strong> <small>(elles remontent en ${r.regenHours} h)</small>${b.isSieged ? ` · <span class="bastion-sieged">${resIconHtml('attack')} assiégé</span>` : ''}</p>` : ''}
+      ${b.status === 'ACTIVE' || b.status === 'BUILDING' ? `<p>${resIconHtml('defense')} Vies : <strong>${lives} / ${b.assaults}</strong>${b.isSieged ? ` · <span class="bastion-sieged">${resIconHtml('attack')} assiégé</span>` : ''}</p>${bastionRegenHtml(b, r)}` : ''}
     </div>
     ${b.status !== 'FUNDING' ? `<h4>${resIconHtml('army')} Garnison <small>${b.garrison.length} / ${b.maxGarrisonArmies} armées</small></h4>
       ${b.garrison.length ? `<div class="bastion-garrison">${b.garrison.map(g => `<div class="member-row"><span class="member-name">${escapeHtml(g.name)} <small>${escapeHtml(g.owner?.name || '')}${g.status === 'SUPPORTING' ? ' · en route' : g.status === 'ATTACKING' ? ' · en sortie' : ''}</small></span>
         <span>${g.units.map(u => `${formatNum(u.count)} ${escapeHtml(typeof getUnitName === 'function' ? getUnitName(u.key) : u.key)}`).join(', ')}</span>
         ${g.owner?.id === player?.id ? `${b.isSieged && g.status === 'STATIONED' ? `<button class="btn btn-danger btn-sm" onclick="bastionSortie('${chatSafeId(b.id)}', '${chatSafeId(g.id)}')">${resIconHtml('attack')} Sortie</button>` : ''}<button class="btn btn-secondary btn-sm" onclick="recallBastionArmy('${chatSafeId(g.id)}')">Rappeler</button>` : ''}</div>`).join('')}</div>` : '<p class="empty-state">Aucune armée en garnison.</p>'}
-      ${b.isSieged ? `<p class="diplo-help">Pendant un siège, aucune troupe n'entre au Bastion. Chaque armée de la garnison peut faire une sortie contre le camp ennemi : elle se bat seule, hors des murs ; victorieuse, elle reste au Bastion, vaincue, elle rentre à la capitale. Les membres et les alliés peuvent aussi attaquer le camp de l'extérieur, même celui d'un rassemblement (« Briser le siège ») : chassé, il rentre et ne livre pas son assaut.</p>
+      ${b.isSieged ? `<p class="diplo-help">Pendant un siège, aucune troupe n'entre au Bastion. Chaque armée de la garnison peut faire une sortie contre le camp ennemi, hors des murs ; victorieuse, elle reste au Bastion, vaincue, elle rentre à la capitale (une armée rattachée à une colonie, à sa colonie). Les membres et les alliés peuvent aussi attaquer le camp de l'extérieur, même celui d'un rassemblement (« Briser le siège ») : chassé, il rentre et ne livre pas son assaut. Les sorties et les renforts qui atteignent le camp dans la même minute se battent ensemble : lancez-les en même temps.</p>
         <button class="btn btn-danger" onclick="openBastionSend('${chatSafeId(b.id)}', 'BREAK')">${resIconHtml('attack')} Briser le siège</button>`
         : b.garrison.length >= b.maxGarrisonArmies ? `<p class="diplo-help">${garrisonFullText(b.maxGarrisonArmies)}</p>`
         : `<button class="btn btn-primary" onclick="openBastionSend('${chatSafeId(b.id)}', 'GARRISON')">${resIconHtml('defense')} Envoyer en garnison</button>`}` : ''}`;
@@ -121,8 +134,8 @@ async function renderBastionMapPanel(tile, content) {
     <h3>${resIconHtml('defense')} ${escapeHtml(tile.name)}</h3>
     <p>Position : (${tile.x}, ${tile.y}) · ${typeof diploBadge === 'function' ? diploBadge(rel === 'SELF' ? 'SAME_ALLIANCE' : rel) : ''}</p>
     <p>${escapeHtml(tile.allianceName || '')} — ${bastionStatusLabel(tile.status)}</p>
-    ${lives !== null ? `<p>${resIconHtml('defense')} Vies : ${lives}${rules ? ` / ${rules.assaults}` : ''}${tile.isSieged ? ` · <span class="bastion-sieged">assiégé</span>` : ''}</p>` : '<p class="diplo-help">Un chantier sans murs ne peut pas être attaqué.</p>'}
-    ${!friendly && tile.status !== 'FUNDING' && rules ? `<p class="diplo-help">Il faut au moins un engin de siège. Camp d'1 h, puis assaut contre la garnison (${rules.maxGarrisonArmies} armées au plus) derrière un mur ${rules.wallMultiplier} fois plus solide qu'un mur ${rules.wallReferenceLevel}, que seuls les engins abîment ; ${rules.assaults} assauts gagnés le rasent. Un assaut, c'est un rassemblement de votre alliance ou une armée seule : chaque camp livre le sien.</p>` : ''}
+    ${lives !== null ? `<p>${resIconHtml('defense')} Vies : ${lives}${rules ? ` / ${rules.assaults}` : ''}${tile.isSieged ? ` · <span class="bastion-sieged">assiégé</span>` : ''}</p>${bastionRegenHtml(tile, rules)}` : '<p class="diplo-help">Un chantier sans murs ne peut pas être attaqué.</p>'}
+    ${!friendly && tile.status !== 'FUNDING' && rules ? `<p class="diplo-help">Il faut au moins un engin de siège. Camp d'1 h, puis assaut contre la garnison (${rules.maxGarrisonArmies} armées au plus) derrière un mur ${rules.wallMultiplier} fois plus solide qu'un mur ${rules.wallReferenceLevel}, que seuls les engins abîment ; ${rules.assaults} assauts gagnés le rasent ; ses vies ne reviennent qu'après ${rules.regenPauseHours ?? 24} h sans assaut gagné. Un assaut, c'est un rassemblement de votre alliance ou une armée seule : chaque camp livre le sien.</p>` : ''}
     <div class="panel-actions">${actions.join('')}${typeof mapShareButton === 'function' ? mapShareButton(tile.x, tile.y) : ''}</div>
     <div class="bastion-rallies"></div>`;
   if (!friendly && typeof bastionRalliesHtml === 'function') { const box = content.querySelector('.bastion-rallies'); bastionRalliesHtml(tile.id).then(h => { if (box) box.innerHTML = h; }); }
@@ -142,13 +155,17 @@ function openBastionSend(bastionId, mission) {
     return;
   }
   const cityName = (id) => (cities || []).find(c => c.id === id)?.name || '';
+  // ce qui peut partir : le stock de toutes ses villes (décision du 1er novembre 2026, E1 ; playerStock de GET /api/cities)
+  const total = mission === 'SUPPLY' && typeof playerStock === 'function' ? playerStock() : {};
+  const stockLine = BASTION_RES.some(([k]) => total[k] != null)
+    ? `<p class="diplo-help">Disponible dans toutes vos villes : ${BASTION_RES.map(([k]) => `${resIconHtml(k)} ${formatNum(Math.floor(total[k] || 0))}`).join(' · ')}</p>` : '';
   openSheetModal(title, `
     <label class="form-row">Armée <select id="bastion-army">${ready.map(a => `<option value="${chatSafeId(a.id)}" ${a.cityId === currentCity?.id ? 'selected' : ''}>${escapeHtml(a.name)}${a.status === 'STATIONED' ? ' — garnison du Bastion (sortie)' : cityName(a.cityId) ? ' — ' + escapeHtml(cityName(a.cityId)) : ''}</option>`).join('')}</select></label>
     ${mission === 'SUPPLY' ? `<div class="bastion-load">${BASTION_RES.map(([k, label]) => `<label class="form-row">${resIconHtml(k)} ${label} <input type="number" min="0" step="100" id="bastion-load-${k}" value="0"></label>`).join('')}</div>
-      <p class="diplo-help">Les ressources sont prises dans la ville de l'armée, dans la limite de sa capacité de transport. Le surplus revient.</p>` : ''}
+      ${stockLine}<p class="diplo-help">Les ressources sont prises dans la ville de l'armée d'abord, puis dans vos autres villes (la plus pleine d'abord), dans la limite de sa capacité de transport. Le surplus revient.</p>` : ''}
     ${mission === 'GARRISON' ? `<p class="diplo-help">L'armée défend le Bastion${rules ? ` (+${rules.bonuses.garrisonDefensePct} % de défense)` : ''} jusqu'à ce que vous la rappeliez. Son entretien reste à votre charge.${rules ? ` La garnison compte ${rules.maxGarrisonArmies} armées au plus, celles en route comprises.` : ''}</p>` : ''}
     ${mission === 'ATTACK' ? '<p class="diplo-help">Il faut au moins un engin de siège dans l\'armée. Elle livre son propre assaut, seule (pour attaquer à plusieurs, lancez un rassemblement). Toute l\'alliance du Bastion est prévenue.</p>' : ''}
-    ${mission === 'BREAK' ? '<p class="diplo-help">L\'armée attaque seule toutes les armées qui campent devant le Bastion, en terrain ouvert. Victorieuse, elle reste là d\'où elle a attaqué (dans le Bastion pour une sortie de la garnison, devant lui sinon) ; vaincue, elle rentre (à la capitale pour une sortie).</p>' : ''}
+    ${mission === 'BREAK' ? `<p class="diplo-help">L'armée attaque toutes les armées qui campent devant le Bastion, en terrain ouvert. Les armées de l'alliance du Bastion et de ses alliés qui atteignent le camp dans la même minute${rules?.breakGroupSeconds ? ` (${rules.breakGroupSeconds} s après la première)` : ''} se battent ensemble, sous les technologies et le héros de la première arrivée ; sinon, chacune se bat seule. Victorieuse, chaque armée reste là d'où elle a attaqué (dans le Bastion pour une sortie de la garnison, devant lui sinon) ; vaincue, elle rentre (à la capitale pour une sortie, à sa colonie pour une armée qui y est rattachée).</p>` : ''}
     <div class="profile-actions">
       <button class="btn ${mission === 'ATTACK' || mission === 'BREAK' ? 'btn-danger' : 'btn-primary'}" onclick="sendToBastion('${chatSafeId(bastionId)}', '${mission}')">Envoyer</button>
       <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>

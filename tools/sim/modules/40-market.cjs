@@ -23,6 +23,14 @@
 //   Celles de la Ville Merveille s'achètent dans 70-wonder.cjs, juste avant la livraison.
 // - Envoi à un allié qui manque (POST /api/trade/send, armée libre), jamais vers ses propres villes. Les livraisons à la
 //   Ville Merveille de l'alliance sont dans 70-wonder.cjs.
+// Stock commun (décision du 1er novembre 2026, simulation de 200 jours, E1) : l'armée part toujours de la capitale (Marché et
+// Comptoir y restent), mais ce qu'elle emporte (offre, contrepartie d'un échange accepté, envoi à un allié) se prend dans
+// toutes les villes du joueur, la capitale d'abord puis la plus pleine ; une offre rendue revient à la capitale puis aux
+// autres villes selon la place. Les joueurs automatiques jugent donc offres, échanges et envois sur le stock de toutes leurs
+// villes (../stock.cjs pool), plus sur celui de la capitale seule (dont le grenier, qui paie les troupes, est presque
+// toujours vide : 219 offres expirées sur 221 demandaient des céréales dans la simulation de 200 jours, aucun échange après
+// le jour 119). Compteurs : loadFromOthers (ce qui est parti des autres villes que la capitale), paidVolume (ce que
+// l'acheteur paie, en plus de ce qu'il reçoit).
 // Au plus CALLS appels par tour (lectures comprises) ; les conditions sont vérifiées avant chaque appel.
 'use strict';
 const path = require('path');
@@ -130,8 +138,9 @@ const PF_MAX = 1.25;                          // au-delà, le marchand du serveu
 // Comptoir et de la Chambre au Trésor de sa capitale, en donne l'ordre)
 const keepOf = (bot) => 1 - p2pTaxPctOf(bot.capital?.buildings || []) / 100;
 
-// ce que la ville publierait : une ressource en trop contre une qui manque, en tenant compte du marché (une paire déjà
-// proposée par d'autres a peu de chances ; une ressource que d'autres demandent trouvera preneur)
+// ce que le joueur publierait : une ressource en trop contre une qui manque, en tenant compte du marché (une paire déjà
+// proposée par d'autres a peu de chances ; une ressource que d'autres demandent trouvera preneur). `city` : le stock commun
+// de ses villes (Stock.pool : la caravane charge dans toutes, la capitale d'abord)
 // (de la nourriture ne part que si le bilan de tout le joueur est positif : l'entretien puise dans tous ses greniers)
 const foodOk = (bot) => (Stock.foodBalance(bot)?.net ?? -1) > 0;
 // le joueur manque vraiment de céréales : tous ses greniers réunis (stock commun) sont à moins de moitié pleins
@@ -170,7 +179,9 @@ function postPlan(S, city, cap, offers) {
   return { sellResource: ex, sellAmount: sell, buyResource: lack, buyAmount: buy };
 }
 
-// intérêt d'une offre pour la ville (null : elle ne convient pas). Un membre de son alliance est aidé même à petit gain.
+// intérêt d'une offre pour le joueur (null : elle ne convient pas), sur le stock commun de ses villes (`city` : Stock.pool ;
+// la contrepartie part de toutes ses villes, ce qu'il reçoit remplit sa capitale puis les autres). Un membre de son
+// alliance est aidé même à petit gain.
 function offerValue(city, o, ally, spareFood, keep) {
   const give = o.buyResource, get = o.sellResource;
   if ((city[give] || 0) - o.buyAmount < capOf(city, give) * 0.2 + 50) return null;  // garder une réserve
@@ -208,9 +219,10 @@ async function trade(S) {
         if (done) { bump(m, 'sold'); bump(m, 'soldVolume', done.sellAmount); m.pf = Math.max(1, m.pf - 0.05); m.miss = 0; }
         else {
           bump(m, 'expired'); m.pf = Math.min(PF_MAX, m.pf + 0.05); miss(S);
-          // rendue par le jeu dans un entrepôt déjà plein : le surplus est perdu (creditCity plafonne au stockage)
+          // rendue par le jeu avant ce tour (déjà dans les villes relues) : sa ville d'abord, puis les autres selon la place
+          // (stock commun) ; le surplus n'est perdu que si toutes ses villes sont pleines
           const c = bot.cities.find(x => x.id === t.c);
-          if (c && t.r && t.n && (c[t.r] || 0) >= capOf(c, t.r) * 0.98) bump(m, 'expiredIntoFullStore');
+          if (c && t.r && t.n && ratio(Stock.pool(bot, c), t.r) >= 0.98) bump(m, 'expiredIntoFullStore');
         }
       }
     }
@@ -218,39 +230,43 @@ async function trade(S) {
   // les offres d'avant une reprise : suivies aussi
   for (const o of mine) if (!m.off.some(t => t.i === o.id) && m.off.length < 6) m.off.push({ i: o.id, c: o.cityId, s: ctx.step, r: o.sellResource, n: o.sellAmount });
 
-  // 1. retirer une offre : sans preneur depuis longtemps, ou devenue absurde (la caravane redevient libre)
+  // 1. retirer une offre : sans preneur depuis longtemps, ou devenue absurde (la caravane redevient libre) ; jugée sur le
+  // stock commun (les marchandises rendues vont à la ville de l'offre, puis aux autres selon la place)
   const patient = hash(bot.name) % 3 === 0;   // ce joueur-là laisse ses offres expirer
   for (const o of mine) {
     if (B.left <= 1) break;
     const city = bot.cities.find(c => c.id === o.cityId);
+    const all = Stock.pool(bot, city || cap);
     const age = (now - Date.parse(o.createdAt)) / 3600000;
-    const absurd = city && (ratio(city, o.sellResource) < 0.2 || ratio(city, o.buyResource) > 0.8);
+    const absurd = city && (ratio(all, o.sellResource) < 0.2 || ratio(all, o.buyResource) > 0.8);
     if (!absurd && (patient || age < STALE_H)) continue;
-    // les marchandises rendues ne tiendraient pas dans l'entrepôt : on attend d'avoir dépensé
-    if (city && (city[o.sellResource] || 0) + o.sellAmount > capOf(city, o.sellResource)) { bump(m, 'cancelWaitRoom'); continue; }
+    // les marchandises rendues ne tiendraient dans aucune ville : on attend d'avoir dépensé
+    if (city && (all[o.sellResource] || 0) + o.sellAmount > capOf(all, o.sellResource)) { bump(m, 'cancelWaitRoom'); continue; }
     B.left--;
     const d = await bot.del(`/api/market/offer/${o.id}`);
     if (d.ok) {
       bump(m, absurd ? 'cancelChanged' : 'cancelStale');
       if (!absurd) { m.pf = Math.min(PF_MAX, m.pf + 0.05); miss(S); }
       m.off = m.off.filter(t => t.i !== o.id);
-      if (city) city[o.sellResource] = (city[o.sellResource] || 0) + o.sellAmount;
+      if (city) Stock.credit(bot, city, { [o.sellResource]: o.sellAmount });
       const car = o.armyId && bot.armies.find(a => a.id === o.armyId);
       if (car) { car.status = 'IDLE'; car.missionType = null; }
     } else bump(m, 'cancelRefused');
     break;   // une à la fois
   }
 
-  // 2. accepter une offre qui convient : une armée libre de la capitale porte la contrepartie (buyAmount)
+  // 2. accepter une offre qui convient : une armée libre de la capitale porte la contrepartie (buyAmount), prise dans le stock
+  // commun (la capitale d'abord)
   const others = offers.filter(o => o.sellerId !== bot.playerId);
   const allianceId = bot.me?.alliance?.allianceId;
   const allies = new Set(allianceId ? ctx.bots.filter(b => b !== bot && b.me?.alliance?.allianceId === allianceId).map(b => b.playerId) : []);
   const st = others.length && B.left > 2 ? await stateOf(S, cap) : null;
   if (st && tripArmies(bot, st.armies).length) {
     const keep = keepOf(bot);
+    const all = Stock.pool(bot, cap);
     const cands = [];
     for (const o of others) {
-      const v = offerValue(cap, o, allies.has(o.sellerId), foodOk(bot), keep);
+      const v = offerValue(all, o, allies.has(o.sellerId), foodOk(bot), keep);
       if (v === null) continue;
       cands.push({ o, score: v - (o.city ? dist(o.city, cap) / 2000 : 0) });
     }
@@ -269,8 +285,9 @@ async function trade(S) {
         bump(m, 'accepted'); if (army.name !== Armies.NAMES.caravan) bump(m, 'acceptBorrowedArmy');
         if (allies.has(best.o.sellerId)) bump(m, 'acceptAlly');
         bump(m, 'boughtVolume', best.o.sellAmount); bump(m, `bought_${best.o.sellResource}`);
+        bump(m, 'paidVolume', best.o.buyAmount);
         bump(m, 'deliveredToSeller', a.data?.toSeller || 0); bump(m, 'receivedFromSeller', a.data?.toBuyer || 0);
-        cap[best.o.buyResource] = (cap[best.o.buyResource] || 0) - best.o.buyAmount;
+        bump(m, 'loadFromOthers', Stock.spend(bot, cap, { [best.o.buyResource]: best.o.buyAmount }));
         if ((m.k.accepted || 0) === 1) ctx.event('market_first_trade', { bot: bot.name, give: `${best.o.buyAmount} ${best.o.buyResource}`, get: `${best.o.sellAmount} ${best.o.sellResource}`, seller: best.o.player?.name, ally: allies.has(best.o.sellerId), army: army.name, capacity: army.capacity, toBuyer: a.data?.toBuyer, toSeller: a.data?.toSeller, taxes: [a.data?.sellerTax, a.data?.buyerTax], arrivalAt: a.data?.arrivalAt, returnAt: a.data?.returnAt });
         break;   // un échange par tour
       }
@@ -280,21 +297,21 @@ async function trade(S) {
     }
   }
 
-  // 3. publier une offre : la caravane attend en ville avec les marchandises jusqu'à l'échange
+  // 3. publier une offre : la caravane attend en ville avec les marchandises jusqu'à l'échange (prises dans le stock commun)
   if (B.left <= 1 || mine.length >= M.maxActiveOffers || (m.nx.p || 0) > ctx.step || m.off.length) return;
   const car = caravanOf(bot);
   if (!car || !Armies.atHome(car, cap)) return;
   const st2 = await stateOf(S, cap);
   const free = st2 && pickArmy(bot, st2, MIN_TRADE, { offer: true });
   if (!free) { bump(m, 'offerNoCaravan'); return; }
-  const plan = postPlan(S, cap, free.capacity, offers);
+  const plan = postPlan(S, Stock.pool(bot, cap), free.capacity, offers);
   if (!plan) { bump(m, 'nothingToOffer'); return; }
   if (B.left <= 0) return;
   B.left--;
   const p = await bot.post('/api/market/offer', { ...plan, cityId: cap.id, armyId: free.id });
   if (p.ok && p.data?.offer) {
     m.off.push({ i: p.data.offer.id, c: cap.id, s: ctx.step, r: plan.sellResource, n: plan.sellAmount });
-    cap[plan.sellResource] -= plan.sellAmount;
+    bump(m, 'loadFromOthers', Stock.spend(bot, cap, { [plan.sellResource]: plan.sellAmount }));
     markUsed(st2, free.id);
     car.status = 'MARKET'; car.missionType = 'MARKET_OFFER';
     if (p.data.taxPct !== undefined) m.taxPct = p.data.taxPct;
@@ -339,8 +356,10 @@ async function npc(S, markets) {
 }
 
 // ---------- envoi à un allié (POST /api/trade/send, l'écran « Envoyer ») ----------
-// un membre de son alliance proche manque de ce que la capitale a en trop : une armée libre le lui porte, puis rentre.
-// Jamais vers ses propres villes (stock commun : le serveur le refuse).
+// un membre de son alliance proche manque de ce que le joueur a en trop : une armée libre de la capitale le lui porte, puis
+// rentre. Les deux stocks sont communs (décision du 1er novembre 2026, E1) : ce que le joueur a en trop dans toutes ses
+// villes, ce qui manque à toutes les villes de l'allié (la livraison remplit sa capitale, puis ses autres villes). Jamais
+// vers ses propres villes (le serveur le refuse).
 async function aid(S) {
   const { bot, ctx, B, m } = S;
   const cap = bot.capital;
@@ -348,16 +367,18 @@ async function aid(S) {
   if (!allianceId || B.left < 2 || (m.nx.a || 0) > ctx.step || cap.isSieged) return;
   m.nx.a = ctx.step + 8;   // tous les deux jours au plus
   const spareFood = foodOk(bot);
-  const rich = RES.filter(r => ratio(cap, r) >= 0.8 && (r !== 'food' || spareFood));
+  const all = Stock.pool(bot, cap);
+  const rich = RES.filter(r => ratio(all, r) >= 0.8 && (r !== 'food' || spareFood));
   if (!rich.length) return;
   let best = null;
   for (const b of ctx.bots) {
     const fc = b.capital;
     if (b === bot || b.me?.alliance?.allianceId !== allianceId || !fc || fc.isSieged || dist(fc, cap) > 100) continue;
+    const theirs = Stock.pool(b, fc);
     for (const r of rich) {
-      const need = ratio(fc, r);
-      if (need > 0.35 || ratio(cap, r) - need < 0.45) continue;
-      const amount = round10(Math.min((cap[r] || 0) - 0.6 * capOf(cap, r), 0.6 * capOf(fc, r) - (fc[r] || 0)));
+      const need = ratio(theirs, r);
+      if (need > 0.35 || ratio(all, r) - need < 0.45) continue;
+      const amount = round10(Math.min((all[r] || 0) - 0.6 * capOf(all, r), 0.6 * capOf(theirs, r) - (theirs[r] || 0)));
       if (amount >= 300 && (!best || need < best.need)) best = { b, r, amount, need };
     }
   }
@@ -370,7 +391,7 @@ async function aid(S) {
   const r = await bot.post('/api/trade/send', { fromCityId: cap.id, armyId: army.id, targetX: best.b.capital.x, targetY: best.b.capital.y, resources: { [best.r]: amount } });
   if (r.ok) {
     bump(m, 'aidSent'); bump(m, 'aidVolume', amount);
-    cap[best.r] -= amount;
+    bump(m, 'loadFromOthers', Stock.spend(bot, cap, { [best.r]: amount }));
     markUsed(st, army.id);
     const mine = bot.armies.find(x => x.id === army.id);
     if (mine) { mine.status = 'TRANSPORTING'; mine.missionType = 'TRANSPORT'; }

@@ -11,14 +11,18 @@
 //   Comptoir et du Poste du Désert de la capitale, × Bastion d'alliance.
 // - Taxe des échanges : config.market.p2pTaxPctBase de ce que chaque armée porte, −1 % par niveau du Comptoir de la
 //   capitale, −0,25 % par niveau de sa Chambre au Trésor.
-// - Une offre non prise revient au vendeur au bout de 48 h (marchandises dans la ville, armée libérée).
-// - Offres et envois partent du stock de la ville choisie (marché et transports restent propres à chaque ville).
+// - Une offre non prise revient au vendeur au bout de 48 h (marchandises rendues à son stock, armée libérée).
+// - Stock commun (décision du 1er novembre 2026, simulation de 200 jours) : l'armée part de la ville où elle se tient, mais
+//   ce qu'elle emporte (offre, échange accepté, envoi, livraison à la Ville Merveille) se prend dans toutes les villes du
+//   joueur, la ville de départ d'abord, puis la plus pleine (utils/db.js debitPlayer), sous le verrou de toutes ses villes
+//   (ordre des id ; pour un échange, les villes des deux joueurs en une seule passe). Une offre rendue et une livraison qui
+//   arrive vont à la ville visée d'abord, puis aux autres villes du joueur selon la place (creditPlayer).
 // ============================================================
 const prisma = require('../config/database');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
-const { debitCity, creditCity, lockCity, lockOffer, transition, buildingsWithCapital, RESOURCES, RES_FR } = require('../utils/db');
+const { lockOffer, lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, withDeadlockRetry, transition, buildingsWithCapital, RESOURCES, RES_FR } = require('../utils/db');
 const { routeLength } = require('../utils/pathfinding');
 const fx = require('../utils/buildingEffects');
 const T = require('../utils/techEffects');
@@ -99,43 +103,51 @@ async function dispatchArmy(tx, { army, fromStatus, from, to, load, missionType,
 }
 
 // ---- envoi de ressources à un autre joueur ----
-// Une armée libre de la ville de départ (celle demandée, sinon la plus petite qui suffit) porte les ressources. Dans la
-// transaction de l'appelant, qui a vérifié la ville d'arrivée, la diplomatie et le blocus.
-// { armyId, armyName, arrivalAt, returnAt, travelTime }, ou { error, status }
-async function sendResources(tx, { playerId, faction, fromCity, toCity, resources, armyId = null, now = new Date() }) {
+// Une armée libre de la ville de départ (celle demandée, sinon la plus petite qui suffit) porte les ressources, prises dans
+// le stock commun du joueur (la ville de départ d'abord). Dans la transaction de l'appelant, qui a vérifié la ville
+// d'arrivée, la diplomatie et le blocus ; `cities` : les villes du joueur qu'il a déjà verrouillées (lockPlayerCities),
+// sinon elles le sont ici. { armyId, armyName, arrivalAt, returnAt, travelTime }, ou { error, status }
+async function sendResources(tx, { playerId, faction, fromCity, toCity, resources, armyId = null, now = new Date(), cities = null }) {
   const load = loadOf(resources);
   if (totalOf(load) <= 0) return { error: 'Entrez des ressources à envoyer', status: 400 };
-  await lockCity(tx, fromCity.id);
+  const stock = cities || await lockPlayerCities(tx, playerId);
   const pick = await pickTransportArmy(tx, fromCity, playerId, faction, totalOf(load), armyId);
   if (pick.error) return { error: pick.error, status: 400 };
-  if (!(await debitCity(tx, fromCity.id, load))) return { error: 'Ressources insuffisantes', status: 400 };
+  const paid = await debitPlayer(tx, playerId, fromCity.id, load, stock);
+  if (!paid.ok) return { error: missingMessage(paid), status: 400 };
   const sent = await dispatchArmy(tx, { army: pick.army, fromStatus: 'IDLE', from: fromCity, to: toCity, load, missionType: 'TRANSPORT', faction, now });
   if (!sent) throw new Error('army busy');   // annule le débit
   return sent;
 }
 
 // ---- échanges entre joueurs ----
-// Offre : l'armée du vendeur attend en ville avec les marchandises (offerHours au plus). La ville est verrouillée par
-// l'appelant. { offer, armyId, armyName }, ou { error, status }
-async function createOffer(tx, { playerId, faction, city, sellResource, sellAmount, buyResource, buyAmount, armyId = null, now = new Date() }) {
+// Offre : l'armée du vendeur attend en ville avec les marchandises (offerHours au plus), prises dans son stock commun (la
+// ville de l'offre d'abord). `cities` : les villes du vendeur que l'appelant a verrouillées (sinon elles le sont ici).
+// { offer, armyId, armyName }, ou { error, status }
+async function createOffer(tx, { playerId, faction, city, sellResource, sellAmount, buyResource, buyAmount, armyId = null, now = new Date(), cities = null }) {
+  const stock = cities || await lockPlayerCities(tx, playerId);
   const pick = await pickTransportArmy(tx, city, playerId, faction, sellAmount, armyId);
   if (pick.error) return { error: pick.error, status: 400 };
-  if (!(await debitCity(tx, city.id, { [sellResource]: sellAmount }))) return { error: `Ressources insuffisantes (${RES_FR[sellResource]} : ${Math.floor(city[sellResource] || 0)})`, status: 400 };
+  const paid = await debitPlayer(tx, playerId, city.id, { [sellResource]: sellAmount }, stock);
+  if (!paid.ok) return { error: missingMessage(paid), status: 400 };
   if (!(await transition(tx, 'army', pick.army.id, 'IDLE', { status: 'MARKET', missionType: 'MARKET_OFFER' }))) throw new Error('army busy');   // annule le débit
   const offer = await tx.marketOffer.create({ data: { sellerId: playerId, cityId: city.id, sellResource, sellAmount, buyResource, buyAmount, status: 'ACTIVE', armyId: pick.army.id, expiresAt: new Date(now.getTime() + M.offerHours * 3600000) } });
   return { offer, armyId: pick.army.id, armyName: pick.army.name };
 }
 
 // Échange conclu : l'armée du vendeur part (taxe du vendeur déduite) vers la ville de l'acheteur, une armée de l'acheteur
-// (taxe de l'acheteur déduite) vers celle du vendeur. L'appelant a verrouillé l'offre (active) et les deux villes, vérifié
-// la diplomatie et le blocus. { toBuyer, toSeller, sellerTax, buyerTax, seller, buyer } (seller / buyer : retour de
-// dispatchArmy), ou { error, status }
-async function acceptOffer(tx, { offer, buyerId, buyerFaction, buyerCity, sellerCity, sellerFaction, armyId = null, now = new Date() }) {
+// (taxe de l'acheteur déduite) vers celle du vendeur, avec la contrepartie prise dans le stock commun de l'acheteur (sa
+// ville d'abord). L'appelant a verrouillé l'offre (active) et les villes des deux joueurs (lockCitiesOfPlayers, en une
+// seule passe : `buyerCities`, sinon celles de l'acheteur sont verrouillées ici), vérifié la diplomatie et le blocus.
+// { toBuyer, toSeller, sellerTax, buyerTax, seller, buyer } (seller / buyer : retour de dispatchArmy), ou { error, status }
+async function acceptOffer(tx, { offer, buyerId, buyerFaction, buyerCity, sellerCity, sellerFaction, armyId = null, now = new Date(), buyerCities = null }) {
   const sellerArmy = offer.armyId ? await tx.army.findFirst({ where: { id: offer.armyId, status: 'MARKET' }, include: ARMY_INCLUDE }) : null;
   if (!sellerArmy) return { error: 'L\'armée du vendeur n\'est plus disponible', status: 409 };
+  const stock = buyerCities || await lockPlayerCities(tx, buyerId);
   const pick = await pickTransportArmy(tx, buyerCity, buyerId, buyerFaction, offer.buyAmount, armyId);
   if (pick.error) return { error: pick.error, status: 400 };
-  if (!(await debitCity(tx, buyerCity.id, { [offer.buyResource]: offer.buyAmount }))) return { error: `Ressources insuffisantes (${RES_FR[offer.buyResource]})`, status: 400 };
+  const paid = await debitPlayer(tx, buyerId, buyerCity.id, { [offer.buyResource]: offer.buyAmount }, stock);
+  if (!paid.ok) return { error: missingMessage(paid), status: 400 };
   const done = await tx.marketOffer.updateMany({ where: { id: offer.id, status: 'ACTIVE' }, data: { status: 'COMPLETED', buyerId, buyerCityId: buyerCity.id, acceptedAt: now } });
   if (done.count !== 1) throw new Error('offer raced');
   const [sellerTax, buyerTax] = await Promise.all([p2pTaxPct(tx, sellerCity.id), p2pTaxPct(tx, buyerCity.id)]);
@@ -155,39 +167,48 @@ function roomFor(city, res) {
   const cap = res === 'food' ? city.maxFoodStorage : city.maxStorage;
   return Math.max(0, Math.floor((cap || 0) - (city[res] || 0)));
 }
+// Place libre de toutes les villes d'un joueur pour une ressource (lockPlayerCities) : une livraison qui arrive remplit la
+// ville visée, puis les autres (stock commun, décision du 1er novembre 2026, simulation de 200 jours)
+const playerRoomFor = (cities, res) => (cities || []).reduce((t, c) => t + roomFor(c, res), 0);
 
-// Une offre active se ferme (retirée, expirée, ville tombée) : ses marchandises reviennent à `refundCityId`, son armée est
-// libre. false si elle n'était plus active
-async function closeOffer(tx, offer, status, refundCityId = offer.cityId) {
+// Une offre active se ferme (retirée, expirée, ville tombée) : son armée est libre, ses marchandises reviennent au stock du
+// vendeur, la ville `refundCityId` d'abord, puis ses autres villes selon la place (creditPlayer, stock commun, décision du
+// 1er novembre 2026). `cities` : les villes du vendeur déjà verrouillées (sinon elles le sont ici). false si elle n'était
+// plus active, sinon { lost } : ce qui n'a tenu dans aucune ville
+async function closeOffer(tx, offer, status, refundCityId = offer.cityId, cities = null) {
   const ok = await tx.marketOffer.updateMany({ where: { id: offer.id, status: 'ACTIVE' }, data: { status, cityId: refundCityId || null } });
   if (ok.count !== 1) return false;
-  if (refundCityId) await creditCity(tx, refundCityId, { [offer.sellResource]: offer.sellAmount });
+  const refund = refundCityId ? await creditPlayer(tx, offer.sellerId, refundCityId, { [offer.sellResource]: offer.sellAmount }, cities) : null;
   if (offer.armyId) await tx.army.updateMany({ where: { id: offer.armyId, status: 'MARKET' }, data: { status: 'IDLE', missionType: null } });
-  return true;
+  return { lost: refund?.lost || {} };
 }
-// Offres d'une ville annulées (chute de la ville, capitale déplacée) : marchandises vers `refundCityId`, armées libérées
+// Offres d'une ville annulées (chute de la ville, capitale déplacée) : marchandises vers `refundCityId` puis les autres villes
+// du vendeur, armées libérées. Une ville qui tombe (`refundCityId` est une autre ville) ne reçoit rien.
 async function cancelOffersOfCity(tx, cityId, refundCityId) {
   const offers = await tx.marketOffer.findMany({ where: { cityId, status: 'ACTIVE' } });
-  for (const o of offers) await closeOffer(tx, o, 'CANCELLED', refundCityId);
+  for (const o of offers) {
+    const cities = refundCityId && refundCityId !== cityId ? (await lockPlayerCities(tx, o.sellerId)).filter(c => c.id !== cityId) : null;
+    await closeOffer(tx, o, 'CANCELLED', refundCityId, cities);
+  }
   return offers.length;
 }
 
-// Tick : offres de plus de 48 h rendues au vendeur. L'offre puis sa ville, dans le même ordre que l'acceptation et le
-// retrait (routes/market.js) : pas d'interblocage avec un acheteur au même moment
+// Tick : offres de plus de 48 h rendues au vendeur. L'offre puis les villes du vendeur (ordre des id), dans le même ordre
+// que l'acceptation et le retrait (routes/market.js) : pas d'interblocage avec un acheteur au même moment ; un interblocage
+// avec une grande requête du tick relance la transaction
 async function expireOffers(now = new Date()) {
   const due = await prisma.marketOffer.findMany({ where: { status: 'ACTIVE', expiresAt: { lte: now } }, take: 200 });
   for (const o of due) {
-    const done = await prisma.$transaction(async (tx) => {
+    const done = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       await lockOffer(tx, o.id);
-      if (o.cityId) await lockCity(tx, o.cityId);
-      return closeOffer(tx, o, 'EXPIRED');
-    });
-    if (done) notify(o.sellerId, 'market', '⏳ Offre expirée', `Personne n'a pris votre offre (${o.sellAmount} ${RES_FR[o.sellResource]} contre ${o.buyAmount} ${RES_FR[o.buyResource]}) : les marchandises sont revenues dans la ville et l'armée est libre.`, { to: 'city', cityId: o.cityId });
+      return closeOffer(tx, o, 'EXPIRED', o.cityId, await lockPlayerCities(tx, o.sellerId));
+    }));
+    if (done) notify(o.sellerId, 'market', '⏳ Offre expirée', `Personne n'a pris votre offre (${o.sellAmount} ${RES_FR[o.sellResource]} contre ${o.buyAmount} ${RES_FR[o.buyResource]}) : l'armée est libre, les marchandises sont revenues dans vos villes${lostNote(done.lost)}.`, { to: 'city', cityId: o.cityId });
   }
   return due.length;
 }
 
 module.exports = {
   OWN_CITIES_SHARE_STOCK, MARKET_BUSY, p2pTaxPctOf, p2pTaxPct, afterTax, transportMult, tradeCapacity, freeTransportArmies, pickTransportArmy, travelSeconds, dispatchArmy,
-  sendResources, createOffer, acceptOffer, roomFor, closeOffer, cancelOffersOfCity, expireOffers
+  sendResources, createOffer, acceptOffer, roomFor, playerRoomFor, closeOffer, cancelOffersOfCity, expireOffers
 };

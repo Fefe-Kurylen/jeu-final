@@ -16,7 +16,7 @@ const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBo
 const { resolveTribeCombat, resolveNodeHolderCombat, raidCooldownWhere, depositCarryTx } = require('../services/armyService');
 const { getRelation, outsideAlliance, allianceRowsOf } = require('../services/diplomacyService');
 const { footprintFree, cityAtCellWhere } = require('../utils/spawn');
-const { lockArmy, lockCity, debitCity, lockPlayerCities, debitPlayer, missingMessage, buildingsWithCapital, withDeadlockRetry, transition, isId, claimNode } = require('../utils/db');
+const { lockArmy, lockCity, lockPlayerCities, debitPlayer, missingMessage, buildingsWithCapital, withDeadlockRetry, transition, isId, claimNode } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { refreshSiegeFlag } = require('../game/processors/siegeProcessor');
@@ -154,10 +154,15 @@ async function transferUnits(tx, army, garrison, unitKey, newCount, currentInArm
   return delta;
 }
 
+// Armée rattachée à une colonie (décision du 1er novembre 2026, simulation de 200 jours, E2) : pas de garnison où prendre
+// ou poser des troupes ; elle se dissout vide, ou une fois revenue à la capitale
+const COLONY_NO_TROOPS = 'Une colonie n\'a pas de garnison : une armée rattachée à une colonie ne prend ni ne rend de troupes. Renvoyez-la à la capitale pour changer ses troupes.';
+const COLONY_DISBAND = 'Une colonie n\'a pas de garnison : une armée rattachée à une colonie se dissout vide, ou une fois revenue à la capitale (« Renvoyer à la capitale »).';
+
 // Both rows are locked through the city: every unit transfer of a city is serialized
-// Une colonie fondée depuis le 30 octobre 2026 n'a pas de garnison (pas de troupes propres, § 1 bis) : ses armées gardent
-// leurs troupes. `emptyOk` : une armée vide s'y passe de garnison (dissoudre une armée vide ne rend aucune troupe) ;
-// `garrison` vaut alors null.
+// Seule la capitale a une garnison (§ 1 bis) : une armée d'une colonie (ou de la Ville Merveille) garde ses troupes, même
+// dans une ancienne colonie qui aurait encore une garnison (E2). `emptyOk` : une armée vide s'y dissout (elle ne rend
+// aucune troupe) ; `garrison` vaut alors null.
 async function loadArmyAndGarrison(tx, armyId, playerId, { emptyOk = false } = {}) {
   const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { cityId: true } });
   if (!probe?.cityId) return { error: 'Armée non trouvée', status: 404 };
@@ -167,13 +172,63 @@ async function loadArmyAndGarrison(tx, armyId, playerId, { emptyOk = false } = {
   if (army.isGarrison) return { error: 'Impossible de modifier la garnison directement', status: 400 };
   if (army.status === 'MARKET') return { error: MARKET_BUSY, status: 400 };
   if (army.status !== 'IDLE' || !isHome(army, army.city)) return { error: 'Armée doit être en ville', status: 400 };
-  const garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
-  if (!garrison) {
-    if (army.city?.isCapital) return { error: 'Garnison introuvable', status: 404 };
-    if (!emptyOk || army.units.some(u => u.count > 0)) return { error: 'Une colonie n\'a pas de garnison : ses armées gardent leurs troupes, les nouvelles troupes arrivent dans la capitale', status: 400 };
+  if (army.city && !army.city.isCapital) {
+    if (!emptyOk || army.units.some(u => u.count > 0)) return { error: emptyOk ? COLONY_DISBAND : COLONY_NO_TROOPS, status: 400 };
+    return { army, garrison: null };
   }
+  const garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
+  if (!garrison) return { error: 'Garnison introuvable', status: 404 };
   return { army, garrison };
 }
+
+// ---- Armées rattachées aux colonies (décision du 1er novembre 2026, simulation de 200 jours, E2) ----
+// La ville d'une armée (Army.cityId) est la capitale ou une colonie. Une armée à l'arrêt dans une de ses colonies peut
+// lui être rattachée : elle prend un emplacement libre de la colonie (autant que la Place de rassemblement de la capitale
+// en permet, comme POST /create), la défend comme une garnison (attaques, raids, sièges : elle est parmi les armées de la
+// ville), y rentre après chaque mission, ne prend ni ne rend de troupes. « Renvoyer à la capitale » la ramène : elle
+// reprend dès le départ un emplacement libre de la capitale (sinon refus), pour que personne ne le prenne pendant la marche.
+const WONDER_NOT_COLONY = 'La Ville Merveille n\'est pas une colonie : ses défenseurs restent des armées de la capitale';
+// Ville non capitale de l'armée, pour le client (GET /api/army) : { id, name, isWonder } ou null
+const attachedColonyOf = (army) => (army?.city && !army.city.isCapital && !army.isGarrison ? { id: army.city.id, name: army.city.name, isWonder: !!army.city.isWonder } : null);
+// Premier emplacement d'armée libre (1 à `max`) parmi ceux déjà pris, null s'il n'y en a pas
+function firstFreeSlot(takenSlots, max) {
+  const taken = new Set(takenSlots);
+  for (let s = 1; s <= max; s++) if (!taken.has(s)) return s;
+  return null;
+}
+// Le nom par défaut suit l'emplacement (« Armée 2 » devient « Armée 4 »), un nom choisi reste
+const nameForSlot = (army, slot) => (army.name === `Armée ${army.slot}` ? `Armée ${slot}` : army.name);
+
+// Refus d'un rattachement (message) ou null. `army` : avec sa ville ; `colony` : la ville du joueur où elle se tient (null
+// si elle n'est dans aucune de ses villes)
+function attachRefusal(army, colony, { wonderCity = config.army.colonyArmies.wonderCity } = {}) {
+  if (!army) return 'Armée non trouvée';
+  if (army.isGarrison) return 'La garnison ne quitte pas sa ville';
+  if (army.status === 'MARKET') return MARKET_BUSY;
+  if (army.status !== 'IDLE' || army.claimedAt) return 'Armée déjà en mission : elle doit être à l\'arrêt dans la colonie';
+  if (!colony) return 'L\'armée doit se trouver dans une de vos colonies pour lui être rattachée';
+  if (colony.isCapital) return 'L\'armée est dans votre capitale : on ne rattache une armée qu\'à une colonie';
+  if (colony.isWonder && !wonderCity) return WONDER_NOT_COLONY;
+  if (army.cityId === colony.id) return `${army.name} est déjà rattachée à ${colony.name}`;
+  return null;
+}
+// Refus de « Renvoyer à la capitale » (message) ou null. `army` : avec sa ville et ses unités
+function detachRefusal(army) {
+  if (!army) return 'Armée non trouvée';
+  if (army.isGarrison) return 'La garnison ne quitte pas sa ville';
+  if (!army.city || army.city.isCapital) return 'Cette armée appartient déjà à la capitale';
+  if (army.status === 'MARKET') return MARKET_BUSY;
+  if (army.status !== 'IDLE' || army.claimedAt) return 'Armée déjà en mission';
+  if (!army.units.some(u => u.count > 0)) return army.heroId ? 'Le héros nécessite au moins 1 soldat pour rentrer à la capitale' : 'Armée vide : dissolvez-la dans la colonie';
+  return null;
+}
+// Verrouille des villes dans l'ordre des id (celui de lockPlayerCities) : pas d'interblocage entre deux rattachements croisés
+async function lockCitiesById(tx, ids) {
+  const list = [...new Set(ids.filter(Boolean))];
+  if (list.length) await tx.$queryRaw`SELECT id FROM "City" WHERE id = ANY(${list}) ORDER BY id FOR UPDATE`;
+}
+// Emplacements d'armée pris dans une ville (hors garnison)
+const takenSlotsOf = async (tx, cityId) => (await tx.army.findMany({ where: { cityId, isGarrison: false }, select: { slot: true } })).map(a => a.slot);
 
 // ========== ENDPOINTS ==========
 
@@ -411,6 +466,91 @@ router.delete('/:id/disband', auth, async (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
+// POST /api/army/:id/attach-colony — rattache à la colonie où elle se tient une armée à l'arrêt (E2) : elle prend le premier
+// emplacement libre de la colonie et libère celui de sa ville ; son héros la suit
+router.post('/:id/attach-colony', auth, async (req, res) => {
+  try {
+    if (!isId(req.params.id)) return res.status(400).json({ error: 'Armée invalide' });
+    const playerId = req.user.playerId;
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
+      const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: playerId }, select: { cityId: true, x: true, y: true, heroId: true } });
+      if (!probe) return { error: 'Armée non trouvée', status: 404 };
+      const spot = await tx.city.findFirst({ where: { playerId, x: probe.x, y: probe.y }, select: { id: true } });
+      // verrous : sa ville (celui des départs, de set-unit, de la dissolution) et la colonie (celui de la création d'armée),
+      // dans l'ordre des id ; puis le héros (ordre de lockHeroMove), puis l'armée
+      await lockCitiesById(tx, [probe.cityId, spot?.id]);
+      if (probe.heroId) await tx.$queryRaw`SELECT id FROM "Hero" WHERE "playerId" = ${playerId} FOR UPDATE`;
+      await lockArmy(tx, req.params.id);
+      const army = await tx.army.findFirst({ where: { id: req.params.id, ownerId: playerId }, include: { city: true } });
+      if (army && (army.cityId !== probe.cityId || army.x !== probe.x || army.y !== probe.y || army.heroId !== probe.heroId)) return { error: 'L\'armée a changé entre-temps, réessayez', status: 409 };
+      const colony = spot ? await tx.city.findUnique({ where: { id: spot.id }, include: { buildings: true } }) : null;
+      const refusal = attachRefusal(army, colony);
+      if (refusal) return { error: refusal, status: army ? 400 : 404 };
+      // autant d'emplacements que la Place de rassemblement de la capitale en permet (comme POST /create)
+      const max = fx.maxArmies(await buildingsWithCapital(tx, colony));
+      const slot = firstFreeSlot(await takenSlotsOf(tx, colony.id), max);
+      if (!slot) return { error: max ? `Plus d'emplacement d'armée libre à ${colony.name} (${max} au plus, comme la Place de rassemblement de la capitale) : renvoyez ou dissolvez une de ses armées` : 'Construisez une Place de rassemblement dans la capitale', status: 400 };
+      const name = nameForSlot(army, slot);
+      const moved = await tx.army.updateMany({ where: { id: army.id, status: 'IDLE', cityId: army.cityId, claimedAt: null }, data: { cityId: colony.id, slot, name } });
+      if (moved.count !== 1) return { error: 'Armée déjà en mission', status: 409 };
+      if (army.heroId) await tx.hero.update({ where: { id: army.heroId }, data: { cityId: colony.id } });   // le héros reste avec son armée
+      return { message: `${name} est rattachée à ${colony.name} : elle la défend et y rentre après chaque mission`, army: { id: army.id, cityId: colony.id, slot, name }, colony: { id: colony.id, name: colony.name }, fromCityId: army.cityId };
+    }, { timeout: 15000 }));
+    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    res.json(result);
+  } catch (e) { sendError(res, e); }
+});
+
+// POST /api/army/:id/detach-colony — « Renvoyer à la capitale » : une armée rattachée à une colonie, à l'arrêt, rentre à
+// la capitale (E2). Elle y reprend dès le départ le premier emplacement libre (refus s'il n'y en a pas), et marche vers
+// elle comme un retour (passage forcé si la capitale est assiégée à son arrivée)
+router.post('/:id/detach-colony', auth, async (req, res) => {
+  try {
+    if (!isId(req.params.id)) return res.status(400).json({ error: 'Armée invalide' });
+    const playerId = req.user.playerId;
+    const probe = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: playerId }, select: { cityId: true, x: true, y: true, heroId: true, owner: { select: { faction: true } } } });
+    if (!probe) return res.status(404).json({ error: 'Armée non trouvée' });
+    const capital = await prisma.city.findFirst({ where: { playerId, isCapital: true }, select: { id: true, x: true, y: true } });
+    if (!capital) return res.status(400).json({ error: 'Aucune capitale' });
+    if (probe.cityId === capital.id) return res.status(400).json({ error: 'Cette armée appartient déjà à la capitale' });   // avant de chercher une route
+    const atCapital = probe.x === capital.x && probe.y === capital.y;
+    const len = atCapital ? 0 : await routeLength(probe.x, probe.y, capital.x, capital.y, probe.owner?.faction);   // A* hors transaction (NO_ROUTE)
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
+      // verrous : sa colonie et la capitale (celui de la création d'armée), dans l'ordre des id ; le héros ; l'armée
+      await lockCitiesById(tx, [probe.cityId, capital.id]);
+      if (probe.heroId) await tx.$queryRaw`SELECT id FROM "Hero" WHERE "playerId" = ${playerId} FOR UPDATE`;
+      await lockArmy(tx, req.params.id);
+      const army = await loadArmy(req.params.id, playerId, {}, tx);
+      if (army && (army.cityId !== probe.cityId || army.x !== probe.x || army.y !== probe.y || army.heroId !== probe.heroId)) return { error: 'L\'armée a changé entre-temps, réessayez', status: 409 };
+      const refusal = detachRefusal(army);
+      if (refusal) return { error: refusal, status: army ? 400 : 404 };
+      { const camp = await campBlocksExit(army, tx); if (camp) return { error: camp, status: 400 }; }   // colonie assiégée : on ne sort que contre le camp
+      const cap = await tx.city.findUnique({ where: { id: capital.id }, include: { buildings: true } });
+      if (!cap || cap.playerId !== playerId || !cap.isCapital || cap.x !== capital.x || cap.y !== capital.y) return { error: 'La capitale a changé entre-temps, réessayez', status: 409 };
+      const max = fx.maxArmies(cap.buildings);
+      const slot = firstFreeSlot(await takenSlotsOf(tx, cap.id), max);
+      if (!slot) return { error: `Aucun emplacement d'armée libre dans la capitale (${max} au plus avec sa Place de rassemblement) : libérez-en un avant de la renvoyer`, status: 400 };
+      const name = nameForSlot(army, slot);
+      const now = new Date();
+      const travelTime = atCapital ? 0 : getArmyTravelTime(army.units, army.x, army.y, cap.x, cap.y, army.owner?.faction, army.hero, len, speedTechPct(army));
+      const march = atCapital
+        ? { status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, departedAt: null, missionType: null }
+        : { status: 'RETURNING', missionType: 'RETURN', targetX: cap.x, targetY: cap.y, arrivalAt: new Date(now.getTime() + travelTime * 1000), departedAt: now };
+      const moved = await tx.army.updateMany({ where: { id: army.id, status: 'IDLE', cityId: army.cityId, claimedAt: null }, data: { cityId: cap.id, slot, name, targetCityId: null, targetBastionId: null, rallyId: null, ...march } });
+      if (moved.count !== 1) return { error: 'Armée déjà en mission', status: 409 };
+      if (atCapital) await depositCarryTx(tx, army.id, cap.id);   // déjà sur place : chez elle aussitôt
+      if (army.heroId) await tx.hero.update({ where: { id: army.heroId }, data: { cityId: cap.id } });
+      const minutes = Math.max(1, Math.round(travelTime / 60));
+      return {
+        message: atCapital ? `${name} appartient de nouveau à la capitale (emplacement ${slot})` : `${name} rentre à la capitale (arrivée dans ${minutes} min) : l'emplacement ${slot} l'y attend`,
+        travelTime, arrivalAt: march.arrivalAt, army: { id: army.id, cityId: cap.id, slot, name }, fromCityId: army.cityId
+      };
+    }, { timeout: 15000 }));
+    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    res.json(result);
+  } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
+});
+
 // Une ville couvre 2 × 2 cases : un déplacement vers l'une d'elles va à sa case principale (celle de la ville), sinon
 // l'armée resterait « à côté de chez elle » (ni rentrée, ni défenseur, ni rencontrée en campagne)
 async function cityAnchorOf(x, y) {
@@ -588,6 +728,8 @@ router.post('/:id/found-city', auth, async (req, res) => {
         // Ville Merveille (décision du 28 octobre 2026) : dans une alliance, une par joueur, hors du compte des colonies
         if (!(await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } }))) return { error: 'Une Ville Merveille se fonde pour une alliance : rejoignez-en une', status: 400 };
         if (await tx.city.count({ where: { playerId: req.user.playerId, isWonder: true } })) return { error: 'Vous avez déjà une Ville Merveille', status: 400 };
+        // site libéré : réservé 6 h à l'alliance qui a battu les Immortels (décision du 1er novembre 2026, simulation de 200 jours)
+        { const closed = await require('../services/wonderService').siteClosedFor(tx, node, req.user.playerId); if (closed) return { error: closed, status: 400, reserved: true }; }
       } else {
         const colonies = await tx.city.count({ where: { playerId: req.user.playerId, isCapital: false, isWonder: false } });
         if (colonies >= slots) return { error: slots ? `Limite atteinte : ${slots} ville(s) secondaire(s) avec cette Résidence` : 'Résidence niveau 10 requise', status: 400 };
@@ -750,10 +892,13 @@ router.post('/:id/transport', auth, async (req, res) => {
     // stock commun entre ses villes (décision du 31 octobre 2026) : rien à transporter entre elles, sauf vers une Ville Merveille
     if (targetCity.playerId === req.user.playerId && !targetCity.isWonder) return res.status(400).json({ error: OWN_CITIES_SHARE_STOCK });
 
-    const result = await prisma.$transaction(async (tx) => {
+    // stock commun (décision du 1er novembre 2026, simulation de 200 jours, E1) : la charge se prend dans la ville de départ
+    // d'abord, puis dans la plus pleine, sous le verrou de toutes les villes du joueur (qui couvre celui de la ville de
+    // l'armée, pris par set-unit et les départs) ; rejoué après un interblocage rare avec le tick
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { cityId: true } });
       if (!probe?.cityId) return { error: 'Armée non trouvée', status: 404 };
-      await lockCity(tx, probe.cityId);
+      const cities = await lockPlayerCities(tx, req.user.playerId);
       const army = await loadArmy(req.params.id, req.user.playerId, {}, tx);
       const err = readyToLeave(army, 'transporter');
       if (err) return { error: err.error, status: err.status };
@@ -766,12 +911,14 @@ router.post('/:id/transport', auth, async (req, res) => {
       if (config.market.requireBuilding && fx.levelOf(cityBuildings, 'MARKET') < 1) return { error: 'Construisez un Marché dans la capitale (niveau 1 minimum) pour envoyer des ressources', status: 400 };
       const carryCapacity = transportCapacity(army, cityBuildings);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
-      if (!(await debitCity(tx, army.city.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
+      if (army.city.id === targetCity.id) return { error: 'L\'armée est déjà dans cette ville', status: 400 };   // une armée de la Ville Merveille ne livre pas sur place
+      const paid = await debitPlayer(tx, req.user.playerId, army.city.id, { wood, stone, iron, food }, cities);
+      if (!paid.ok) return { error: missingMessage(paid), status: 400, missing: paid.missing };
       const travelTime = await travelTo(army, targetCity.x, targetCity.y);
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       if (!(await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food }))) throw new Error('army busy');
       return { message: `Transport lancé vers ${targetCity.name}`, travelTime, arrivalAt, resources: { wood, stone, iron, food } };
-    });
+    }, { timeout: 15000 }));
 
     if (result.error) return res.status(result.status || 400).json(result);
     require('../services/questService').bumpLater(req.user.playerId, 'trade_sent', 1);   // quêtes
@@ -818,15 +965,16 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true, city: true, hero: HERO_EQUIPPED } });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
-    res.json({ ...army, power: calculateArmyPower(army.units, unitsData) });
+    res.json({ ...army, power: calculateArmyPower(army.units, unitsData), attachedColony: attachedColonyOf(army) });
   } catch (e) { sendError(res, e); }
 });
 
-// GET /api/armies
+// GET /api/armies — chaque armée dit à quelle colonie elle est rattachée (attachedColony : { id, name, isWonder } ou
+// null pour une armée de la capitale, E2)
 router.get('/', auth, async (req, res) => {
   try {
     const armies = await prisma.army.findMany({ where: { ownerId: req.user.playerId }, include: { units: true, city: true, hero: HERO_EQUIPPED } });
-    res.json(armies.map(a => ({ ...a, power: calculateArmyPower(a.units, unitsData) })));
+    res.json(armies.map(a => ({ ...a, power: calculateArmyPower(a.units, unitsData), attachedColony: attachedColonyOf(a) })));
   } catch (e) { sendError(res, e); }
 });
 
@@ -836,3 +984,5 @@ module.exports.speedTechPct = speedTechPct;
 module.exports.transportCapacity = transportCapacity;
 module.exports.checkHostileTarget = checkHostileTarget;   // refus d'une attaque ou d'un raid (colonie neuve protégée), pour les tests
 module.exports.readyToLeave = readyToLeave;   // contrôles avant tout départ (armée réservée au marché), pour les tests
+// armées rattachées aux colonies (E2), pour les tests
+Object.assign(module.exports, { attachRefusal, detachRefusal, attachedColonyOf, firstFreeSlot, nameForSlot });

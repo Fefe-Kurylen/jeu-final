@@ -98,7 +98,8 @@ async function launch(playerId, { armyId, nodeId, bastionId, waitMinutes }) {
   const launchAt = new Date(Date.now() + wait * 60000);
   const rally = await prisma.$transaction(async (tx) => {
     const r = await tx.rally.create({ data: { allianceId: member.allianceId, leaderId: playerId, cityId: army.cityId, targetNodeId: target.nodeId || null, targetBastionId: target.bastionId || null, targetKind: target.kind, targetX: target.x, targetY: target.y, waitMinutes: wait, capacity, launchAt } });
-    const ok = await tx.army.updateMany({ where: { id: army.id, status: 'IDLE' }, data: { status: 'RALLY_WAIT', rallyId: r.id, missionType: 'RALLY', targetX: army.city.x, targetY: army.city.y, arrivalAt: null } });
+    // cityId relu : une armée rattachée à une colonie entre-temps (E2) ne part pas d'une ville périmée
+    const ok = await tx.army.updateMany({ where: { id: army.id, status: 'IDLE', cityId: army.cityId }, data: { status: 'RALLY_WAIT', rallyId: r.id, missionType: 'RALLY', targetX: army.city.x, targetY: army.city.y, arrivalAt: null } });
     if (ok.count !== 1) throw err(409, 'Armée déjà en mission');
     return r;
   }, TX);
@@ -135,7 +136,7 @@ async function join(playerId, rallyId, armyId) {
     const inside = await tx.army.findMany({ where: { rallyId: rally.id, status: { in: ['RALLY_JOIN', 'RALLY_WAIT'] } }, select: { ownerId: true } });
     if (inside.some(a => a.ownerId === playerId)) throw err(400, 'Vous avez déjà une armée dans ce rassemblement');
     if (inside.length >= rally.capacity) throw err(400, fullMessage(rally.capacity));
-    return tx.army.updateMany({ where: { id: army.id, status: 'IDLE' }, data });
+    return tx.army.updateMany({ where: { id: army.id, status: 'IDLE', cityId: army.cityId }, data });
   }, TX);
   if (ok.count !== 1) throw err(409, 'Armée déjà en mission');
   return { message: seconds ? `Armée en route vers le rassemblement (${Math.ceil(seconds / 60)} min)` : 'Armée dans le rassemblement', arrivalAt };

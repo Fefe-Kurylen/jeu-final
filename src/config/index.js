@@ -60,8 +60,9 @@ const config = {
 
   // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
   // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
-  // plus dur (mur bouclier 3 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un. Un assaut = un
-  // rassemblement ou une armée seule ; garnison de 10 armées au plus (décision du 31 octobre 2026, rapport de vérification)
+  // plus dur (mur bouclier 3 fois un mur 20, 10 vies qui remontent en 72 h après 24 h sans assaut gagné) ; 7 jours avant
+  // d'en rebâtir un. Un assaut = un rassemblement ou une armée seule ; garnison de 10 armées au plus (décision du
+  // 31 octobre 2026, rapport de vérification)
   // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 2 000 joueurs (31 octobre 2026) ; fin par
   // une Merveille façon Travian gardée par les Immortels
   // Invasions barbares (décision du 29 octobre 2026) : chaque week-end, du vendredi 18 h au dimanche 23 h (Paris), des
@@ -97,8 +98,13 @@ const config = {
     // (étages ×1 / ×2 / ×4). Moins de minPlayers joueurs mesurés : formule de l'âge du monde ci-dessus. Le trésor garde l'âge du monde.
     // Vérifié pour une alliance de 15 à 20 joueurs (décision du 31 octobre 2026, rapport de vérification ; vrai moteur, armées
     // de la simulation au jour 175, +15 % de recherches et de Forge) : chef du niveau 1 battu par 2 joueurs, du niveau 4 par
-    // 11, du niveau 5 par 19 (20 joueurs y suffisent 97 fois sur 100, un rassemblement plein d'une alliance de 20) : inchangé
-    powerRef: { activeDays: 7, minPlayers: 5, outpostPctOfMedian: 50, minOutpost: 3000, levelFactor: 1.8 }
+    // 11, du niveau 5 par 19 (20 joueurs y suffisent 97 fois sur 100, un rassemblement plein d'une alliance de 20).
+    // outpostPctOfMedian 42 (décision du 1er novembre 2026 (simulation de 200 jours), E5 ; 50 avant) : un joueur n'envoie
+    // qu'une armée, celle de sa capitale (84 % de toute son armée en fin de simulation). La médiane se mesure sur les
+    // soldats, sans les engins de siège (598 883 au jour 200, 628 390 avec eux). Vrai moteur, armées de la capitale de la
+    // simulation de 200 jours, 600 tirages : chef du niveau 1 battu par 2 joueurs, du niveau 4 par 10, du niveau 5 par 18
+    // (avec 50 % et les engins dans la médiane : 3 / 13 / 22)
+    powerRef: { activeDays: 7, minPlayers: 5, outpostPctOfMedian: 42, minOutpost: 3000, levelFactor: 1.8 }
   },
 
   world: {
@@ -136,7 +142,11 @@ const config = {
     immortalSitePower: 3000000,
     immortalPlanPower: 5750000,
     immortalWaveBase: 14000,
-    immortalWaveExp: 1.35
+    immortalWaveExp: 1.35,
+    // Site de Merveille libéré : réservé 6 h à l'alliance qui a battu les Immortels, seule à pouvoir y fonder sa Ville
+    // Merveille ; ensuite n'importe quelle alliance jusqu'au retour des Immortels (24 h) (décision du 1er novembre 2026
+    // (simulation de 200 jours), E6 : une alliance rivale fondait 3 min après la victoire d'une autre)
+    wonderSiteReserveHours: 6
   },
 
   // Héros (décision du 27 octobre 2026) : résurrection au Domus payée selon le niveau du héros
@@ -164,9 +174,18 @@ const config = {
     wallMultiplier: 3,
     maxGarrisonArmies: 10,
     sortieSeconds: 30,                          // sortie d'une armée de la garnison contre le camp ennemi : combat 30 s après (décision du 29 octobre 2026)
+    // Briser le siège ensemble (décision du 1er novembre 2026 (simulation de 200 jours), E4) : les armées du côté du
+    // Bastion (son alliance et ses alliés, sorties de la garnison comprises) qui atteignent le camp dans la même minute
+    // (60 s après la première) se battent ensemble. Mesure (vrai moteur, 120 tirages) : autant d'armées groupées que le camp
+    // en compte gagnent 1 fois sur 3, deux de plus presque toujours ; une armée seule ne chassait jamais un camp de 3
+    breakGroupSeconds: 60,
     wallReferenceLevel: 20,
     assaults: 10,
     regenHours: 72,
+    // Une vie ne revient qu'après 24 h sans assaut gagné, puis une toutes les 7,2 h (regenHours / assaults) ; chaque assaut
+    // gagné relance la pause (décision du 1er novembre 2026 (simulation de 200 jours), E3 : avant, la remontée ne s'arrêtait
+    // jamais et il fallait 10 assauts gagnés à moins de 7,2 h l'un de l'autre pour raser un Bastion)
+    regenPauseHours: 24,
     maxDistanceFromMember: 40,
     bonuses: { productionPct: 10, armySpeedPct: 5, carryPct: 10, garrisonDefensePct: 10 }
   },
@@ -427,7 +446,12 @@ const config = {
     upkeepPerTier: { base: 5, intermediate: 9, elite: 13, siege: 15 },
     starvationIntervalHours: 1,    // famine façon Travian (décision du 28 octobre 2026) : vérifiée une fois par heure
     famineAlertHours: 12,          // alerte quand les greniers du joueur seront vides dans moins de 12 h (décision du 30 octobre 2026), une fois par 12 h au plus
-    siegeUpkeepPct: { attacker: 10, defender: -10 }   // GDD economy_config.upkeep.siegeModifiersPct
+    siegeUpkeepPct: { attacker: 10, defender: -10 },   // GDD economy_config.upkeep.siegeModifiersPct
+    // Armées rattachées aux colonies (décision du 1er novembre 2026 (simulation de 200 jours), E2) : une armée à l'arrêt
+    // dans une de ses colonies y prend un emplacement libre (autant que la Place de rassemblement de la capitale en
+    // permet), la défend comme une garnison et y rentre ; la Ville Merveille n'est pas une colonie : on n'y rattache pas
+    // d'armée (wonderCity: false), ses défenseurs restent des armées de la capitale
+    colonyArmies: { wonderCity: false }
   },
 
   // Wounded

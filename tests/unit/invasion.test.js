@@ -189,7 +189,8 @@ test('donjons : étages × 1 / 2 / 4 et × levelFactor par niveau sur la puissan
   assert.equal(H.floorPower(1, 1, 6, bp), bp);
   assert.equal(H.floorPower(1, 3, 1, bp), 4 * bp);   // chef du niveau 1 : 2 joueurs médians avec 50 %
   assert.equal(H.floorPower(5, 3, 6, bp), Math.round(4 * bp * Math.pow(P.levelFactor, 4)));
-  assert.ok(Math.abs(H.floorPower(5, 3, 1, bp) / (bp * 100 / P.outpostPctOfMedian) - 21) < 0.1, 'chef du niveau 5 ≈ 21 joueurs médians');
+  // 42 % de la médiane (décision du 1er novembre 2026, simulation de 200 jours, E5 ; 50 % avant : 21)
+  assert.ok(Math.abs(H.floorPower(5, 3, 1, bp) / (bp * 100 / P.outpostPctOfMedian) - 17.6) < 0.1, 'chef du niveau 5 ≈ 17,6 joueurs médians');
   // sans mesure (invasions d'avant, trop peu de joueurs) : la formule de l'âge du monde
   assert.equal(H.floorPower(5, 1, 2), H.floorPower(5, 1, 2, null));
   const f = H.floorsFor(2, 1, bp);
@@ -198,7 +199,8 @@ test('donjons : étages × 1 / 2 / 4 et × levelFactor par niveau sur la puissan
 
 test('donjons : puissance des joueurs actifs lue en une requête (toutes leurs unités), notée sur l\'invasion', async () => {
   const rows = [];
-  for (let i = 1; i <= 6; i++) rows.push({ playerId: `p${i}`, unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 100 * i }, { playerId: `p${i}`, unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 10 });
+  // des engins de siège aussi : ils ne comptent pas (décision du 1er novembre 2026, simulation de 200 jours, E5)
+  for (let i = 1; i <= 6; i++) rows.push({ playerId: `p${i}`, unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 100 * i }, { playerId: `p${i}`, unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 10 }, { playerId: `p${i}`, unitKey: 'ROM_SIEGE_CATAPULTE', tier: 'siege', count: 65 * i });
   let since = null;
   const db = { $queryRaw: async (sql, s) => { since = s; return rows; } };
   const now = new Date('2026-11-06T18:00:00Z');
@@ -266,11 +268,13 @@ test('trésor : les villes d\'un joueur sont verrouillées avant sa ligne (même
   assert.deepEqual(calls, ['lock a', 'pay a', 'lock b', 'pay b']);
 });
 
-test('donjons pour une alliance de 15 à 20 joueurs (décision du 31 octobre 2026) : chef du niveau 1 ≈ 2 joueurs médians, du niveau 4 ≈ 10, du niveau 5 ≈ 20', () => {
-  // mesuré avec le vrai moteur et les armées de la simulation (verif2/endgame.cjs) : 2, 11 et 19 joueurs ; ici, la même
-  // règle sur des joueurs tous médians, avec +15 % (recherches 20 : +5 %, Forge 20 : +10 %)
+test('donjons pour une alliance de 15 à 20 joueurs, une armée par joueur, celle de la capitale (décision du 1er novembre 2026, E5) : chef du niveau 1 ≈ 2 joueurs, du niveau 4 ≈ 10, du niveau 5 ≈ 18', () => {
+  // mesuré avec le vrai moteur et les armées de la capitale de la simulation de 200 jours (42 % de la médiane des soldats) :
+  // 2, 10 et 18 joueurs ; ici, la même règle sur des joueurs tous médians dont l'armée de la capitale porte 84 % des soldats
+  // (comme en fin de simulation), avec +15 % (recherches 20 : +5 %, Forge 20 : +10 %)
+  assert.equal(P.outpostPctOfMedian, 42);
   const median = 100000, bp = H.outpostPower(Array(P.minPlayers).fill(median));
-  const players = (level) => H.floorPower(level, 3, 1, bp) / (median * 1.15);
+  const players = (level) => H.floorPower(level, 3, 1, bp) / (median * 0.84 * 1.15);
   assert.ok(players(1) > 1 && players(1) <= 2, String(players(1)));
   assert.ok(players(4) > 9 && players(4) <= 11, String(players(4)));
   assert.ok(players(5) > 17 && players(5) <= 20, String(players(5)));

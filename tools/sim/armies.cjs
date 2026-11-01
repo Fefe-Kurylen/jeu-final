@@ -1,13 +1,16 @@
 // Simulation longue — les armées de campagne d'un joueur et les emplacements de la Place de rassemblement.
 // Chaque module nomme ses armées ; la Place de la capitale donne autant d'emplacements à chaque ville (fx.maxArmies), et
-// une armée postée ailleurs (garde d'une colonie, garnison du Bastion, renfort de la Ville Merveille) garde l'emplacement
-// de sa ville. Les emplacements de la capitale se partagent par ordre de priorité : une armée d'un rôle ne se forme que s'il
-// reste une place une fois servis les rôles d'avant qui manquent encore.
+// une armée postée ailleurs (garnison du Bastion, renfort de la Ville Merveille) garde l'emplacement de sa ville. La garde
+// d'une colonie s'y rattache une fois arrivée (décision du 1er novembre 2026, E2 : POST /api/army/:id/attach-colony) : elle
+// passe sur un emplacement de la colonie (sa ville devient la colonie) et rend celui de la capitale ; fieldArmies(bot, cap)
+// ne la compte plus. Les emplacements de la capitale se partagent par ordre de priorité : une armée d'un rôle ne se forme
+// que s'il reste une place une fois servis les rôles d'avant qui manquent encore.
 //   field  : armée de campagne du module militaire (récolte, tribus, expéditions du héros ; une seconde pendant une fondation,
 //            ou sur une place qu'aucun autre rôle n'attend ; hors fondation, cette seconde armée rend sa place dès qu'un autre
 //            rôle attend : waitingRoles, 30-military.cjs tidy)
 //   guard  : garde de chaque colonie (décision du 31 octobre 2026, rapport de vérification : une armée postée dans chaque
-//            colonie, les colonies n'ont pas de garnison)
+//            colonie, les colonies n'ont pas de garnison) ; formée dans la capitale, elle n'y garde sa place que le temps
+//            d'aller se rattacher à sa colonie (ou de revenir s'y regarnir)
 //   convoy : convoi du Bastion, puis sa garnison (20-alliance.cjs)
 //   ost    : armée des guerriers et des pillards (50-war.cjs)
 //   wonder : garde de la Ville Merveille de l'alliance (70-wonder.cjs)
@@ -50,6 +53,8 @@ function guardsMissing(bot) {
   const g = bot.mem?.mil?.guard || {};
   return colonies(bot).filter(c => !(bot.armies || []).some(a => a.id === g[c.id])).length;
 }
+// armées rattachées aux colonies du joueur (E2 : leur ville est la colonie), hors garnison
+const attachedArmies = (bot) => { const ids = new Set(colonies(bot).map(c => c.id)); return (bot.armies || []).filter(a => !a.isGarrison && ids.has(a.cityId)); };
 
 // armées encore à former pour chaque rôle (dans la capitale)
 function missing(bot, role) {
@@ -96,4 +101,4 @@ function freeSlot(bot, role, city = bot.capital) {
   return null;
 }
 
-module.exports = { NAMES, ORDER, atHome, founding, militaryNeed, guardsMissing, missing, freeSlot, mustYield, freePlaces, waitingRoles, named, fieldArmies, colonies };
+module.exports = { NAMES, ORDER, atHome, founding, militaryNeed, guardsMissing, attachedArmies, missing, freeSlot, mustYield, freePlaces, waitingRoles, named, fieldArmies, colonies };

@@ -25,13 +25,41 @@ test('mur bouclier : 3 fois un mur de niveau 20 (décision du 31 octobre 2026, 1
   assert.equal(config.bastion.maxGarrisonArmies, 10);
 });
 
-test('vies : elles remontent de 0 à 10 en 72 h, jamais au-delà', () => {
+// E3 (décision du 1er novembre 2026, simulation de 200 jours) : aucune vie ne revient pendant 24 h après un assaut gagné
+const H = 3600000;
+test('vies : rien ne remonte pendant 24 h après la dernière vie perdue, puis de 0 à 10 en 72 h, jamais au-delà (E3)', () => {
+  assert.equal(config.bastion.regenPauseHours, 24);
+  assert.equal(config.bastion.regenHours, 72);
   const at = new Date('2026-10-26T00:00:00Z');
   const b = { structure: 0.5, structureAt: at };
   assert.equal(bastion.structureNow(b, at.getTime()), 0.5);
-  assert.ok(Math.abs(bastion.structureNow(b, at.getTime() + 36 * 3600000) - 1) < 1e-9);   // 36 h = la moitié de 72 h
-  assert.equal(bastion.structureNow(b, at.getTime() + 100 * 3600000), 1);
-  assert.ok(Math.abs(bastion.structureNow({ structure: 0, structureAt: at }, at.getTime() + 7.2 * 3600000) - 0.1) < 1e-9);   // une vie en 7,2 h
+  assert.equal(bastion.structureNow(b, at.getTime() + 23.9 * H), 0.5, 'pendant la pause, rien ne revient');
+  assert.equal(bastion.structureNow(b, at.getTime() + 24 * H), 0.5);
+  assert.ok(Math.abs(bastion.structureNow(b, at.getTime() + (24 + 36) * H) - 1) < 1e-9);   // 36 h = la moitié de 72 h
+  assert.equal(bastion.structureNow(b, at.getTime() + 200 * H), 1);
+  assert.ok(Math.abs(bastion.structureNow({ structure: 0, structureAt: at }, at.getTime() + (24 + 7.2) * H) - 0.1) < 1e-9);   // une vie en 7,2 h après la pause
+  assert.equal(bastion.structureNow({ structure: 1, structureAt: at }, at.getTime()), 1, 'toutes les vies là');
+});
+
+test('vies : fin de la pause et prochaine vie pour le panneau et la carte (E3)', () => {
+  const at = new Date('2026-11-01T00:00:00Z').getTime();
+  const b = { status: 'ACTIVE', structure: 0.7, structureAt: new Date(at) };   // 7 vies, la 3e perdue à `at`
+  let v = bastion.regenView(b, at + 1 * H);
+  assert.equal(v.regenPausedUntil.getTime(), at + 24 * H);
+  assert.equal(v.nextLifeAt.getTime(), at + 24 * H + 7.2 * H);
+  v = bastion.regenView(b, at + 30 * H);   // la pause finie, la 8e vie remonte
+  assert.equal(v.regenPausedUntil, null);
+  assert.ok(Math.abs(v.nextLifeAt.getTime() - (at + 31.2 * H)) < 1000);
+  v = bastion.regenView(b, at + 32 * H);   // 8 vies : la 9e
+  assert.equal(bastion.livesOf(bastion.structureNow(b, at + 32 * H)), 8);
+  assert.ok(Math.abs(v.nextLifeAt.getTime() - (at + 38.4 * H)) < 1000);
+  assert.deepEqual(bastion.regenView({ ...b, structure: 1 }, at), { regenPausedUntil: null, nextLifeAt: null }, 'toutes les vies là');
+  assert.deepEqual(bastion.regenView({ ...b, status: 'FUNDING' }, at), { regenPausedUntil: null, nextLifeAt: null }, 'un chantier n\'a pas de vies');
+  assert.deepEqual(bastion.regenView(b, at + 100 * H), { regenPausedUntil: null, nextLifeAt: null }, 'remonté');
+});
+
+test('briser le siège ensemble (E4) : les armées de la même minute, réglé dans la configuration', () => {
+  assert.equal(config.bastion.breakGroupSeconds, 60);
 });
 
 test('sans alliance ou sans Bastion debout : aucun bonus', () => {
@@ -68,6 +96,7 @@ function matches(row, where = {}) {
       if ('in' in v) return v.in.includes(row[k]);
       if ('not' in v) return (row[k] ?? null) !== v.not;
       if ('gt' in v) return row[k] > v.gt;
+      if ('lt' in v) return row[k] < v.lt;
       // filtres sur une relation (lignes d'unités d'une armée)
       if ('some' in v) return (row[k] || []).some(x => matches(x, v.some));
       if ('none' in v) return !(row[k] || []).some(x => matches(x, v.none));
@@ -398,5 +427,156 @@ test('tick : une armée de la garnison déjà vide (monde d\'avant le correctif)
     }
     assert.deepEqual([db.army('pleine').status, db.army('pleine').targetBastionId], ['STATIONED', 'b1']);
     for (const owner of ['p1', 'p2']) assert.ok(db.notes.some(n => n.playerId === owner && n.body.includes('sa place en garnison est libérée')), owner);
+  } finally { db.restore(); }
+});
+
+// ---- décisions du 1er novembre 2026 (simulation de 200 jours) ----
+// E1 : un convoi vers le Bastion se paie sur le stock commun du joueur, sous les verrous de ses villes puis du Bastion
+test('ravitaillement (E1) : la ville de l\'armée d\'abord, puis la plus pleine des autres ; villes verrouillées avant le Bastion', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const city = { id: 'c1', x: 0, y: -10, isSieged: false, buildings: [] };
+  const army = { id: 'a1', ownerId: 'p1', name: 'Convoi', cityId: 'c1', city, isGarrison: false, status: 'IDLE', x: 0, y: -10, hero: null,
+    units: [{ unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 500 }], owner: { id: 'p1', faction: 'ROME', technologies: [], alliance: { allianceId: 'A1' }, cities: [] } };
+  // la capitale (ville de l'armée) a peu de bois ; c2 est la plus pleine (90 %), c3 la plus riche (30 %)
+  const stock = (id, wood, maxStorage, isCapital = false) => ({ id, wood, stone: 0, iron: 0, food: 0, maxStorage, maxFoodStorage: 10000, isCapital });
+  for (const [wood, ok] of [[1000, true], [5000, false]]) {
+    const db = fakeDb({ armies: [{ ...army }], bastions: [{ id: 'b1', allianceId: 'A1', status: 'FUNDING', isSieged: false, x: 4, y: -10, wood: 0, stone: 0, iron: 0, food: 0, alliance: { tag: 'TAG', name: 'Alliance' } }], members: [{ playerId: 'p1', allianceId: 'A1' }] });
+    const locks = [], debits = [];
+    db.tx.$queryRaw = async (sql) => {
+      const text = sql.join('?');
+      locks.push(text.includes('"playerId"') ? 'villes' : text.includes('"Bastion"') ? 'bastion' : text.includes('"City"') ? 'ville' : '?');
+      return text.includes('"playerId"') ? [stock('c1', 100, 10000, true), stock('c2', 900, 1000), stock('c3', 3000, 10000)] : [];
+    };
+    db.tx.$executeRaw = async (sql, w, s, i, f, cityId) => { debits.push([cityId, w]); return 1; };
+    try {
+      const send = bastion.send('p1', 'b1', { armyId: 'a1', mission: 'SUPPLY', resources: { wood } });
+      if (!ok) {
+        await assert.rejects(send, (e) => e.status === 400 && /^Ressources insuffisantes : il manque .+ de bois \(toutes vos villes comprises\)$/.test(e.message));
+        assert.deepEqual(debits, [], 'rien n\'est débité');
+        assert.equal(db.army('a1').status, 'IDLE');
+        continue;
+      }
+      await send;
+      assert.deepEqual(debits, [['c1', 100], ['c2', 900]], 'la ville de l\'armée, puis la plus pleine');
+      assert.deepEqual([db.army('a1').status, db.army('a1').missionType, db.army('a1').carryWood], ['TRANSPORTING', 'BASTION_SUPPLY', 1000]);
+      assert.equal(locks[0], 'villes', 'toutes les villes du joueur d\'abord');
+      assert.ok(locks.indexOf('bastion') > 0, 'puis le Bastion');
+    } finally { db.restore(); }
+  }
+});
+
+// E3 : un assaut repoussé n'écrit rien ; un assaut gagné ôte une vie et relance la pause de 24 h
+test('assaut (E3) : repoussé, ni les vies ni la pause ne changent ; gagné, une vie de moins et la pause repart de l\'assaut', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const before = new Date(Date.now() - 10 * H);   // 5 vies, la dernière perdue il y a 10 h : en pause
+  for (const [won, atk, guards] of [[false, 5, 500], [true, 2000, 2]]) {
+    const units = [{ id: 'u-s', armyId: 'solo', unitKey: 'GAU_INF_GUERRIER', tier: 'base', count: atk }, { id: 'r-s', armyId: 'solo', unitKey: 'GAU_SIEGE_BELIER', tier: 'base', count: won ? 1000 : 1 },
+      { id: 'u-g', armyId: 'g', unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: guards }];
+    const attacker = siegeCamp('solo', 'p7', 0);
+    delete attacker.units;
+    withUnits(attacker, units);
+    const db = breakDb({ armies: [attacker, garrisonRow('g', 'p1', units)], bastions: [{ ...BASTION, structure: 0.5, structureAt: before }], members: MEMBERS, diplomacy: DIPLOMACY, units });
+    const now = new Date();
+    try {
+      await bastion.handleBastionBattle(db.army('solo'), now, async () => {});
+      await new Promise(r => setImmediate(r));
+      const b = await db.tx.bastion.findUnique({ where: { id: 'b1' } });
+      assert.equal(db.reports[0].winner, won ? 'ATTACKER' : 'DEFENDER');
+      assert.deepEqual(db.reports[0].loot.lives, { before: 5, after: won ? 4 : 5, total: 10, fallen: false });
+      if (won) assert.deepEqual([b.structure, b.structureAt], [0.4, now], 'une vie de moins, la pause repart');
+      else assert.deepEqual([b.structure, b.structureAt], [0.5, before], 'la pause continue depuis la dernière vie perdue');
+      if (won) assert.ok(db.notes.some(n => n.playerId === 'p7' && n.body.includes('aucune ne revient avant 24 h sans assaut gagné')), JSON.stringify(db.notes.map(n => n.body)));
+    } finally { db.restore(); }
+  }
+});
+
+// E4 : les armées du côté du Bastion qui atteignent le camp dans la même minute se battent ensemble
+const T0 = Date.now();
+const breakArrival = (id, ownerId, count, inSeconds, extra = {}) => breaker(id, ownerId, count, { status: 'ATTACKING', missionType: 'BASTION_BREAK', targetBastionId: 'b1', targetX: 4, targetY: -10, x: 0, claimedAt: null, arrivalAt: new Date(T0 + inSeconds * 1000), ...extra });
+const sortieArrival = (id, ownerId, count, inSeconds) => breakArrival(id, ownerId, count, inSeconds, { missionType: 'BASTION_SORTIE', x: 4 });
+// une armée d'un joueur d'une alliance neutre (ni du côté du Bastion, ni de celui du camp)
+const neutralArrival = (id, count, inSeconds) => ({ ...breakArrival(id, 'p1', count, inSeconds), ownerId: 'p6', owner: { id: 'p6', name: 'p6', faction: 'ROME', technologies: [], alliance: { allianceId: 'N1' }, cities: [] } });
+const rallyCamp = () => [siegeCamp('lead', 'p7', 100, 'r1'), siegeCamp('mate', 'p8', 100, 'r1'), siegeCamp('mate2', 'p9', 100, 'r1')];
+function groupBreakDb(breakers, cities = []) {
+  const now = new Date(T0);
+  breakers[0].claimedAt = now;   // l'armée qui arrive la première, réservée par le tick
+  const db = breakDb({ armies: [...rallyCamp(), ...breakers], bastions: [{ ...BASTION }], members: [...MEMBERS, { playerId: 'p6', allianceId: 'N1' }], diplomacy: DIPLOMACY, units: breakers.flatMap(a => a.units.map(u => ({ ...u }))), cities });
+  return { db, now };
+}
+const unitsOf = (db, id) => db.units.filter(u => u.armyId === id).reduce((t, u) => t + u.count, 0);
+
+test('briser le siège ensemble (E4) : une armée et une sortie alliée dans la même minute chassent un camp que chacune seule ne chasse pas', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  // 50 légionnaires seuls perdent contre 300 guerriers ; 2 × 50 gagnent
+  const lead = breakArrival('a-p1', 'p1', 50, 0);
+  const breakers = [lead, sortieArrival('g-p2', 'p2', 50, 20), breakArrival('late', 'p1', 50, 120), neutralArrival('n-p6', 50, 10)];
+  const { db, now } = groupBreakDb(breakers);
+  const sentHome = [];
+  try {
+    await bastion.handleBreakArrival({ ...lead }, now, async (a) => { sentHome.push(a.id); });
+    for (const c of ['lead', 'mate', 'mate2']) assert.equal(db.army(c).status, 'RETURNING', `${c} chassé`);
+    assert.equal((await db.tx.bastion.findUnique({ where: { id: 'b1' } })).isSieged, false);
+    assert.deepEqual([db.army('a-p1').status, db.army('a-p1').x, db.army('a-p1').targetBastionId], ['IDLE', 4, null], 'l\'armée du dehors garde le Bastion');
+    assert.deepEqual([db.army('g-p2').status, db.army('g-p2').missionType, db.army('g-p2').targetBastionId], ['STATIONED', 'BASTION_GARRISON', 'b1'], 'la sortie rentre au Bastion');
+    assert.deepEqual([db.army('late').status, db.army('late').claimedAt], ['ATTACKING', null], 'arrivée 2 min après : elle se battra seule');
+    assert.deepEqual([db.army('n-p6').status, db.army('n-p6').claimedAt], ['ATTACKING', null], 'un joueur d\'une alliance neutre se bat seul');
+    assert.deepEqual(sentHome, []);
+    // un seul combat : un rapport par joueur (les deux du groupe, les trois du camp) ; chaque armée perd la même part
+    assert.equal(db.reports.length, 5);
+    assert.equal(db.reports[0].loot.armies, 2);
+    assert.equal(db.reports[0].attackerUnits[0].count, 100, 'les soldats des deux armées ensemble');
+    const left = unitsOf(db, 'a-p1');
+    assert.ok(left > 0 && left < 50);
+    assert.equal(unitsOf(db, 'g-p2'), left, 'la même part de pertes');
+    for (const id of ['p1', 'p2']) assert.ok(db.notes.some(n => n.playerId === id && n.title === '⚔️ Siège brisé' && n.body.includes('(2 armées ensemble)')), id);
+  } finally { db.restore(); }
+});
+
+test('briser le siège ensemble (E4) : la même sortie 2 min plus tard ne se joint pas, l\'armée seule est repoussée', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const lead = breakArrival('a-p1', 'p1', 50, 0);
+  const { db, now } = groupBreakDb([lead, sortieArrival('g-p2', 'p2', 50, 120)]);
+  const sentHome = [];
+  try {
+    await bastion.handleBreakArrival({ ...lead }, now, async (a) => { sentHome.push(a.id); });
+    assert.deepEqual(sentHome, ['a-p1'], 'vaincue, elle rentre');
+    assert.deepEqual(['lead', 'mate', 'mate2'].map(c => db.army(c).status), ['BESIEGING', 'BESIEGING', 'BESIEGING']);
+    assert.deepEqual([db.army('g-p2').status, db.army('g-p2').claimedAt], ['ATTACKING', null]);
+    assert.equal(db.reports.length, 4, 'un attaquant, trois joueurs du camp');
+    assert.equal(db.reports[0].loot.armies, undefined);
+  } finally { db.restore(); }
+});
+
+test('briser le siège ensemble (E4) : un groupe vaincu, chaque armée rentre (la sortie à sa capitale si une place y est libre)', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const lead = breakArrival('a-p1', 'p1', 20, 0);
+  const capital = { id: 'cap-p2', playerId: 'p2', name: 'Roma', x: -30, y: -10, isCapital: true, buildings: [{ key: 'RALLY_POINT', level: 1 }] };
+  const { db, now } = groupBreakDb([lead, sortieArrival('g-p2', 'p2', 20, 30)], [capital]);
+  const sentHome = [];
+  try {
+    await bastion.handleBreakArrival({ ...lead }, now, async (a) => { sentHome.push([a.id, a.cityId]); });
+    assert.deepEqual(sentHome, [['a-p1', 'c-p1'], ['g-p2', 'cap-p2']]);
+    assert.deepEqual([db.army('g-p2').cityId, db.army('g-p2').slot], ['cap-p2', 1], 'la sortie prend la place libre de sa capitale');
+    assert.equal(db.reports.length, 5, 'un seul combat pour les deux armées');
+    assert.ok(db.notes.some(n => n.playerId === 'p2' && n.body.includes('(2 armées ensemble) : les survivants rentrent à Roma')), JSON.stringify(db.notes.map(n => n.body)));
+    assert.deepEqual(['lead', 'mate', 'mate2'].map(c => db.army(c).status), ['BESIEGING', 'BESIEGING', 'BESIEGING']);
+  } finally { db.restore(); }
+});
+
+// E2 (armées rattachées aux colonies) : une sortie vaincue d'une armée de colonie rentre à sa colonie, elle n'est pas
+// détachée en prenant la place libre de la capitale (seul « Renvoyer à la capitale » le fait)
+test('briser le siège ensemble (E4, E2) : une sortie vaincue rattachée à une colonie rentre à sa colonie, pas à la capitale', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const lead = breakArrival('a-p1', 'p1', 20, 0);
+  const sortie = { ...sortieArrival('g-p2', 'p2', 20, 30), slot: 3 };
+  const capital = { id: 'cap-p2', playerId: 'p2', name: 'Roma', x: -30, y: -10, isCapital: true, buildings: [{ key: 'RALLY_POINT', level: 1 }] };
+  const colony = { id: 'c-p2', playerId: 'p2', name: 'Ostia', x: -20, y: -10, isCapital: false, buildings: [] };
+  const { db, now } = groupBreakDb([lead, sortie], [capital, colony]);
+  const sentHome = [];
+  try {
+    await bastion.handleBreakArrival({ ...lead }, now, async (a) => { sentHome.push([a.id, a.cityId]); });
+    assert.deepEqual(sentHome, [['a-p1', 'c-p1'], ['g-p2', 'c-p2']]);
+    assert.deepEqual([db.army('g-p2').cityId, db.army('g-p2').slot], ['c-p2', 3], 'toujours rattachée à sa colonie, même emplacement');
+    assert.ok(db.notes.some(n => n.playerId === 'p2' && /\(2 armées ensemble\) : les survivants rentrent\.$/.test(n.body)), JSON.stringify(db.notes.map(n => n.body)));
   } finally { db.restore(); }
 });

@@ -1,6 +1,23 @@
-# État des systèmes de jeu (octobre 2026, mis à jour le 31 octobre 2026 au soir)
+# État des systèmes de jeu (octobre 2026, mis à jour le 1er novembre 2026)
 
 Ce qui existe, ce qui manque, et les images ou animations à produire. Référence : Travian pour les mécaniques, Rise of Kingdoms pour la lisibilité et le mouvement.
+
+## Décisions après la simulation de 200 jours (1er novembre 2026)
+
+Réponses du propriétaire aux constats de la simulation de 200 jours (E1 à E8) ; mesures, raisons et chiffres :
+`docs/DECISIONS-2026-10-31-SOIR.md` (section « Décisions du 1er novembre après la simulation ») ; valeurs :
+`docs/EQUILIBRAGE.md` § 18. Les décisions D1 à D19 ci-dessous restent valables.
+
+| | Décision | Section |
+|---|---|---|
+| E1 | Stock commun pour tout ce qu'une armée emporte (offre, échange, envoi, transport, Merveille, Bastion) : la ville de départ d'abord, puis la plus pleine ; une offre rendue ou une livraison va à la ville visée, puis aux autres | Économie et placement, Marché et commerce |
+| E2 | Armées rattachées aux colonies : une armée à l'arrêt dans sa colonie s'y rattache, la défend, y rentre ; « Renvoyer à la capitale » | Villes secondaires |
+| E3 | Bastion : une vie ne revient qu'après 24 h sans assaut gagné, puis une toutes les 7,2 h | Bastion d'alliance |
+| E4 | Bastion : les armées qui brisent le siège et atteignent le camp dans la même minute se battent ensemble | Bastion d'alliance |
+| E5 | Donjons : avant-poste du niveau 1 à 42 % de la médiane des soldats (sans les engins) | Invasions |
+| E6 | Site de Merveille libéré réservé 6 h à l'alliance qui a battu les Immortels | Cycle du serveur et Merveille |
+| E7 | Vagues d'Immortels : 14 000 gardé, à mesurer de nouveau à la Merveille 50 | Cycle du serveur et Merveille |
+| E8 | Taxe des échanges entre joueurs : 30 % de base gardée | Marché et commerce |
 
 ## Décisions du rapport de vérification (31 octobre 2026, au soir)
 
@@ -98,8 +115,15 @@ Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` (ce que devient ch
   la moitié de son prix, comme une troupe. Le trésor des invasions suit la même règle (capitale d'abord).
 - **Une ville qui reçoit des ressources ne baisse jamais** (recommandation 1) : une colonie garde ses 3 000 de départ même
   au-dessus de son plafond ; seule la production s'arrête.
-- **Restent propres à chaque ville** : marchandises du marché (offres, achats, marchand du serveur, envois à un autre
-  joueur : elles partent de la ville choisie, avec une de ses armées), convois vers le Bastion, pillage, raids, siège,
+- **Ce qu'une armée emporte se paie aussi sur toutes les villes** (décision du 1er novembre 2026, simulation de 200 jours,
+  E1) : offre et échange du marché, envoi à un autre joueur, transport, livraison à la Ville Merveille, ravitaillement du
+  Bastion. L'armée part de sa ville (le Marché et le Comptoir restent dans la capitale), la charge est prise dans cette ville
+  d'abord, puis dans la plus pleine (`debitPlayer`). Une offre rendue (retirée, expirée, ville tombée) et une livraison qui
+  arrive vont à la ville visée d'abord, puis aux autres villes du joueur selon leur place (`creditPlayer`) : ce qui ne tient
+  nulle part est perdu pour une offre rendue, et revient avec l'armée pour une livraison ; le message le dit. Ce qu'une armée
+  rapporte chez elle (butin, récolte) suit la même règle. Pour un échange, les villes des deux joueurs sont verrouillées en
+  une seule passe, dans l'ordre des id (`lockCitiesOfPlayers`).
+- **Restent propres à chaque ville** : marchand du serveur (échange immédiat dans la ville), pillage, raids, siège,
   cachette, récompenses de quêtes. Rien ne circule entre ses propres villes (stock commun, D7).
 - **Or des unités d'élite** (décision du 31 octobre 2026, prix revu le soir même, D5) : une unité d'élite coûte aussi de l'or
   (`config.recruit.goldPerUnit`, **2 par unité**, 1 avant), pris à la mise en file sur l'or du joueur (« or ≥ prix » vérifié
@@ -118,7 +142,8 @@ Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` (ce que devient ch
 **Toute unité formée ou soignée apparaît dans la capitale** : les troupes formées dans la Grande caserne ou la Grande écurie
 d'une colonie rejoignent la garnison de la capitale (le temps de formation reste celui du bâtiment de la colonie), les
 blessés guéris aussi. **Pas de garnison propre dans les colonies** : de nouvelles unités n'y arrivent jamais seules ; une
-colonie n'est défendue que par les armées qu'on y envoie (les troupes déjà présentes restent). L'entretien de toutes les
+colonie n'est défendue que par les armées qu'on y envoie (les troupes déjà présentes restent) ; une armée qu'on y rattache
+la défend comme une garnison et y rentre après chaque mission (E2, « Villes secondaires »). L'entretien de toutes les
 troupes se paie sur tous les greniers (« Entretien et famine »).
 
 **Placement des bâtiments** (`data/buildings.json` : `effects.capitalOnly`, `effects.notInCapital` ; refus serveur
@@ -372,7 +397,8 @@ Décisions du 26 octobre 2026 (`src/routes/alliance.js`, `src/services/diplomacy
   fait demi-tour ; ceux déjà postés restent et se battent. Le propriétaire la rappelle (Rappeler), l'hôte la renvoie
   (onglet Armée → Renforts alliés reçus). Une rupture d'alliance, une déclaration de guerre, un départ ou une exclusion
   de l'alliance, ou la chute de la ville renvoient les renforts chez eux. En marche, un renfort croise les armées
-  ennemies comme toute armée.
+  ennemies comme toute armée. Un renfort ou une armée venue d'une autre ville du joueur que le combat laisse sans soldats
+  (attaque, raid, vague d'Immortels) rentre aussitôt chez lui.
 - **Taille de l'alliance** (décision du 31 octobre 2026, qui précise D3 ; revue le soir même, D11) : **5 membres par niveau
   de l'Ambassade du chef** (`EMBASSY.effects.allianceMembersPerLevel` : 35 au niveau 7 où l'on fonde, 50 au niveau 10, 100
   au niveau 20), jamais plus de **100** (`config.alliance.maxMembers` ; 3 par niveau et 60 avant). La fin de partie reste
@@ -398,7 +424,7 @@ Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bas
   sur 2 × 2 cases libres de la terre ferme, à **40 cases au plus** d'une ville de l'alliance (Alliance → Bastion, ou
   « Placer le Bastion ici » sur une case vide de la carte). Les nouvelles villes ne s'installent pas collées à un Bastion.
 - **Chantier** : les membres y apportent les ressources **par convois** (armée chargée depuis sa ville, mission
-  « Ravitailler ») : **500 000 bois, pierre et fer, 250 000 nourriture** ; le surplus d'un convoi revient. Une fois tout
+  « Ravitailler » ; la charge se prend dans la ville de l'armée d'abord, puis dans les autres villes du joueur, E1) : **500 000 bois, pierre et fer, 250 000 nourriture** ; le surplus d'un convoi revient. Une fois tout
   livré, **3 jours** de construction. Un chantier sans murs ne peut pas être attaqué.
 - **Bonus pour tous les membres** tant qu'il est debout : **+10 % de production** (ressources des villes et récolte des
   points), **+5 % de vitesse** des armées (aller et retour), **+10 % de capacité de transport** des armées (convois,
@@ -410,12 +436,17 @@ Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bas
   la 11e est refusée à l'envoi (« Garnison du Bastion complète : 10 armées au plus, celles en route comprises ») et, si la
   garnison s'est remplie pendant sa marche, elle rentre à l'arrivée (relu sous le verrou du Bastion). `GET /api/bastion`
   liste la garnison comme le plafond la compte (dedans, en route, en sortie) et donne `rules.maxGarrisonArmies`, même sans
-  alliance.
+  alliance. Une armée de la garnison anéantie dans un assaut ne compte plus : elle rentre aussitôt dans sa ville, vide, et
+  libère sa place (son propriétaire est prévenu) ; le tick renvoie aussi celles restées sans soldats.
 - **Siège et chute** (« comme une ville, en plus dur ») : il faut au moins un engin de siège ; toute l'alliance est
   prévenue de la marche. **Camp d'1 h**, puis assaut contre la garnison derrière un **mur bouclier 3 fois plus solide
   qu'un mur 20** (**60 000 PV**, D9, 31 octobre 2026 au soir ; 10 fois avant, 50 fois jusqu'au 30 octobre 2026), que seuls
-  les engins abîment ; chaque assaut gagné lui ôte **une vie sur 10**, les vies remontent en **72 h** (une toutes les
-  7,2 h). **Un assaut = un rassemblement d'alliance ou une armée seule**, comme un fort barbare de Rise of Kingdoms : les
+  les engins abîment ; chaque assaut gagné lui ôte **une vie sur 10**. **Une vie ne revient qu'après 24 h sans assaut
+  gagné** (décision du 1er novembre 2026, simulation de 200 jours, E3, `config.bastion.regenPauseHours`), puis une toutes
+  les 7,2 h (`regenHours` 72 pour 10 vies) ; chaque assaut gagné relance la pause, un assaut repoussé ne change rien. Avant,
+  la remontée ne s'arrêtait jamais : il fallait 10 assauts gagnés à moins de 7,2 h l'un de l'autre, et aucun Bastion n'a été
+  rasé en 200 jours de simulation (100 assauts, 76 gagnés). Le panneau du Bastion et la carte disent quand la pause finit et
+  quand revient la prochaine vie (`regenPausedUntil`, `nextLifeAt` ; `rules.regenPauseHours`). **Un assaut = un rassemblement d'alliance ou une armée seule**, comme un fort barbare de Rise of Kingdoms : les
   armées du rassemblement qui campe devant ce Bastion combattent ensemble (le héros du lanceur en tête, 5 + niveau de sa
   Place de rassemblement armées au plus, 25 au niveau 20) ; toute autre armée, même de la même alliance et finissant au
   même instant, livre son propre assaut (avant : tous les camps d'une alliance finissant dans la même demi-minute faisaient
@@ -430,11 +461,17 @@ Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bas
   technologies de l'armée qui mène l'assaut.
 - **Briser le siège** (décision du 29 octobre 2026) : **n'importe quel joueur** peut attaquer le camp ennemi devant un
   Bastion (Carte → Bastion → « Briser le siège »), sauf les camps de son alliance ou d'une alliance alliée. Un joueur de la
-  garnison fait une **sortie** avec une de ses armées (Alliance → Bastion → « Sortie », combat 30 s après) : **chaque
-  armée se bat seule**, contre tout le camp, **en terrain ouvert** (ni mur bouclier ni +10 % de garnison). Victoire : le
-  camp rentre chez lui et l'armée **reste là d'où elle a attaqué** (dans le Bastion pour une sortie, devant lui sinon).
+  garnison fait une **sortie** avec une de ses armées (Alliance → Bastion → « Sortie », combat 30 s après) ; le combat a
+  lieu contre tout le camp, **en terrain ouvert** (ni mur bouclier ni +10 % de garnison). **Les armées du côté du Bastion
+  (son alliance et ses alliés, sorties comprises) qui atteignent le camp dans la même minute se battent ensemble**
+  (décision du 1er novembre 2026, simulation de 200 jours, E4, `config.bastion.breakGroupSeconds` : 60 s après la
+  première) : une seule bataille, avec les technologies et le héros de l'armée qui mène, chaque armée perd sa part selon ses
+  soldats, un rapport par joueur (`rounds.armies`) ; les autres se battent seules. Avant, chaque armée se battait seule et
+  ne chassait jamais un camp de 3 armées ou plus (2 victoires sur 72 vagues dans la simulation) ; autant d'armées groupées
+  que le camp gagnent environ 1 fois sur 3, deux de plus presque toujours. Victoire : le camp rentre chez lui et chaque
+  armée **reste là d'où elle a attaqué** (dans le Bastion pour une sortie, devant lui sinon).
   Défaite : les survivants rentrent, **à la capitale** pour une sortie (si un emplacement d'armée y est libre, sinon
-  dans leur ville). La case du Bastion relève des règles du siège : pas de rencontre d'armées dessus, sauf une armée qui
+  dans leur ville ; une armée rattachée à une colonie rentre toujours à sa colonie, E2). La case du Bastion relève des règles du siège : pas de rencontre d'armées dessus, sauf une armée qui
   garde le Bastion contre l'ennemi qui vient l'assiéger. **Le camp d'un rassemblement se brise de la même façon**
   (décision finale du propriétaire, 31 octobre 2026 au soir : « les assaillants peuvent être attaqués par les renforts,
   comme un siège ») : chassé avant son heure, il rentre et ne livre pas d'assaut (le camp est relu sous le verrou du
@@ -475,18 +512,25 @@ passe par une armée, avec la capacité de transport de ses troupes ».
   seule, on ne peut pas la rappeler »), sinon l'un garderait ses marchandises en recevant celles de l'autre. Un simple
   transport se rappelle toujours. Pas d'échange avec un ennemi ; aucune marchandise n'entre ni ne sort d'une ville assiégée
   (on peut publier pendant un siège, pas conclure), et un envoi ne part pas d'une ville assiégée.
-- **Livraison** : ce qui ne tient pas dans l'entrepôt d'arrivée **revient avec l'armée** (une Ville Merveille prend tout,
-  sans plafond) ; une livraison vers un joueur devenu ennemi en route revient avec sa cargaison. L'acheteur est averti
-  avant d'accepter si sa ville n'a pas la place de tout recevoir ; le destinataire est prévenu de la livraison
-  (« Marchandises livrées »).
+- **Livraison** : la ville d'arrivée d'abord, puis les autres villes du destinataire selon leur place (stock commun, E1) ;
+  ce qui ne tient dans aucune **revient avec l'armée** (une Ville Merveille prend tout, sans plafond) ; une livraison vers
+  un joueur devenu ennemi en route revient avec sa cargaison. L'acheteur est averti avant d'accepter si ses villes n'ont pas
+  la place de tout recevoir ; le destinataire est prévenu de la livraison (« Marchandises livrées », avec « et vos autres
+  villes » quand la ville d'arrivée était pleine).
 - **Taxe des échanges** (D8, 31 octobre 2026 au soir) : **30 %** de ce que porte chaque armée (10 % avant), **−1 point par
   niveau du Comptoir de commerce** de la capitale, **−0,25 point par niveau de la Chambre au Trésor** de la capitale (au plus
   bas 0 %) : 30 % sans rien, 25 % avec la Chambre 20, 20 / 15 / 10 % avec le Comptoir 5 / 10 / 15 et la Chambre 20, **5 %
   avec les deux au niveau 20** ; chaque niveau du Comptoir compte. Un échange de 1 000 contre 1 000 sans bâtiment livre 700
   de chaque côté. La même taxe vaut pour toutes les villes du joueur (`marketService.p2pTaxPctOf`).
-- **Stock propre à chaque ville** pour le marché : les marchandises partent de la ville choisie et arrivent dans la ville
-  visée, jamais dans les autres.
-- **Offres de 48 h** : une offre non prise revient au vendeur (marchandises dans la ville, armée libérée), il est prévenu.
+- **Stock commun** (décision du 1er novembre 2026, simulation de 200 jours, E1 ; avant : stock propre à chaque ville pour
+  le marché) : l'armée part de la ville choisie, mais ce qu'elle emporte se prend dans toutes les villes du joueur, cette
+  ville d'abord, puis la plus pleine ; refus seulement si toutes les villes réunies n'ont pas assez (« Ressources
+  insuffisantes : il manque … (toutes vos villes comprises) »). Le client montre ce total comme ce qui peut partir
+  (« Disponible dans toutes vos villes »). Pourquoi : les colonies tiennent 89 % du stockage et finissaient pleines, la
+  capitale à 4 % de céréales ; dans la simulation, plus aucun échange après le jour 119.
+- **Offres de 48 h** : une offre non prise revient au vendeur (marchandises dans la ville de l'offre, puis dans ses autres
+  villes selon la place ; armée libérée), il est prévenu. Les offres closes (prises, annulées ou expirées) sont effacées
+  30 jours après leur création (`config.tick.retentionDays.offers`).
   Annuler une offre fait de même ; la chute ou le déplacement de la ville aussi (une armée réservée tombe avec sa colonie).
 - **API** : `POST /api/market/offer { sellResource, sellAmount, buyResource, buyAmount, cityId, armyId? }` →
   `{ message, offer, armyId, armyName, taxPct }` ; `POST /api/market/offer/:id/accept { cityId, armyId? }` →
@@ -584,9 +628,12 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
 - Un donjon a **3 étages** à vaincre dans l'ordre : **avant-poste** (unités de base), **remparts** (intermédiaires),
   **chef de la horde** (élite), de force × 1, × 2, × 4. **Force réglée sur les joueurs** (recommandation 9, 30 octobre 2026,
   `config.invasion.powerRef`) : au lancement, le serveur mesure la puissance médiane des joueurs actifs (vus dans les 7
-  derniers jours, puissance > 0 : toutes leurs unités, armées et garnisons) ; l'avant-poste du niveau 1 vaut la moitié de
-  cette médiane (3 000 au moins), puis × 1,8 par niveau ; le chef du niveau 1 vaut donc 2 joueurs médians, celui du niveau 5
-  environ 21. Cette puissance est notée sur l'invasion (`Invasion.basePower`). Avec moins de 5 joueurs mesurés, l'ancienne
+  derniers jours, puissance > 0 : tous leurs soldats, armées et garnisons, **sans les engins de siège** depuis le
+  1er novembre 2026) ; l'avant-poste du niveau 1 vaut **42 %** de cette médiane (décision du 1er novembre 2026, simulation
+  de 200 jours, E5 ; la moitié avant ; 3 000 au moins), puis × 1,8 par niveau. Un joueur n'envoie qu'une armée dans un
+  rassemblement, celle de sa capitale (84 % de son armée en fin de simulation) : les chefs des niveaux 1 / 4 / 5 demandent
+  2 / 11 / 19 joueurs avec l'armée de leur capitale si l'on compte les engins dans la médiane, 2 / 10 / 18 avec la médiane
+  sans engins que le serveur mesure (3 / 13 / 22-23 avec 50 %). Cette puissance est notée sur l'invasion (`Invasion.basePower`). Avec moins de 5 joueurs mesurés, l'ancienne
   formule reste : 15 000 au niveau 1, × 2,5 par niveau, puis × l'âge du monde (ci-dessous). La **garnison de l'étage ne se reconstitue pas** : une
   attaque repoussée lui retire quand même des soldats ; un étage vaincu laisse place au suivant ; le dernier vaincu
   **détruit le donjon**.
@@ -626,7 +673,8 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   s'y dresse, et revérifié au départ puis à l'arrivée, sous verrou du point. À l'arrivée, **un seul combat de groupe** (par
   la puissance) mené par le héros et les technologies de l'armée du lanceur (sans héros si elle a été rappelée) ; chaque
   armée perd la même part de ses soldats ; la prise suit les règles d'une armée seule et **revient au lanceur** (plan dans sa
-  capitale, ou site libre 24 h pour y fonder la Ville Merveille). Repoussé, le rassemblement laisse la garnison entamée.
+  capitale, ou site libre 24 h pour y fonder la Ville Merveille, réservé les 6 premières heures à l'alliance du lanceur,
+  E6). Repoussé, le rassemblement laisse la garnison entamée.
 - **Fenêtre de la cible façon Rise of Kingdoms** (29 octobre 2026, `frontend/js/map.js` : `openMapPopupAt`) : toucher
   une cible sur la carte (ville, Bastion, donjon, point de ressource, armée, case vide) ouvre une petite fenêtre juste
   au-dessus d'elle (en dessous s'il n'y a pas la place), qui suit la carte quand on la déplace. Les actions sont des boutons
@@ -698,7 +746,13 @@ Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/ha
   **Monde** : jour du monde, dates, Merveilles en chantier, plans détenus, Panthéon.
 - **Prendre un site** : battre les Immortels (attaque comme sur un camp barbare, seul ou en rassemblement d'alliance depuis
   le 30 octobre 2026), puis y **fonder une ville avec un colon** : c'est la **Ville Merveille** (une par joueur, alliance obligatoire, hors quota de colonies). Les Immortels
-  reviennent sur un site libre au bout de 24 h.
+  reviennent sur un site libre au bout de 24 h. **Les 6 premières heures, seule l'alliance qui a battu les Immortels peut y
+  fonder** (décision du 1er novembre 2026, simulation de 200 jours, E6, `config.world.wonderSiteReserveHours` ; l'alliance
+  du vainqueur, ou du lanceur d'un rassemblement, est notée sur le site, `ResourceNode.reservedAllianceId`, migration
+  `0034_site_merveille_reserve`) ; ensuite toute alliance le peut. Refus : « Site réservé à l'alliance [TAG], qui a battu les
+  Immortels, jusqu'au … ». Toute l'alliance du vainqueur est prévenue ; `GET /api/world/state` donne `wonderSites`
+  (`reserveHours`, `reserved` : site, alliance, fin), que la carte (« Site réservé · [TAG] ») et le panneau du site
+  affichent. Avant, LUP a fondé sur un site qu'AQL venait de libérer, 3 minutes après le combat d'AQL.
 - **Prendre un plan** : battre les Immortels du camp, seul ou en rassemblement d'alliance ; le plan revient au joueur (au
   lanceur pour un rassemblement). Un joueur dont la **capitale est
   prise** perd ses plans au profit de l'attaquant.
@@ -707,14 +761,17 @@ Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/ha
   vaut 1,08 milliard, les niveaux 1 à 50 86 millions) et du temps (1 h au niveau 1, +2,5 % par niveau). Les ressources
   viennent de l'alliance : **l'armée est le vrai moyen de la ravitailler** (fiche de la Merveille) : chaque membre envoie
   une armée de transport vers la Ville Merveille (Marché › Envoyer, ou transport par armée), qui porte la charge de ses
-  troupes, livre tout au **stock de Merveille** (sans plafond, même vers sa propre Ville Merveille) puis rentre. Au-delà du
+  troupes, prise dans toutes ses villes (stock commun, E1 : les céréales des colonies peuvent enfin partir), livre tout au
+  **stock de Merveille** (sans plafond, même vers sa propre Ville Merveille) puis rentre. Au-delà du
   **niveau 50**, un membre de l'alliance doit détenir un plan.
 - **Immortels** (décision du 30 octobre 2026, recommandation 8 ; fin de partie réglée le 31 octobre 2026 au soir pour une
   alliance de 15 à 20 joueurs, D11) : garnison d'un site **3 millions** (gardé : une alliance de 15 à 20 le prend avec 47 à
   35 % de son armée), d'un plan **5,75 millions** (4,5 avant : 74 à 55 % de l'armée, 65 % à 17 joueurs) ; vague contre une
   Ville Merveille = **14 000 × niveau^1,35** (20 000 avant ; 2,75 millions au niveau 50, 7,02 millions au niveau 100,
   `wonderService.wavePower`) : derrière le Mur 15 de la Ville Merveille, une alliance de 15 / 16 / 17 / 18 / 20 joueurs
-  tient le niveau 100 avec 89 / 85 / 82 / 76 / 68 % de son armée, 80 % en moyenne.
+  tient le niveau 100 avec 89 / 85 / 82 / 76 / 68 % de son armée, 80 % en moyenne. Avec les armées du jour 200 de la
+  simulation, une alliance de 16 / 15 joueurs le tient avec 61 / 67 % ; base gardée à 14 000 (E7), à mesurer de nouveau quand
+  une simulation atteindra la Merveille 50.
 - **Défendre** : toutes les 12 h, une **vague d'Immortels** attaque chaque Merveille (force croissante avec le niveau) ;
   si la défense tombe, la Merveille perd **1 niveau**. Comme seuls les engins abîment le mur (D6), chaque vague amène des
   **mangonneaux pour 15 % de sa puissance** (règle retenue le 30 octobre 2026, comme les Natars de Travian qui viennent avec
@@ -1032,7 +1089,8 @@ GDD : `data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json`
   l'aperçu de production du client. Le joueur choisit donc son gisement selon la ressource qui lui manque.
 - **Grenier de l'armée et stockage** : le Moulin et la Boulangerie n'existent qu'en colonie ; chaque colonie ajoute son
   Dépôt, son Silo et ses Grands dépôt et silo à la capacité du joueur (un gros prix ne passe que si le stockage de toutes
-  ses villes le tient). Son stock reste à elle (pillage, raids, marché, transports) mais paie aussi les constructions,
+  ses villes le tient). Son stock reste à elle pour le pillage et les raids, mais paie aussi les offres, échanges et envois (stock commun,
+  1er novembre 2026), et les constructions,
   recrutements, recherches, soins, héros et fondations de toutes les villes, et son grenier nourrit toutes les troupes.
 - **Formation rapide** : la Grande caserne et la Grande écurie (colonies seulement ; prérequis Caserne 20 / Écurie 20 lus
   dans la capitale) forment pour le joueur. **Le palier des unités se lit sur le bâtiment de la colonie** (niveaux 1 / 7 /
@@ -1053,9 +1111,21 @@ GDD : `data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json`
 
 **Ce qu'une colonie n'a pas**
 - **Pas de garnison propre** (§ 1 bis) : de nouvelles unités n'y arrivent jamais seules (formées ou soignées, elles vont à
-  la capitale) ; une colonie n'est défendue que par les armées qu'on y envoie et les renforts alliés. Une armée rattachée à
-  une colonie peut se créer (la Place de rassemblement de la capitale fixe le nombre d'armées de chaque ville) mais pas se
-  remplir (refus clair) ; vide, on peut la dissoudre.
+  la capitale) ; une colonie n'est défendue que par les armées qu'on y envoie et les renforts alliés.
+- **Armées rattachées aux colonies** (décision du 1er novembre 2026, simulation de 200 jours, E2 ;
+  `POST /api/army/:id/attach-colony`, `POST /api/army/:id/detach-colony`, `config.army.colonyArmies`) : une armée **à
+  l'arrêt** (ni réservée au marché, ni en mission) qui se tient dans une de vos colonies peut lui être rattachée
+  (« Rattacher à cette colonie ») : elle prend une place d'armée libre de la colonie (autant que la Place de rassemblement
+  de la capitale en permet ; refus s'il n'y en a plus) et libère la sienne, son héros la suit. Elle **défend la colonie**
+  comme une garnison (attaques, raids, sièges) et **chaque retour ou rappel la ramène à la colonie**. On n'y ajoute ni n'y
+  retire de troupes (« Une colonie n'a pas de garnison : … ») ; elle se dissout seulement vide, ou une fois revenue à la
+  capitale. **« Renvoyer à la capitale »** : elle reprend dès le départ une place libre de la capitale (refus s'il n'y en a
+  pas) et y marche comme un retour. La Ville Merveille n'est pas une colonie : on n'y rattache pas d'armée. Colonie rasée :
+  ses armées rattachées reviennent à la capitale avec leurs survivants. Entretien inchangé (stock commun). `GET /api/armies`
+  donne `attachedColony` (`{ id, name, isWonder }` ou `null`) ; le client liste les armées rattachées avec la colonie (« Mes
+  villes », onglet Armée de la colonie) et propose « Rattacher à cette colonie » et « Renvoyer à la capitale ». Pourquoi :
+  dans la simulation, les 190 armées de campagne étaient toutes sur les places de la capitale, aucune sur celles des
+  colonies, et 16 joueurs sur 38 auraient eu besoin d'une armée de plus pour garder leurs colonies.
 - **Bâtiments de la capitale** : Place de rassemblement, Place du marché, Comptoir de commerce, Académie, Tente de soins,
   Tour de guet, Caserne, Écurie, Atelier, Forge, Ambassade, Chambre au Trésor, Domus, Résidence, bâtiment de la
   civilisation. Leurs effets valent dans toutes les villes ; dans la liste de construction d'une colonie, ces lignes sont

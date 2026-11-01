@@ -48,11 +48,12 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
     await page.waitForTimeout(1500);
     for (const tab of ['fields', 'city', 'map', 'army', 'reports', 'ranking', 'inventory', 'hero', 'alliance', 'market']) { await page.evaluate(t => showTab(t), tab); await page.waitForTimeout(600); const t = await page.evaluate(() => document.getElementById('game-screen').innerText); for (const w of ['undefined', 'NaN', '[object Object]']) if (t.includes(w)) out.push(`${label} ${tab}: contains "${w}"`); }
     // marché (décision du 31 octobre 2026) : plus de marchands ni de routes entre ses villes ; « Envoyer » et « Offres »
-    // choisissent une armée de la ville (ici aucune : la liste le dit)
+    // choisissent une armée de la ville (ici aucune : la liste le dit). Stock commun (décision du 1er novembre 2026) :
+    // « Envoyer » dit ce qui peut partir, le total de toutes les villes du joueur
     await page.evaluate(() => { showTab('market'); showMarketTab('send'); }); await page.waitForTimeout(800);
-    const market = await page.evaluate(() => ({ tabs: Array.from(document.querySelectorAll('#tab-market .toolbar-btn')).map(b => b.textContent.trim()), sendArmy: Array.from(document.getElementById('send-army')?.options || []).map(o => o.textContent), offerArmy: !!document.getElementById('market-offer-army'), text: document.getElementById('tab-market')?.innerText || '' }));
-    const okMarket = market.tabs.length === 3 && !market.tabs.some(t => /Route/i.test(t)) && market.sendArmy.length >= 1 && market.offerArmy && !/marchands? libres?|routes? commerciales?/i.test(market.text);
-    out.push(`${label} market: ${market.tabs.join(' / ')}, army choice [${market.sendArmy.join(', ')}]` + (okMarket ? '' : ` contains "market-army-failure": ${JSON.stringify(market).slice(0, 200)}`));
+    const market = await page.evaluate(() => ({ tabs: Array.from(document.querySelectorAll('#tab-market .toolbar-btn')).map(b => b.textContent.trim()), sendArmy: Array.from(document.getElementById('send-army')?.options || []).map(o => o.textContent), offerArmy: !!document.getElementById('market-offer-army'), text: document.getElementById('tab-market')?.innerText || '', stock: document.getElementById('send-help')?.innerText || '' }));
+    const okMarket = market.tabs.length === 3 && !market.tabs.some(t => /Route/i.test(t)) && market.sendArmy.length >= 1 && market.offerArmy && !/marchands? libres?|routes? commerciales?/i.test(market.text) && /Disponible dans toutes vos villes/.test(market.stock);
+    out.push(`${label} market: ${market.tabs.join(' / ')}, army choice [${market.sendArmy.join(', ')}], ${market.stock.split('\n').pop()}` + (okMarket ? '' : ` contains "market-army-failure": ${JSON.stringify(market).slice(0, 200)}`));
     // city: click slot 3 (barracks) and an empty slot 5 via pointer
     await page.evaluate(() => showTab('city')); await page.waitForTimeout(800);
     for (const sn of [3, 5, 0]) {

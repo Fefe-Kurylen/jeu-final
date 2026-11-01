@@ -6,7 +6,7 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { getRelation } = require('../services/diplomacyService');
 const { isAmount } = require('../utils/validation');
-const { RESOURCES, RES_FR, lockCity, lockOffer, debitCity, creditCity, isId, capitalBuildingsOf } = require('../utils/db');
+const { RESOURCES, RES_FR, lockCity, lockOffer, debitCity, creditCity, lockPlayerCities, lockCitiesOfPlayers, lostNote, withDeadlockRetry, isId, capitalBuildingsOf } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const MS = require('../services/marketService');
 
@@ -32,11 +32,10 @@ const NO_MARKET = { error: 'Construisez un Marché dans la capitale (niveau 1 mi
 const besieged = async (db, cityId) => (await db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } })) > 0;
 const armyIdOk = (v) => v === undefined || v === null || isId(v);
 const minutesUntil = (date) => Math.max(1, Math.round((date.getTime() - Date.now()) / 60000));
-
-// Locks several cities in a fixed order so two crossed trades can never deadlock
-async function lockCities(tx, ids) {
-  for (const id of [...new Set(ids.filter(Boolean))].sort()) await lockCity(tx, id);
-}
+// Stock commun (décision du 1er novembre 2026, simulation de 200 jours) : offres, échanges et envois prennent les
+// marchandises dans toutes les villes du joueur, sous le verrou de toutes ses villes (ordre des id, lockPlayerCities ;
+// pour un échange, les villes des deux joueurs en une seule passe). Un interblocage avec une grande requête du tick
+// annule la transaction : elle est relancée (withDeadlockRetry).
 
 // GET /api/market : offres actives ; l'armée qui attend avec les marchandises n'est donnée qu'au vendeur
 router.get('/', auth, async (req, res) => {
@@ -49,7 +48,8 @@ router.get('/', auth, async (req, res) => {
 
 // POST /api/trade/send (mounted at /api) { fromCityId, armyId?, targetX, targetY, resources } : une armée libre de la ville
 // (celle choisie, sinon la plus petite qui suffit) porte les ressources à la ville d'un autre joueur, ou à une Ville
-// Merveille, puis rentre. Pas d'envoi entre ses propres villes : leur stock est commun (décision du 31 octobre 2026).
+// Merveille, puis rentre. Pas d'envoi entre ses propres villes : leur stock est commun (décision du 31 octobre 2026). Les
+// ressources se prennent dans toutes ses villes, la ville de départ d'abord (décision du 1er novembre 2026).
 // { message, armyId, armyName, arrivalAt, returnAt, travelTime }
 tradeRouter.post('/trade/send', auth, async (req, res) => {
   try {
@@ -69,17 +69,18 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
     if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
     if (await besieged(prisma, targetCity.id)) return res.status(400).json({ error: 'Ville assiégée : aucun convoi n\'entre tant que l\'armée ennemie est devant elle' });
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const sourceCity = await tx.city.findFirst({ where: { id: fromCityId, playerId: req.user.playerId }, include: { player: { select: { faction: true } } } });
       if (!sourceCity) return { error: 'Ville source introuvable', status: 404 };
+      const cities = await lockPlayerCities(tx, req.user.playerId);   // stock commun : toutes ses villes
       // blocus : aucun convoi ne sort non plus d'une ville assiégée (même règle que les échanges)
       if (await besieged(tx, sourceCity.id)) return { error: 'Ville assiégée : aucun convoi ne sort tant que l\'armée ennemie est devant elle', status: 400 };
       if (!(await hasMarket(tx, req.user.playerId))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
-      const sent = await MS.sendResources(tx, { playerId: req.user.playerId, faction: sourceCity.player.faction, fromCity: sourceCity, toCity: targetCity, resources: { wood, stone, iron, food }, armyId: armyId || null });
+      const sent = await MS.sendResources(tx, { playerId: req.user.playerId, faction: sourceCity.player.faction, fromCity: sourceCity, toCity: targetCity, resources: { wood, stone, iron, food }, armyId: armyId || null, cities });
       if (sent.error) return sent;
       return { message: `${sent.armyName} part vers ${targetCity.name} (arrivée dans ${minutesUntil(sent.arrivalAt)} min)`, ...sent };
-    });
+    }));
 
     if (result.error) return res.status(result.status || 400).json(result);
     require('../services/questService').bumpLater(req.user.playerId, 'trade_sent', 1);   // quêtes
@@ -95,7 +96,8 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
 
 // POST /api/market/offer { sellResource, sellAmount, buyResource, buyAmount, cityId, armyId? }
 // L'armée du vendeur (celle choisie, sinon la plus petite qui suffit) est réservée : elle attend en ville avec les
-// marchandises jusqu'à l'échange, 48 h au plus. { message, offer, armyId, armyName, taxPct }
+// marchandises jusqu'à l'échange, 48 h au plus. Les marchandises se prennent dans toutes ses villes, celle de l'offre
+// d'abord (stock commun). { message, offer, armyId, armyName, taxPct }
 router.post('/offer', auth, async (req, res) => {
   try {
     const { sellResource, sellAmount, buyResource, buyAmount, cityId, armyId } = req.body || {};
@@ -107,18 +109,18 @@ router.post('/offer', auth, async (req, res) => {
     if (ratio > config.market.maxRatio) return res.status(400).json({ error: `Ratio limité à 1:${config.market.maxRatio}` });
     if (!isId(cityId)) return res.status(400).json({ error: 'Ville requise' });
     if (!armyIdOk(armyId)) return res.status(400).json({ error: 'Armée invalide' });
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { player: { select: { faction: true } } } });
       if (!city) return { error: 'Ville non trouvée', status: 404 };
-      await lockCity(tx, city.id);
+      const cities = await lockPlayerCities(tx, req.user.playerId);   // stock commun : toutes ses villes
       if (!(await hasMarket(tx, req.user.playerId))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       const active = await tx.marketOffer.count({ where: { sellerId: req.user.playerId, status: 'ACTIVE' } });
       if (active >= config.market.maxActiveOffers) return { error: `Maximum ${config.market.maxActiveOffers} offres actives`, status: 400 };
-      const made = await MS.createOffer(tx, { playerId: req.user.playerId, faction: city.player.faction, city, sellResource, sellAmount, buyResource, buyAmount, armyId: armyId || null });
+      const made = await MS.createOffer(tx, { playerId: req.user.playerId, faction: city.player.faction, city, sellResource, sellAmount, buyResource, buyAmount, armyId: armyId || null, cities });
       if (made.error) return made;
       return { message: `Offre créée : ${made.armyName} attend en ville avec les marchandises (${config.market.offerHours} h au plus)`, ...made, taxPct: await MS.p2pTaxPct(tx, city.id) };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) {
@@ -128,13 +130,14 @@ router.post('/offer', auth, async (req, res) => {
 });
 
 // POST /api/market/offer/:id/accept { cityId, armyId? } : les deux armées partent, chacune avec ce qu'elle livre moins la
-// taxe ; pour l'acheteur, { armyId (la sienne), arrivalAt (ses marchandises arrivent), returnAt (son armée rentre) }
+// taxe ; la contrepartie se prend dans toutes les villes de l'acheteur, la sienne d'abord (stock commun). Pour l'acheteur,
+// { armyId (la sienne), arrivalAt (ses marchandises arrivent), returnAt (son armée rentre) }
 router.post('/offer/:id/accept', auth, async (req, res) => {
   try {
     const { cityId, armyId } = req.body || {};
     if (!isId(cityId)) return res.status(400).json({ error: 'Ville requise' });
     if (!armyIdOk(armyId)) return res.status(400).json({ error: 'Armée invalide' });
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       await lockOffer(tx, req.params.id);
       const offer = await tx.marketOffer.findUnique({ where: { id: req.params.id } });
       if (!offer) return { error: 'Offre non trouvée', status: 404 };
@@ -142,25 +145,28 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
       if (offer.sellerId === req.user.playerId) return { error: 'Vous ne pouvez pas accepter votre propre offre', status: 400 };
       const buyerCity = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { player: { select: { name: true, faction: true } } } });
       if (!buyerCity) return { error: 'Ville acheteur non trouvée', status: 404 };
-      await lockCities(tx, [buyerCity.id, offer.cityId]);
+      // l'offre, puis les villes de l'acheteur et du vendeur en une seule passe (ordre des id) : deux échanges croisés
+      // ne s'attendent jamais l'un l'autre
+      const locked = await lockCitiesOfPlayers(tx, [req.user.playerId, offer.sellerId]);
       if (!(await hasMarket(tx, req.user.playerId))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       if (!(await getRelation(req.user.playerId, offer.sellerId, tx)).canTransport) return { error: 'Impossible de commercer avec un ennemi', status: 403 };
       const sellerCity = offer.cityId ? await tx.city.findUnique({ where: { id: offer.cityId }, include: { player: { select: { faction: true } } } }) : null;
       if (!sellerCity) return { error: 'La ville du vendeur n\'existe plus', status: 400 };
       if ((await besieged(tx, buyerCity.id)) || (await besieged(tx, sellerCity.id))) return { error: 'Ville assiégée : aucun convoi ne passe', status: 400 };
-      const deal = await MS.acceptOffer(tx, { offer, buyerId: req.user.playerId, buyerFaction: buyerCity.player.faction, buyerCity, sellerCity, sellerFaction: sellerCity.player.faction, armyId: armyId || null });
+      const deal = await MS.acceptOffer(tx, { offer, buyerId: req.user.playerId, buyerFaction: buyerCity.player.faction, buyerCity, sellerCity, sellerFaction: sellerCity.player.faction, armyId: armyId || null, buyerCities: locked[req.user.playerId] });
       if (deal.error) return deal;
       const { toBuyer, toSeller, sellerTax, buyerTax, seller, buyer } = deal;
-      // pas de refus : ce qui ne tiendra pas dans l'entrepôt à l'arrivée repartira chez le vendeur, l'acheteur est prévenu
-      const room = MS.roomFor(await tx.city.findUnique({ where: { id: buyerCity.id }, select: { [offer.sellResource]: true, maxStorage: true, maxFoodStorage: true, isWonder: true } }), offer.sellResource);
-      const warning = toBuyer > room ? `Attention : ${buyerCity.name} n'a de place que pour ${room} ${RES_FR[offer.sellResource]} en ce moment ; ce qui ne tiendra pas à l'arrivée repartira chez le vendeur.` : null;
+      // pas de refus : à l'arrivée, la ville de l'acheteur d'abord, puis ses autres villes (stock commun) ; ce qui ne
+      // tiendra dans aucune repartira chez le vendeur, l'acheteur est prévenu (une Ville Merveille reçoit tout)
+      const room = buyerCity.isWonder ? Infinity : MS.playerRoomFor(locked[req.user.playerId], offer.sellResource);
+      const warning = toBuyer > room ? `Attention : vos villes n'ont de place que pour ${room} ${RES_FR[offer.sellResource]} en ce moment ; ce qui ne tiendra pas à l'arrivée repartira chez le vendeur.` : null;
       return {
         message: `Échange conclu : vos ${toSeller} ${RES_FR[offer.buyResource]} partent avec ${buyer.armyName}, ${toBuyer} ${RES_FR[offer.sellResource]} arrivent dans ${minutesUntil(seller.arrivalAt)} min${warning ? `. ${warning}` : ''}`,
         warning, toBuyer, toSeller, sellerTax, buyerTax, armyId: buyer.armyId, arrivalAt: seller.arrivalAt, returnAt: buyer.returnAt,
         offer, sellerReturnAt: seller.returnAt, buyerName: buyerCity.player.name, buyerCityName: buyerCity.name
       };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     const { offer, sellerReturnAt, buyerName, buyerCityName, ...out } = result;
     require('../services/pushService').notify(offer.sellerId, 'market', '🤝 Offre acceptée', `${buyerName} accepte votre offre : votre armée part vers ${buyerCityName} avec ${out.toBuyer} ${RES_FR[offer.sellResource]} (de retour dans ${minutesUntil(sellerReturnAt)} min), ${out.toSeller} ${RES_FR[offer.buyResource]} sont en route vers vous.`, { to: 'city', cityId: offer.cityId });
@@ -173,19 +179,20 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/market/offer/:id : marchandises rendues, armée libre
+// DELETE /api/market/offer/:id : marchandises rendues à la ville de l'offre, puis aux autres villes du joueur selon la place
+// (stock commun), armée libre
 router.delete('/offer/:id', auth, async (req, res) => {
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       await lockOffer(tx, req.params.id);
       const offer = await tx.marketOffer.findUnique({ where: { id: req.params.id } });
       if (!offer) return { error: 'Offre non trouvée', status: 404 };
       if (offer.sellerId !== req.user.playerId) return { error: 'Non autorisé', status: 403 };
       if (offer.status !== 'ACTIVE') return { error: 'Offre inactive', status: 400 };
-      if (offer.cityId) await lockCity(tx, offer.cityId);
-      if (!(await MS.closeOffer(tx, offer, 'CANCELLED'))) throw new Error('offer raced');
-      return { message: 'Offre annulée : marchandises rendues, armée libre' };
-    });
+      const closed = await MS.closeOffer(tx, offer, 'CANCELLED', offer.cityId, await lockPlayerCities(tx, offer.sellerId));
+      if (!closed) throw new Error('offer raced');
+      return { message: `Offre annulée : marchandises rendues, armée libre${lostNote(closed.lost)}` };
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) {
@@ -196,7 +203,8 @@ router.delete('/offer/:id', auth, async (req, res) => {
 
 // GET /api/market/state?cityId= (aussi /api/market/tax) : taxe des échanges qui partent de cette ville (Comptoir et Chambre
 // au Trésor de la capitale) et armées libres de la ville avec leur charge, la plus petite d'abord : [{ id, name, capacity,
-// hero }] (hero : le héros la mène)
+// hero }] (hero : le héros la mène). Ce qui peut partir est le total de toutes les villes du joueur (stock commun) : celui
+// que GET /api/cities donne avec chaque ville (playerStock)
 router.get(['/state', '/tax'], auth, async (req, res) => {
   try {
     const cityId = String(req.query.cityId || '');

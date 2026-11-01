@@ -29,7 +29,7 @@ function pick(code, names) {
 }
 // règles telles que GET /api/bastion les donne (bastionService.bastionFor)
 const B = config.bastion;
-const RULES = { cost: B.cost, buildDays: B.buildDays, cooldownDays: B.cooldownDays, bonuses: B.bonuses, assaults: B.assaults, regenHours: B.regenHours, maxDistance: B.maxDistanceFromMember, wallMultiplier: B.wallMultiplier, wallReferenceLevel: B.wallReferenceLevel, maxGarrisonArmies: B.maxGarrisonArmies };
+const RULES = { cost: B.cost, buildDays: B.buildDays, cooldownDays: B.cooldownDays, bonuses: B.bonuses, assaults: B.assaults, regenHours: B.regenHours, regenPauseHours: B.regenPauseHours, maxDistance: B.maxDistanceFromMember, wallMultiplier: B.wallMultiplier, wallReferenceLevel: B.wallReferenceLevel, maxGarrisonArmies: B.maxGarrisonArmies, breakGroupSeconds: B.breakGroupSeconds };
 function makeContext(state, extra = {}) {
   const ctx = {
     console, token: 't', player: { id: 'p1' }, currentCity: null, armies: [], cities: [],
@@ -37,7 +37,7 @@ function makeContext(state, extra = {}) {
     getUnitName: k => k, fetchJson: async () => state, ...extra
   };
   vm.createContext(ctx);
-  vm.runInContext(pick(src('09g-bastion.js'), ['bastionState', 'loadBastion', 'BASTION_RES', 'bastionStatusLabel', 'bastionBonusesHtml', 'renderBastionSection', 'garrisonFullText', 'renderBastionMapPanel', 'openBastionSend']), ctx);
+  vm.runInContext(pick(src('09g-bastion.js'), ['bastionState', 'loadBastion', 'BASTION_RES', 'bastionStatusLabel', 'bastionBonusesHtml', 'bastionRegenHtml', 'renderBastionSection', 'garrisonFullText', 'renderBastionMapPanel', 'openBastionSend']), ctx);
   return ctx;
 }
 const garrisonArmy = (i) => ({ id: `g${i}`, name: `Armée ${i}`, owner: { id: 'p2', name: 'Bo' }, status: 'STATIONED', units: [{ key: 'ROM_INF_MILICIEN', count: 10 }] });
@@ -109,6 +109,79 @@ test('Bastion assiégé : « Briser le siège » pour l\'alliance (onglet et car
   ctx.openBastionSend('b1', 'BREAK');
   assert.deepEqual([...modal.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]), ['g0', 'a1']);
   assert.match(modal, /Garde — garnison du Bastion \(sortie\)/);
+});
+
+// ---- décisions du 1er novembre 2026 (simulation de 200 jours) ----
+test('E3 : le panneau du Bastion et la carte disent la fin de la pause (24 h sans assaut gagné), puis la prochaine vie', { skip }, async () => {
+  const pausedUntil = new Date(Date.now() + 5 * 3600000).toISOString(), next = new Date(Date.now() + 12.2 * 3600000).toISOString();
+  // onglet Alliance › Bastion : pendant la pause
+  const paused = { ...bastionView(1), lives: 7, regenPausedUntil: pausedUntil, nextLifeAt: next };
+  let ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: paused });
+  const box = { innerHTML: '' };
+  await ctx.renderBastionSection(box);
+  assert.match(box.innerHTML, /Vies : <strong>7 \/ 10<\/strong>/);
+  assert.match(box.innerHTML, new RegExp(`Aucune vie ne revient pendant encore <span class="qd-timer" data-ends-at="${pausedUntil}">`));
+  assert.match(box.innerHTML, new RegExp(`\\(${B.regenPauseHours} h sans assaut gagné\\), puis une toutes les 7,2 h`));
+  assert.doesNotMatch(box.innerHTML, /elles remontent en 72 h/);
+  // la pause finie : la prochaine vie ; toutes là : la règle
+  ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: { ...paused, regenPausedUntil: null } });
+  await ctx.renderBastionSection(box);
+  assert.match(box.innerHTML, new RegExp(`Prochaine vie dans <span class="qd-timer" data-ends-at="${next}">`));
+  ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: { ...paused, lives: 10, regenPausedUntil: null, nextLifeAt: null } });
+  await ctx.renderBastionSection(box);
+  assert.match(box.innerHTML, new RegExp(`Toutes les vies sont là\\. Un assaut gagné en ôte une, et aucune ne revient avant ${B.regenPauseHours} h sans assaut gagné`));
+  // carte : un Bastion ennemi en pause (champs donnés par GET /api/map, bastionService.bastionsIn)
+  const map = makeContext({ inAlliance: false, rules: RULES }, { mapRelationOf: () => 'ENEMY', openRallyLaunch() {} });
+  const content = { innerHTML: '', querySelector: () => null };
+  await map.renderBastionMapPanel({ id: 'b1', name: 'Bastion [ENN]', x: 4, y: 5, status: 'ACTIVE', lives: 3, allianceTag: 'ENN', allianceName: 'Ennemis', regenPausedUntil: pausedUntil, nextLifeAt: next }, content);
+  assert.match(content.innerHTML, new RegExp(`Aucune vie ne revient pendant encore <span class="qd-timer" data-ends-at="${pausedUntil}">`));
+  assert.match(content.innerHTML, new RegExp(`ses vies ne reviennent qu'après ${B.regenPauseHours} h sans assaut gagné`));
+});
+
+test('E4 : briser le siège, l\'aide dit que les armées de la même minute se battent ensemble', { skip }, async () => {
+  const ctx = makeContext({ inAlliance: true, rules: RULES });
+  await ctx.loadBastion(true);
+  ctx.armies = [{ id: 'a1', name: 'Cohorte', status: 'IDLE', units: [{ count: 5 }] }];
+  let modal = '';
+  ctx.openSheetModal = (title, html) => { modal = html; };
+  ctx.openBastionSend('b1', 'BREAK');
+  assert.match(modal, new RegExp(`dans la même minute \\(${B.breakGroupSeconds} s après la première\\) se battent ensemble`));
+  assert.doesNotMatch(modal, /attaque seule/);
+  ctx.openBastionSend('b1', 'SUPPLY');
+  assert.match(modal, /dans la ville de l'armée d'abord, puis dans vos autres villes/, 'E1 : le convoi se paie sur toutes ses villes');
+  assert.doesNotMatch(modal, /Disponible dans toutes vos villes/, 'sans stock connu, pas de ligne');
+  // E1 : ce qui peut partir, le stock de toutes ses villes (playerStock, GET /api/cities)
+  ctx.playerStock = () => ({ wood: 12000.6, stone: 300, iron: 0, food: 4500, maxStorage: 90000 });
+  ctx.openBastionSend('b1', 'SUPPLY');
+  assert.match(modal, /Disponible dans toutes vos villes : .*12000 · .*300 · .*0 · .*4500<\/p>/);
+});
+
+test('E6 : un site libéré montre sa réservation ; pour une autre alliance, la fondation attend', { skip }, async () => {
+  const until = new Date(Date.now() + 4 * 3600000).toISOString();
+  const state = { wonderSites: { reserveHours: config.world.wonderSiteReserveHours, reserved: [{ nodeId: 'n1', x: 3, y: 4, allianceId: 'A1', allianceTag: 'AQL', until }] } };
+  const panel = () => {
+    const nodes = { '.wonder-reserve': { innerHTML: '' }, '[data-wonder-node="n1"]': {}, '[data-found-wonder]': { disabled: false, title: '' } };
+    return { nodes, querySelector: (sel) => nodes[sel] || null };
+  };
+  for (const [allianceId, mine] of [['A1', true], ['A2', false], [null, false]]) {
+    const ctx = makeContext(state, { player: { id: 'p1', allianceId } });
+    vm.runInContext(pick(src('09i-world.js'), ['worldStateCache', 'loadWorldState', 'wonderSiteReserve', 'fillWonderSiteReserve']), ctx);
+    const content = panel();
+    await ctx.fillWonderSiteReserve(content, { id: 'n1', x: 3, y: 4 });
+    const html = content.nodes['.wonder-reserve'].innerHTML;
+    assert.match(html, new RegExp(`data-ends-at="${until}"`), String(allianceId));
+    assert.equal(/Réservé à votre alliance/.test(html), mine);
+    assert.equal(/Réservé à l'alliance <strong>\[AQL\]<\/strong>, qui a battu les Immortels/.test(html), !mine);
+    assert.equal(content.nodes['[data-found-wonder]'].disabled, !mine, 'bouton de fondation');
+  }
+  // réservation finie ou site jamais réservé : ouvert à toutes les alliances
+  const ctx = makeContext({ wonderSites: { reserveHours: 6, reserved: [] } }, { player: { id: 'p1', allianceId: 'A2' } });
+  vm.runInContext(pick(src('09i-world.js'), ['worldStateCache', 'loadWorldState', 'wonderSiteReserve', 'fillWonderSiteReserve']), ctx);
+  const content = panel();
+  await ctx.fillWonderSiteReserve(content, { id: 'n1', x: 3, y: 4 });
+  assert.match(content.nodes['.wonder-reserve'].innerHTML, /Toute alliance peut y fonder sa Ville Merveille \(les 6 premières heures/);
+  assert.equal(content.nodes['[data-found-wonder]'].disabled, false);
+  assert.equal(ctx.wonderSiteReserve({ wonderSites: { reserved: [{ nodeId: 'n1', until: new Date(Date.now() - 1000).toISOString() }] } }, 'n1'), null, 'six heures passées');
 });
 
 test('fiche de la Merveille : l\'armée est le vrai moyen de la ravitailler (armées de transport, sans plafond)', { skip }, async () => {

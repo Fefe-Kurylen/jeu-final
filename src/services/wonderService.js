@@ -5,6 +5,8 @@
 // - Jour 120 : 12 sites de Merveille au centre, gardés chacun par une très forte garnison d'Immortels (points de ressource
 //   de type WONDER). Une armée qui la bat laisse le site libre 24 h : un joueur d'une alliance y fonde une ville avec ses
 //   colons, qui devient sa Ville Merveille (une par joueur, hors du compte des colonies). Sinon les Immortels reviennent.
+//   Les 6 premières heures, seule l'alliance qui a battu les Immortels peut y fonder (décision du 1er novembre 2026,
+//   simulation de 200 jours, E6).
 // - Jour 150 : 13 plans de construction en anneau autour (type PLAN), gardés aussi ; battre la garnison donne le plan au
 //   joueur. Au-delà du niveau 50, une alliance ne monte sa Merveille que si l'un de ses membres détient un plan. Un assaut
 //   gagné contre la capitale d'un détenteur emporte ses plans.
@@ -60,7 +62,10 @@ function phaseOf(row, now = new Date(), players = 0) {
 }
 async function worldState(now = new Date()) {
   const [row, players] = await Promise.all([worldRow(), prisma.player.count()]);
-  return phaseOf(row, now, players);
+  const st = phaseOf(row, now, players);
+  // sites de Merveille réservés en ce moment (E6), lus seulement une fois les sites apparus
+  const reserved = st.sitesOpen && !st.ended ? await reservedSites(now).catch(e => { console.error('[MONDE] sites réservés :', e.message); return []; }) : [];
+  return { ...st, wonderSites: { reserveHours: W.wonderSiteReserveHours, reserved } };
 }
 // Monde suivant demandé, en cours de remise à zéro (plus de ligne WorldConfig) ou carte pas encore ouverte (readyAt) :
 // ni inscription ni arrivée, la capitale serait posée sur une carte qui va changer
@@ -155,7 +160,45 @@ async function announce(title, body, link) {
   await prisma.$executeRaw`INSERT INTO "Notification" ("id", "playerId", "kind", "title", "body", "link") SELECT gen_random_uuid(), p.id, 'world', ${title}, ${body}, ${JSON.stringify(link || { to: 'map', tab: 'map', x: 0, y: 0 })}::jsonb FROM "Player" p`;
 }
 
-// Un camp d'Immortels vaincu (depuis resolveTribeCombat) : un plan va au vainqueur, un site attend sa ville 24 h
+// ---- site de Merveille réservé (décision du 1er novembre 2026, simulation de 200 jours, E6) ----
+// Quand les Immortels d'un site sont battus, l'alliance du vainqueur (le lanceur d'un rassemblement) est notée sur le site
+// (ResourceNode.reservedAllianceId, migration 0034 ; lue et écrite en SQL, le client Prisma n'a pas à être régénéré).
+// Pendant wonderSiteReserveHours après la défaite (lastDefeat), elle seule y fonde sa Ville Merveille ; ensuite n'importe
+// quelle alliance, jusqu'au retour des Immortels (24 h après leur défaite).
+const HOUR = 3600000;
+const reserveEnd = (lastDefeat) => new Date(new Date(lastDefeat).getTime() + W.wonderSiteReserveHours * HOUR);
+const parisTime = (d) => d.toLocaleString('fr-FR', { timeZone: 'Europe/Paris', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+// La réservation en cours d'un site libéré : { allianceId, tag, until }, ou null (site gardé ou bâti, six heures passées,
+// vainqueur sans alliance, alliance dissoute depuis : comme la liste de reservedSites). `db` : prisma ou la transaction
+// de la fondation
+async function siteReserve(db, node, now = new Date()) {
+  if (!node || node.resourceType !== 'WONDER' || node.hasDefenders || node.cityId || !node.lastDefeat) return null;
+  const until = reserveEnd(node.lastDefeat);
+  if (until <= now) return null;
+  const [row] = await db.$queryRaw`SELECT n."reservedAllianceId" AS "allianceId", a.tag FROM "ResourceNode" n JOIN "Alliance" a ON a.id = n."reservedAllianceId" WHERE n.id = ${node.id}`;
+  return row?.allianceId ? { allianceId: row.allianceId, tag: row.tag, until } : null;
+}
+// Le contrôle de la fondation (route found-city, arrivée du colon) : le refus en clair si le site est réservé à une autre
+// alliance que celle du joueur, sinon null
+async function siteClosedFor(db, node, playerId, now = new Date()) {
+  const r = await siteReserve(db, node, now);
+  if (!r) return null;
+  const mine = await db.allianceMember.findUnique({ where: { playerId }, select: { allianceId: true } });
+  if (mine?.allianceId === r.allianceId) return null;
+  return `Site réservé à l'alliance [${r.tag}], qui a battu les Immortels, jusqu'au ${parisTime(r.until)} : ensuite, toute alliance pourra y fonder sa Ville Merveille`;
+}
+// Sites réservés en ce moment (carte, panneau d'un site) : [{ nodeId, x, y, allianceId, allianceTag, until }]
+async function reservedSites(now = new Date(), db = prisma) {
+  const since = new Date(now.getTime() - W.wonderSiteReserveHours * HOUR);
+  const rows = await db.$queryRaw`
+    SELECT n.id, n.x, n.y, n."lastDefeat", n."reservedAllianceId" AS "allianceId", a.tag
+    FROM "ResourceNode" n JOIN "Alliance" a ON a.id = n."reservedAllianceId"
+    WHERE n."resourceType" = 'WONDER' AND n."hasDefenders" = false AND n."cityId" IS NULL AND n."lastDefeat" > ${since}`;
+  return rows.map(r => ({ nodeId: r.id, x: r.x, y: r.y, allianceId: r.allianceId, allianceTag: r.tag, until: reserveEnd(r.lastDefeat) }));
+}
+
+// Un camp d'Immortels vaincu (depuis resolveTribeCombat) : un plan va au vainqueur, un site attend sa ville 24 h, réservé
+// les 6 premières heures à l'alliance du vainqueur
 async function onImmortalsBeaten(tx, node, playerId) {
   if (node.resourceType === 'PLAN') {
     await tx.resourceNode.delete({ where: { id: node.id } });
@@ -164,7 +207,19 @@ async function onImmortalsBeaten(tx, node, playerId) {
     return { plan };
   }
   if (node.resourceType === 'WONDER') {
-    notify(playerId, 'world', '🏛️ Site de Merveille libéré', `Les Immortels du site (${node.x}, ${node.y}) sont vaincus : 24 h pour y fonder une ville avec un colon (la Ville Merveille de votre alliance), sinon ils reviennent.`, { to: 'map', x: node.x, y: node.y });
+    const member = await tx.allianceMember.findUnique({ where: { playerId }, select: { allianceId: true } });
+    const allianceId = member?.allianceId || null;
+    await tx.$executeRaw`UPDATE "ResourceNode" SET "reservedAllianceId" = ${allianceId} WHERE id = ${node.id}`;
+    const H = W.wonderSiteReserveHours;
+    const link = { to: 'map', x: node.x, y: node.y };
+    if (!allianceId) {
+      notify(playerId, 'world', '🏛️ Site de Merveille libéré', `Les Immortels du site (${node.x}, ${node.y}) sont vaincus : 24 h pour y fonder une ville avec un colon (une Ville Merveille se fonde pour une alliance), sinon ils reviennent.`, link);
+      return {};
+    }
+    // toute l'alliance est prévenue : celui qui fonde n'est pas toujours celui qui a mené le combat
+    const mates = await tx.allianceMember.findMany({ where: { allianceId }, select: { playerId: true } });
+    for (const m of mates) notify(m.playerId, 'world', '🏛️ Site de Merveille libéré', `${m.playerId === playerId ? 'Vous avez' : 'Votre alliance a'} vaincu les Immortels du site (${node.x}, ${node.y}) : pendant ${H} h, seule votre alliance peut y fonder sa Ville Merveille avec un colon ; ensuite toute alliance le peut, jusqu'au retour des Immortels 24 h après leur défaite.`, link);
+    return { reservedAllianceId: allianceId };
   }
   return {};
 }
@@ -241,7 +296,7 @@ async function attackImmortalsGroup(armyIds, nodeId, leaderId) {
     let capture = null;
     if (combat.attackerWon) {
       await tx.resourceNode.update({ where: { id: node.id }, data: { hasDefenders: false, defenderUnits: remaining, defenderPower: 0, lastDefeat: new Date() } });
-      capture = await onImmortalsBeaten(tx, node, captorId);   // plan au lanceur, site libre 24 h
+      capture = await onImmortalsBeaten(tx, node, captorId);   // plan au lanceur, site libre 24 h (les 6 premières pour son alliance)
     } else {
       await tx.resourceNode.update({ where: { id: node.id }, data: { defenderUnits: remaining, defenderPower: campPower(remaining, node.resourceType) } });
     }
@@ -406,4 +461,4 @@ async function processWonders(now = new Date()) {
   }
 }
 
-module.exports = { SPECIAL, isSpecial, settingsOf, phaseOf, worldState, worldRow, registrationBlocked, PREPARING, preparing, syncWorldSeed, isEnded, immortalUnits, immortalPower, immortalLines, WAVE_MIX, wavePower, waveUnits, spawnNodes, onImmortalsBeaten, attackImmortalsGroup, IMMORTAL_NAME, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };
+module.exports = { SPECIAL, isSpecial, settingsOf, phaseOf, worldState, siteReserve, siteClosedFor, reservedSites, worldRow, registrationBlocked, PREPARING, preparing, syncWorldSeed, isEnded, immortalUnits, immortalPower, immortalLines, WAVE_MIX, wavePower, waveUnits, spawnNodes, onImmortalsBeaten, attackImmortalsGroup, IMMORTAL_NAME, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };

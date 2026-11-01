@@ -204,3 +204,164 @@ moyenne ; site 3,0 M, plan 5,75 M et donjons gardés.
   Ces tests demandent un serveur et une base : à lancer avant d'ouvrir le monde.
 - Questions encore ouvertes (taille maximale d'une armée, poids des engins dans l'assaut d'un Bastion, armée réservée qui
   ne défend pas sa ville, cachette du début de partie…) : `docs/BACKLOG.md`.
+
+## Décisions du 1er novembre après la simulation
+
+La simulation de 200 jours demandée par D18 (`tools/sim` : 38 joueurs automatiques qui jouent par le vrai serveur et ne
+trichent jamais, un pas de 6 h, d'une heure aux moments décisifs ; 299 288 appels au serveur, aucune erreur du serveur) a
+été relue avec sa base, ses événements et le code. Les constats qui demandaient un choix ont reçu la réponse du
+propriétaire : **E1 à E8**. Les décisions D1 à D19 restent valables. Les valeurs sont dans `src/config/index.js`, avec la
+mention « décision du 1er novembre 2026 (simulation de 200 jours) » ; tableau : `docs/EQUILIBRAGE.md` § 18 ; règles :
+`docs/ETAT-DES-SYSTEMES.md`.
+
+### Ce que la simulation a montré (jour 200)
+
+- **Progression** : 38 joueurs, 38 capitales et 76 colonies (2 par joueur, fondées aux jours médians 51 et 80) ; bâtiments
+  au niveau 20 vers le jour 161 (médiane), recherches finies vers le jour 126 ; 0,49 à 0,75 million de puissance par
+  joueur ; écart entre civilisations de 1,07 au jour 182.
+- **Stock** : 89 % du stockage d'un compte complet est dans les colonies (640 000 par ressource contre 160 000 dans la
+  capitale). À la fin, les colonies sont pleines (99,7 %, céréales 96 %, 46,8 millions de céréales en tout), la capitale
+  presque vide en céréales (4 %, entre 4 et 12 % chaque semaine depuis le jour 119) : chaque ville paie d'abord ses troupes
+  (§ 1 bis) et toutes les troupes sont à la capitale.
+- **Échanges** : 441 offres, 90 échanges conclus (3,46 millions des deux côtés), **aucun après le jour 119** ; 219 des
+  221 offres expirées demandaient des céréales. 109 envois à un allié (4,29 millions). 96 des 220 offres expirées sont
+  revenues dans un entrepôt plein à 98 % ou plus : le surplus était perdu.
+- **Armées** : les 190 armées de campagne sont toutes sur les places de la capitale (38 × 5), aucune sur les places des
+  colonies (une armée d'une colonie ne pouvait jamais recevoir de troupes) : 16 joueurs sur 38 auraient eu besoin d'une
+  armée de plus (une de campagne, 2 gardes de colonie, une pour le Bastion, une pour l'Ost, une pour le marché). 8 colonies
+  sur 76 n'ont jamais eu de garde.
+- **Bastion** : 102 rassemblements, 100 assauts dont 76 gagnés, **aucun Bastion rasé** ; les vies vues : 10/10 ou 9/10. Deux
+  assauts sur le même Bastion étaient séparés de 66 h au moins (72 h en médiane), alors qu'une vie revenait en 7,2 h.
+- **Camps devant un Bastion** : 233 armées envoyées en 72 vagues, **2 combats gagnés** (au début, contre des camps de 2 et
+  3 joueurs) ; les 52 combats gardés en base sont tous perdus, chaque armée valant de 0,08 à 0,78 fois le camp (0,27 en
+  médiane).
+- **Merveille** : 9 sites libérés (le premier au jour 138), 2 Villes Merveille (LUP au jour 139, AQL au jour 197). LUP a
+  fondé la sienne sur un site qu'AQL venait de libérer, 3 minutes après le combat d'AQL. La Merveille de LUP est restée au
+  niveau 1 pendant 41 jours faute de 1 235 céréales, avec 46,8 millions de bois, pierre et fer dans son stock ; 83 vagues
+  d'Immortels, toutes tenues.
+- **Invasions** : 33 invasions, 602 étages battus (434 au niveau 1, 4 au niveau 4, 1 au niveau 5), aucun donjon détruit.
+
+### Les réponses du propriétaire
+
+| Constat de la simulation | Réponse du propriétaire | Décision |
+|---|---|---|
+| Le stock des colonies ne peut jamais être échangé, donné ni envoyé à la Merveille ou au Bastion | « Oui, stock commun » | E1 |
+| Un joueur n'a en fait que 5 armées : les places d'armée des colonies ne reçoivent jamais de troupes | « Armées rattachées aux colonies » (et non une place de plus par colonie) | E2 |
+| Raser un Bastion demande 10 assauts gagnés à moins de 7,2 h l'un de l'autre | Une vie ne revient qu'après 24 h sans assaut gagné | E3 |
+| Une armée seule ne chasse jamais un camp de 3 armées ou plus | Les armées qui atteignent le camp dans la même minute se battent ensemble | E4 |
+| Avec la seule armée de leur capitale, les chefs de donjon demandent 3 / 13 / 22-23 joueurs | Donjons taillés sur une armée par joueur, celle de la capitale : 42 % de la médiane | E5 |
+| Un site de Merveille libéré est ouvert 24 h à toutes les alliances | Réservé 6 h à l'alliance qui a battu les Immortels | E6 |
+| Vagues d'Immortels : niveau 100 tenu avec 61 à 67 % de l'armée au jour 200 (cible 80 %) | Garder 14 000 ; mesurer de nouveau quand une simulation atteint la Merveille 50 | E7 |
+| Taxe des échanges entre joueurs : rentable seulement en toute fin de développement | Garder 30 % de base | E8 |
+
+### Ce qui a été fait, décision par décision
+
+#### E1. Stock commun pour tout ce qu'une armée emporte
+- L'armée part toujours de sa ville (le Marché et le Comptoir restent dans la capitale), mais ce qu'elle charge pour une
+  offre, un échange accepté, un envoi (`POST /api/trade/send`, `POST /api/army/:id/transport`), une livraison à la Ville
+  Merveille ou un ravitaillement du Bastion se prend dans **toutes les villes du joueur** : la ville de départ d'abord, puis
+  la plus pleine par rapport à son plafond (`utils/db.js` : `debitPlayer`, comme la fondation d'une ville). Toutes les villes
+  du joueur sont verrouillées dans l'ordre des id ; pour un échange, celles des deux joueurs en une seule passe
+  (`lockCitiesOfPlayers`), rejoué après un interblocage rare.
+- Une offre rendue (retirée, expirée, ville tombée) et une livraison qui arrive vont à la ville visée d'abord, puis aux
+  autres villes du joueur selon leur place (`creditPlayer`) ; ce qui ne tient nulle part est perdu (offre rendue) ou revient
+  avec l'armée (livraison), et le message le dit. Le butin et la récolte qu'une armée rapporte suivent la même règle.
+- Le client montre le total de toutes les villes comme ce qui peut partir (« Disponible dans toutes vos villes »).
+- Pourquoi : les colonies tiennent 89 % du stockage et presque toutes les céréales ; seule la capitale (11 % du stockage,
+  céréales à 4 %) pouvait charger une armée. Avec les 4,24 millions de céréales des colonies (celles de 3,5 joueurs), la
+  Merveille de LUP aurait pu monter au niveau 39.
+- Remplace la règle du 30 octobre « marché, transports : propres à chaque ville » (§ 1 bis). Le pillage et les raids
+  restent propres à chaque ville.
+
+#### E2. Armées rattachées aux colonies
+- Une armée **à l'arrêt** (ni réservée au marché, ni en mission) qui se tient dans une colonie de son joueur peut lui être
+  rattachée (« Rattacher à cette colonie ») : elle prend une place d'armée libre de la colonie (autant que la Place de
+  rassemblement de la capitale en permet, comme avant) et libère la sienne ; sa ville devient la colonie ; elle **défend la
+  colonie** comme une garnison (attaques, raids, sièges) et **chaque retour la ramène à la colonie**.
+- Pas de garnison en colonie : on n'y ajoute ni n'y retire de troupes (refus « Une colonie n'a pas de garnison : … ») ; elle
+  se dissout seulement vide, ou une fois revenue à la capitale. « Renvoyer à la capitale » la ramène : elle reprend une
+  place libre de la capitale dès le départ (refus s'il n'y en a pas). La Ville Merveille n'est pas une colonie : on n'y
+  rattache pas d'armée (`config.army.colonyArmies.wonderCity = false`). Colonie rasée : ses armées rattachées reviennent à
+  la capitale avec leurs survivants. Entretien inchangé (stock commun).
+- Client : action « Rattacher à cette colonie » sur une armée posée dans une de ses colonies, armées rattachées listées avec
+  la colonie (« Mes villes », onglet Armée de la colonie), « Renvoyer à la capitale ».
+- Pourquoi : les gardes des colonies prenaient les places de la capitale ; rattachées, elles libèrent ces places. Les
+  gardes des colonies du simulateur doivent s'en servir.
+
+#### E3. Bastion : 24 h sans assaut gagné avant qu'une vie revienne
+- Une vie ne revient qu'après **24 h sans assaut gagné** (`config.bastion.regenPauseHours`), puis une toutes les 7,2 h comme
+  avant (`regenHours` 72 pour 10 vies). Chaque assaut gagné relance la pause ; un assaut repoussé ne change rien. Le panneau
+  du Bastion et la carte disent quand la pause finit et quand revient la prochaine vie.
+- Pourquoi : un assaut gagné effaçait la vie qui remontait, et la suivante revenait en 7,2 h ; il fallait 10 assauts gagnés
+  à moins de 7,2 h l'un de l'autre, soit 3 groupes de rassemblement qui se relaient pendant 54 à 65 h (les marches durent
+  5,5 à 7,7 h dans chaque sens). Avec la pause de 24 h, un seul groupe qui revient toutes les 14 à 17 h prend une vie à chaque
+  fois : 6 à 7 jours pour 10 vies, environ 2,5 jours avec 3 groupes.
+
+#### E4. Briser le siège d'un Bastion ensemble
+- Les armées du côté du Bastion (son alliance et ses alliés, sorties de la garnison comprises) qui atteignent le même camp
+  dans la même minute (`config.bastion.breakGroupSeconds`, 60 s après la première) se battent **ensemble**, en une seule
+  bataille : unités réunies côté assaillant, technologies et héros de l'armée qui mène, pertes de chaque armée selon ses
+  soldats, chacune connaît ensuite son sort comme avant (une sortie gagnante rentre au Bastion, une armée du dehors reste
+  devant lui, une armée battue rentre). Un rapport par joueur, avec le nombre d'armées.
+- Pourquoi : chaque armée se battait seule contre tout le camp réuni ; toute l'armée d'un joueur, réunie, bat un camp de
+  1 / 2 / 3 / 5 / 9 armées 100 / 77 / 2 / 0 / 0 % des fois (une seule armée de campagne : 47 / 0 / 0 / 0 / 0 %). Mesure (vrai moteur, 120 tirages) : autant d'armées groupées que
+  le camp en compte gagnent 35 à 38 % des fois, deux de plus 99 à 100 %.
+
+#### E5. Donjons taillés sur l'armée de la capitale
+- `config.invasion.powerRef.outpostPctOfMedian` **50 → 42** : un joueur n'envoie qu'une armée dans un rassemblement, celle de
+  sa capitale (84 % de toute son armée en fin de simulation : 503 000 sur 599 000). La médiane est aussi mesurée sur les
+  soldats seuls : les engins de siège en sont retirés (`hordeService.measuredBasePower` ; 628 000 avec eux, 599 000 sans au
+  jour 200).
+- Chiffres (vrai moteur, armées de la simulation au jour 200) : avec 50 % et la seule armée de la capitale, les chefs des
+  niveaux 1 / 4 / 5 demandaient 3 / 13 / 22-23 joueurs ; avec 42 % : **2 / 11 / 19** (2 / 9 / 16 avec toute l'armée de chaque
+  joueur), chef du niveau 5 à 11,1 millions ; avec la médiane sans engins : 2 / 10 / 18.
+
+#### E6. Site de Merveille libéré réservé 6 h
+- Les Immortels d'un site battus, l'alliance du vainqueur (le lanceur d'un rassemblement) est notée sur le site
+  (`ResourceNode.reservedAllianceId`, migration `0034_site_merveille_reserve`, idempotente) : pendant **6 h**
+  (`config.world.wonderSiteReserveHours`), seule cette alliance peut y fonder sa Ville Merveille ; ensuite toute alliance le
+  peut, jusqu'au retour des Immortels 24 h après leur défaite. Refus : « Site réservé à l'alliance [TAG], qui a battu les
+  Immortels, jusqu'au … ». Toute l'alliance du vainqueur est prévenue. La carte et le panneau du site montrent la réservation.
+- Pourquoi : LUP a fondé sa Ville Merveille sur le site qu'AQL venait de libérer, 3 minutes après le combat d'AQL, sans
+  combattre ; AQL a dû libérer un site 9 fois avant de fonder.
+
+#### E7. Vagues d'Immortels : 14 000, à mesurer de nouveau
+- Rien ne change. Avec les armées du jour 200, une alliance de 16 / 15 joueurs tient le niveau 100 avec 61 / 67 % de son
+  armée (80 % visés) ; il faudrait une base de 17 000 à 18 000 pour 80 %. La simulation n'a pas dépassé le niveau 1 de la
+  Merveille : à mesurer de nouveau quand une simulation atteint le niveau 50.
+
+#### E8. Taxe des échanges entre joueurs : 30 % de base, gardée
+- Rien ne change. Taxe réelle de la simulation côté vendeur : 17,3 % (Comptoir 5 à 15, Chambre au Trésor jusqu'à 20) ; un
+  échange entre joueurs ne coûte moins que le marchand du serveur (11 % au Marché 20) qu'avec le Comptoir 15 et la Chambre au
+  Trésor 20.
+
+### Ce qui change pour le jeu (API)
+
+- Stock commun (E1) : `POST /api/market/offer`, `POST /api/market/offer/:id/accept`, `POST /api/trade/send`,
+  `POST /api/army/:id/transport` et le ravitaillement du Bastion refusent seulement si toutes les villes réunies n'ont pas
+  assez (« Ressources insuffisantes : il manque … (toutes vos villes comprises) ») ; `DELETE /api/market/offer/:id` peut
+  ajouter « ; plus de place dans vos villes : … perdus » ; l'avertissement d'un échange compte la place de toutes les villes
+  de l'acheteur.
+- Armées des colonies (E2) : `POST /api/army/:id/attach-colony` → `{ message, army: { id, cityId, slot, name }, colony:
+  { id, name }, fromCityId }` ; `POST /api/army/:id/detach-colony` → `{ message, travelTime, arrivalAt, army: { id, cityId,
+  slot, name }, fromCityId }` ; `GET /api/armies` et `GET /api/army/:id` → `attachedColony: { id, name, isWonder }` ou `null` ;
+  dans une colonie, `set-unit` et `adjust-unit` : 400, `disband` d'une armée qui a des soldats : 400.
+- Bastion (E3, E4) : `GET /api/bastion` et `/api/map/viewport` → `regenPausedUntil`, `nextLifeAt` ; `rules.regenPauseHours =
+  24`, `rules.breakGroupSeconds = 60` ; rapport `SIEGE_BREAK` : `rounds.armies` (et `loot.armies` quand plusieurs armées se
+  sont battues ensemble).
+- Merveille (E6) : `GET /api/world/state` → `wonderSites: { reserveHours: 6, reserved: [{ nodeId, x, y, allianceId,
+  allianceTag, until }] }` ; `POST /api/army/:id/found-city` sur un site réservé à une autre alliance : 400.
+
+### Vérifications
+
+- Tests unitaires : chaque lot a ajouté les siens (stock commun, armées des colonies, vies du Bastion, combat ensemble devant
+  un Bastion, donjons, site réservé, joueurs automatiques).
+- Tests de bout en bout (`tests/api-e2e.mjs`) : E1 (offre, envoi et transport depuis la capitale avec le bois seulement dans
+  la colonie ; offre retirée avec une capitale presque pleine, le reste dans la colonie ; livraison d'un autre joueur vers une
+  capitale pleine, versée dans la colonie), E2 (armée rattachée à une colonie, qui la défend contre un raid, y rentre, refuse
+  les changements de troupes, puis revient à la capitale ; refus sans place libre dans la capitale), E3 (pas de vie pendant
+  24 h après un assaut gagné, 10 vies après 24 h + 7,2 h ; chaque assaut gagné relance la pause, un assaut repoussé non), E4
+  (une armée seule repoussée par un camp, deux arrivées ensemble le chassent en une bataille), E5 (42 %), E6 (une autre
+  alliance refusée pendant 6 h, le site libre pour toutes après, le vainqueur fonde). Test du navigateur : « Disponible dans
+  toutes vos villes » sur l'écran « Envoyer ». Ces tests demandent un serveur et une base.
+- Questions encore ouvertes : `docs/BACKLOG.md`.

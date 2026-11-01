@@ -566,7 +566,8 @@ async function loadMap() {
       (data.bastions || []).forEach(b => mapData.push({
         x: b.x, y: b.y, type: 'BASTION', id: b.id, name: `Bastion [${b.allianceTag}]`, allianceId: b.allianceId, allianceTag: b.allianceTag,
         allianceName: b.allianceName, faction: b.faction || 'ROME', status: b.status, structurePct: b.structurePct ?? 100, lives: b.lives ?? null,
-        isSieged: !!b.isSieged, buildEndsAt: b.buildEndsAt || null, cityTier: 3, isCapital: true
+        isSieged: !!b.isSieged, buildEndsAt: b.buildEndsAt || null, cityTier: 3, isCapital: true,
+        regenPausedUntil: b.regenPausedUntil || null, nextLifeAt: b.nextLifeAt || null   // vies qui reviennent (décision du 1er novembre 2026)
       }));
 
       // Add resource nodes with tribe defenders info
@@ -3187,23 +3188,24 @@ function sendResourcesFromMap(cityId, cityName) {
     <p>Vers: <strong>${escapeHtml(cityName)}</strong></p>
     <p>Armée: <strong>${escapeHtml(army.name)}</strong></p>
     <p>Capacité: <strong>${formatNum(capacity)}</strong></p>
+    ${(() => { const line = typeof availableStockHtml === 'function' ? availableStockHtml() : ''; return line ? `<p class="diplo-help">${line}</p>` : ''; })()}
     
     <div class="resource-inputs">
       <div class="resource-input">
         <label>${resIconHtml('wood')} Bois</label>
-        <input type="number" id="map-send-wood" value="0" min="0" max="${Math.floor(currentCity?.wood || 0)}" inputmode="numeric">
+        <input type="number" id="map-send-wood" value="0" min="0" max="${Math.floor(stockOf('wood'))}" inputmode="numeric">
       </div>
       <div class="resource-input">
         <label>${resIconHtml('stone')} Pierre</label>
-        <input type="number" id="map-send-stone" value="0" min="0" max="${Math.floor(currentCity?.stone || 0)}" inputmode="numeric">
+        <input type="number" id="map-send-stone" value="0" min="0" max="${Math.floor(stockOf('stone'))}" inputmode="numeric">
       </div>
       <div class="resource-input">
         <label>${resIconHtml('iron')} Fer</label>
-        <input type="number" id="map-send-iron" value="0" min="0" max="${Math.floor(currentCity?.iron || 0)}" inputmode="numeric">
+        <input type="number" id="map-send-iron" value="0" min="0" max="${Math.floor(stockOf('iron'))}" inputmode="numeric">
       </div>
       <div class="resource-input">
         <label>${resIconHtml('food')} Nourriture</label>
-        <input type="number" id="map-send-food" value="0" min="0" max="${Math.floor(currentCity?.food || 0)}" inputmode="numeric">
+        <input type="number" id="map-send-food" value="0" min="0" max="${Math.floor(stockOf('food'))}" inputmode="numeric">
       </div>
     </div>
     

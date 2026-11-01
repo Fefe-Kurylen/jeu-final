@@ -11,6 +11,10 @@
 // conclues après 30 jours : le rapport lit les compteurs des joueurs automatiques) ; une garnison de Bastion ne compte que
 // les armées qui ont des soldats, ses vies remontent avec le temps comme sur le serveur ; colonies sans garde en poste ;
 // camps devant un Bastion brisés ou non, un combat par ligne ; chefs des donjons atteints par niveau.
+// Décisions du 1er novembre 2026 (simulation de 200 jours) : armées rattachées aux colonies (E2), pause des vies des
+// Bastions et dernier assaut gagné (E3), camps brisés par un groupe arrivé dans la même minute (E4) ; pour juger les
+// décisions D6 et D13, soldats par palier et Grandes caserne / écurie des colonies. Le plafond de la garnison d'un Bastion
+// ne compte que les armées postées qui ont des soldats, comme le serveur.
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
@@ -74,9 +78,15 @@ async function invariants(prisma, clock) {
   await add('bâtiment au-dessus de son niveau maximum (Bâtiment principal 20, Mur d\'une colonie 15)', `SELECT b."cityId", b.key, b.level, c."isCapital" FROM "CityBuilding" b JOIN "City" c ON c.id = b."cityId" JOIN unnest($1::text[], $2::int[], $3::int[]) AS m(key, cap, col) ON m.key = b.key WHERE b.level > CASE WHEN c."isCapital" THEN m.cap ELSE m.col END`, MAX_LEVEL.keys, MAX_LEVEL.capital, MAX_LEVEL.colony);
   // pas de garnison propre dans les colonies (§ 1 bis) : une colonie fondée n'en reçoit pas
   await add('garnison dans une colonie', `SELECT a.id, a."cityId" FROM "Army" a JOIN "City" c ON c.id = a."cityId" WHERE a."isGarrison" AND NOT c."isCapital"`);
+  // armées rattachées aux colonies (décision du 1er novembre 2026, E2) : rattacher, renvoyer à la capitale et la chute d'une
+  // colonie font changer une armée de ville et d'emplacement ; deux armées d'une ville sur le même emplacement ne doivent
+  // jamais arriver (la base ne l'interdit pas d'elle-même)
+  await add('deux armées sur le même emplacement d\'une ville', `SELECT "cityId", slot, count(*)::int AS n FROM "Army" WHERE NOT "isGarrison" AND "cityId" IS NOT NULL GROUP BY 1, 2 HAVING count(*) > 1`);
   await add('bâtiment au-dessus du Bâtiment principal', `SELECT b."cityId", b.key, b.level, m.level AS hall FROM "CityBuilding" b JOIN "CityBuilding" m ON m."cityId" = b."cityId" AND m.key = 'MAIN_HALL' WHERE b.key <> 'MAIN_HALL' AND b.level > m.level`);
-  // garnison d'un Bastion (décision du 31 octobre 2026) : maxGarrisonArmies au plus, celles en route et la sortie comprises
-  await add('garnison de Bastion au-delà du plafond', `SELECT "targetBastionId" AS b, count(*)::int AS n FROM "Army" WHERE "targetBastionId" IS NOT NULL AND (status = 'STATIONED' OR (status IN ('SUPPORTING', 'ATTACKING') AND "missionType" IN ('BASTION_GARRISON', 'BASTION_SORTIE'))) GROUP BY 1 HAVING count(*) > $1`, config.bastion.maxGarrisonArmies);
+  // garnison d'un Bastion (décision du 31 octobre 2026) : maxGarrisonArmies au plus, celles en route et la sortie comprises ;
+  // une armée postée sans soldats ne compte pas (le serveur non plus : garrisonWhere ; une armée vidée par la famine reste
+  // postée jusqu'au tick suivant)
+  await add('garnison de Bastion au-delà du plafond', `SELECT "targetBastionId" AS b, count(*)::int AS n FROM "Army" WHERE "targetBastionId" IS NOT NULL AND ((status = 'STATIONED' AND EXISTS (SELECT 1 FROM "ArmyUnit" u WHERE u."armyId" = "Army".id AND u.count > 0)) OR (status IN ('SUPPORTING', 'ATTACKING') AND "missionType" IN ('BASTION_GARRISON', 'BASTION_SORTIE'))) GROUP BY 1 HAVING count(*) > $1`, config.bastion.maxGarrisonArmies);
   await add('espion bloqué', `SELECT id, status, "arrivalAt", "returnAt" FROM "Spy" WHERE status <> 'IDLE' AND COALESCE("returnAt", "arrivalAt") < $1`, late).catch(() => {});
   return out.map(o => ({ ...o, sample: JSON.parse(JSON.stringify(o.sample, (k, v) => (typeof v === 'bigint' ? Number(v) : v))) }));
 }
@@ -146,11 +156,21 @@ async function snapshot(prisma, clock, bots, sinceMs = null) {
   return { players: per, factions, week, world, map: await mapView(prisma, cities, players), endgame: await endgameView(prisma, clock.now()), totals: await totalsView(prisma, cities) };
 }
 
-// Camps devant un Bastion attaqués depuis `since` (mission BREAK du dehors ou sortie de la garnison) : un combat par ligne
-// (le rapport de l'attaquant, une armée), lu dans les rapports de bataille que le jeu garde 30 jours
+// Camps devant un Bastion attaqués depuis `since` (mission BREAK du dehors ou sortie de la garnison), lus dans les rapports
+// de bataille que le jeu garde 30 jours : un combat par ligne. Les armées du camp qui défend arrivées dans la même minute
+// combattent ensemble (décision du 1er novembre 2026, E4) : un rapport par joueur du groupe, au même instant, avec les
+// mêmes noms d'attaquants ; ils ne font qu'une ligne, `players` dit combien de joueurs ont combattu ensemble, `armies`
+// combien d'armées (loot.armies du rapport)
 async function bastionBreaks(prisma, since) {
-  const rows = await prisma.$queryRawUnsafe(`SELECT r."createdAt" AS at, al.tag, r.loot->>'attackerName' AS by, r.loot->>'defenderName' AS camp, round((r.loot->>'attackerPower')::numeric)::bigint AS ap, round((r.loot->>'defenderPower')::numeric)::bigint AS dp, r.result FROM "BattleReport" r LEFT JOIN "Bastion" b ON b.id = r.rounds->>'bastionId' LEFT JOIN "Alliance" al ON al.id = b."allianceId" WHERE r."playerId" = r."attackerId" AND r.loot->>'type' = 'SIEGE_BREAK' AND r.rounds->>'bastionId' IS NOT NULL AND r."createdAt" >= $1 ORDER BY r."createdAt"`, since).catch(() => []);
-  return rows.map(r => ({ at: new Date(r.at).toISOString(), tag: r.tag || '?', by: r.by, camp: String(r.camp || '').slice(0, 80), ap: Number(r.ap) || 0, dp: Number(r.dp) || 0, won: r.result === 'WIN' }));
+  const rows = await prisma.$queryRawUnsafe(`SELECT r."createdAt" AS at, r.rounds->>'bastionId' AS bid, al.tag, r.loot->>'attackerName' AS by, r.loot->>'defenderName' AS camp, round((r.loot->>'attackerPower')::numeric)::bigint AS ap, round((r.loot->>'defenderPower')::numeric)::bigint AS dp, coalesce((r.loot->>'armies')::int, 1) AS armies, r.result FROM "BattleReport" r LEFT JOIN "Bastion" b ON b.id = r.rounds->>'bastionId' LEFT JOIN "Alliance" al ON al.id = b."allianceId" WHERE r."playerId" = r."attackerId" AND r.loot->>'type' = 'SIEGE_BREAK' AND r.rounds->>'bastionId' IS NOT NULL AND r."createdAt" >= $1 ORDER BY r."createdAt"`, since).catch(() => []);
+  const battles = new Map();
+  for (const r of rows) {
+    const k = `${r.bid}|${new Date(r.at).getTime()}|${r.by || ''}`;
+    const b = battles.get(k);
+    if (b) { b.players++; continue; }
+    battles.set(k, { at: new Date(r.at).toISOString(), tag: r.tag || '?', by: r.by, camp: String(r.camp || '').slice(0, 80), ap: Number(r.ap) || 0, dp: Number(r.dp) || 0, won: r.result === 'WIN', players: 1, armies: Number(r.armies) || 1 });
+  }
+  return [...battles.values()];
 }
 
 // ---------- la carte : place pour les colonies, colonies par joueur, capitales par côté ----------
@@ -195,7 +215,15 @@ async function mapView(prisma, cities, players) {
   const sides = {};
   for (const c of cities.filter(x => x.isCapital)) { const s = spawn().sideAt(c.x, c.y); sides[s] = (sides[s] || 0) + 1; }
   const sites = await prisma.$queryRawUnsafe(`SELECT rn.level, count(*)::int AS n FROM "ResourceNode" rn JOIN "City" c ON c.id = rn."cityId" WHERE NOT c."isCapital" AND NOT c."isWonder" GROUP BY 1 ORDER BY 1`);
-  return { size: config.map.worldSize, foundable: await foundableNodes(prisma), coloniesPerPlayer: colonies, capitalsBySide: sides, colonySiteLevels: Object.fromEntries(sites.map(r => [r.level, r.n])), unguarded: await unguardedColonies(prisma, cities.filter(c => !c.isCapital && !c.isWonder).length) };
+  return { size: config.map.worldSize, foundable: await foundableNodes(prisma), coloniesPerPlayer: colonies, capitalsBySide: sides, colonySiteLevels: Object.fromEntries(sites.map(r => [r.level, r.n])), unguarded: await unguardedColonies(prisma, cities.filter(c => !c.isCapital && !c.isWonder).length), colonyArmies: await colonyArmies(prisma) };
+}
+// Armées rattachées aux colonies (décision du 1er novembre 2026, E2) : armées (hors garnison) dont la ville est une colonie
+// (ni capitale, ni Ville Merveille) ; avec des soldats ; colonies qui en ont une ; joueurs qui en ont une ; armées sur les
+// emplacements des capitales (pour comparer : 5 par joueur au plus avec une Place de rassemblement 0 à 4)
+async function colonyArmies(prisma) {
+  const rows = await prisma.$queryRawUnsafe(`SELECT c."isCapital" AS cap, count(a.id)::int AS n, count(a.id) FILTER (WHERE EXISTS (SELECT 1 FROM "ArmyUnit" u WHERE u."armyId" = a.id AND u.count > 0))::int AS manned, count(DISTINCT a."cityId")::int AS cities, count(DISTINCT a."ownerId")::int AS players FROM "Army" a JOIN "City" c ON c.id = a."cityId" WHERE NOT a."isGarrison" AND NOT c."isWonder" GROUP BY 1`).catch(() => []);
+  const col = rows.find(r => !r.cap) || {}, cap = rows.find(r => r.cap) || {};
+  return { attached: col.n || 0, manned: col.manned || 0, colonies: col.cities || 0, players: col.players || 0, capitalArmies: cap.n || 0, capitals: cap.cities || 0 };
 }
 // Colonies sans garde en poste (décision du 31 octobre 2026 : une armée postée dans chaque colonie) : aucune armée avec des
 // soldats sur le bloc 2 × 2 de la colonie, ni à son propriétaire (au repos), ni en renfort (STATIONED pour cette ville) ;
@@ -208,18 +236,29 @@ async function unguardedColonies(prisma, of) {
 // ---------- fin de partie : Bastions et leur garnison, rassemblements, Merveille ----------
 // Garnison d'un Bastion : les armées postées qui ont encore des soldats, celles en route pour y entrer et une sortie en
 // cours (une armée anéantie dans un assaut ne compte pas) ; soldats : ceux des armées postées. Vies : celles du serveur,
-// remontées depuis la dernière valeur écrite (bastionService.structureNow, livesOf).
+// remontées depuis la dernière valeur écrite (bastionService.structureNow, livesOf, avec la ligne entière du Bastion).
+// Pause (décision du 1er novembre 2026, E3) : une vie ne remonte qu'après config.bastion.regenPauseHours sans assaut gagné ;
+// lastWonAt : le dernier assaut gagné (rapports de bataille, 30 jours), pausedUntil : la fin de la pause qu'il a lancée.
 const HAS_SOLDIERS = `EXISTS (SELECT 1 FROM "ArmyUnit" u WHERE u."armyId" = x.id AND u.count > 0)`;
 async function endgameView(prisma, now = Date.now()) {
   const q = (sql, ...a) => prisma.$queryRawUnsafe(sql, ...a);
-  const garrison = await q(`SELECT a.tag, b.status, b.structure, b."structureAt", (SELECT count(*)::int FROM "Army" x WHERE x."targetBastionId" = b.id AND ${HAS_SOLDIERS} AND (x.status = 'STATIONED' OR (x.status IN ('SUPPORTING', 'ATTACKING') AND x."missionType" IN ('BASTION_GARRISON', 'BASTION_SORTIE')))) AS garrison, (SELECT coalesce(sum(u.count), 0)::int FROM "Army" x JOIN "ArmyUnit" u ON u."armyId" = x.id WHERE x."targetBastionId" = b.id AND x.status = 'STATIONED') AS soldiers FROM "Bastion" b JOIN "Alliance" a ON a.id = b."allianceId"`);
+  const garrison = await q(`SELECT b.id, a.tag, b.status, (SELECT count(*)::int FROM "Army" x WHERE x."targetBastionId" = b.id AND ${HAS_SOLDIERS} AND (x.status = 'STATIONED' OR (x.status IN ('SUPPORTING', 'ATTACKING') AND x."missionType" IN ('BASTION_GARRISON', 'BASTION_SORTIE')))) AS garrison, (SELECT coalesce(sum(u.count), 0)::int FROM "Army" x JOIN "ArmyUnit" u ON u."armyId" = x.id WHERE x."targetBastionId" = b.id AND x.status = 'STATIONED') AS soldiers, (SELECT max(r."createdAt") FROM "BattleReport" r WHERE r."playerId" = r."attackerId" AND r.loot->>'type' = 'BASTION' AND r.loot->>'bastionId' = b.id AND r.winner = 'ATTACKER') AS "lastWonAt" FROM "Bastion" b JOIN "Alliance" a ON a.id = b."allianceId"`);
+  const rowsById = new Map((await prisma.bastion.findMany()).map(b => [b.id, b]));
+  const pauseMs = (Number(config.bastion.regenPauseHours) || 0) * 3600000;
   const rallies = await q(`SELECT coalesce("targetKind", CASE WHEN "targetBastionId" IS NOT NULL THEN 'BASTION' ELSE 'HORDE' END) AS kind, "waitMinutes" AS wait, status, count(*)::int AS n FROM "Rally" GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`);
   const wonders = await q(`SELECT c.name, c."wonderLevel" AS level, a.tag FROM "City" c LEFT JOIN "AllianceMember" m ON m."playerId" = c."playerId" LEFT JOIN "Alliance" a ON a.id = m."allianceId" WHERE c."isWonder"`);
   const plans = await q(`SELECT a.tag, count(*)::int AS n FROM "WonderPlan" p LEFT JOIN "AllianceMember" m ON m."playerId" = p."holderId" LEFT JOIN "Alliance" a ON a.id = m."allianceId" WHERE p."holderId" IS NOT NULL GROUP BY 1`);
   const sites = await q(`SELECT "resourceType" AS kind, count(*)::int AS n, count(*) FILTER (WHERE "hasDefenders")::int AS guarded FROM "ResourceNode" WHERE "resourceType" IN ('WONDER', 'PLAN') GROUP BY 1`);
   const BS = bastionService();
-  const livesOf = (g) => (g.status === 'DESTROYED' ? 0 : BS.livesOf(BS.structureNow({ structure: g.structure, structureAt: g.structureAt }, now)));
-  return { bastions: garrison.map(g => ({ tag: g.tag, status: g.status, lives: livesOf(g), garrison: g.garrison, soldiers: g.soldiers })), rallies, wonders, plans, sites };
+  const livesOf = (g) => (g.status === 'DESTROYED' || !rowsById.has(g.id) ? 0 : BS.livesOf(BS.structureNow(rowsById.get(g.id), now)));
+  // fin de la pause : celle que le panneau du Bastion affiche (bastionService.regenView), sinon le dernier assaut gagné + la pause
+  const pausedUntil = (g) => {
+    const row = rowsById.get(g.id);
+    if (row && typeof BS.regenView === 'function') { const p = BS.regenView(row, now).regenPausedUntil; return p ? new Date(p).toISOString() : null; }
+    const t = g.lastWonAt ? new Date(g.lastWonAt).getTime() + pauseMs : 0;
+    return pauseMs && g.status !== 'DESTROYED' && t > now ? new Date(t).toISOString() : null;
+  };
+  return { bastions: garrison.map(g => ({ tag: g.tag, status: g.status, lives: livesOf(g), garrison: g.garrison, soldiers: g.soldiers, lastWonAt: g.lastWonAt ? new Date(g.lastWonAt).toISOString() : null, pausedUntil: pausedUntil(g) })), rallies, wonders, plans, sites };
 }
 
 // ---------- cumuls : quêtes, cachettes ----------
@@ -234,9 +273,18 @@ async function totalsView(prisma, cities) {
     const h = hideout[c.isCapital ? 'capital' : 'colony'];
     h[band] = (h[band] || 0) + 1;
   }
+  // Grandes caserne et écurie des colonies (décision D13 : la formation de la capitale 0,75 % plus rapide par niveau)
+  const trainers = {};
+  for (const key of ['GREAT_BARRACKS', 'GREAT_STABLE']) {
+    const lv = cities.filter(c => !c.isCapital && !c.isWonder).map(c => c.buildings.find(b => b.key === key)?.level || 0);
+    trainers[key] = { built: lv.filter(l => l > 0).length, of: lv.length, avg: lv.length ? Math.round(lv.reduce((t, l) => t + l, 0) / lv.length * 10) / 10 : 0, at20: lv.filter(l => l >= 20).length };
+  }
+  // soldats par palier dans toutes les armées (décision D6 : les unités intermédiaires ne changent pas ; leur part se lit ici)
+  const tiers = await prisma.$queryRawUnsafe(`SELECT tier, coalesce(sum(count), 0)::bigint AS n FROM "ArmyUnit" GROUP BY 1`).catch(() => []);
   return {
     quests: await one(`SELECT count(*)::int AS n FROM "QuestClaim"`),
-    hideout
+    hideout, trainers,
+    unitsByTier: Object.fromEntries(tiers.map(t => [t.tier || '?', Number(t.n) || 0]))
   };
 }
 

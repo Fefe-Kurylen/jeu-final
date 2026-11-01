@@ -7,6 +7,9 @@
 // de rassemblement (../armies.cjs). Rapport sim-d : l'armée de garnison a la taille d'une armée de campagne du joueur (80 %
 // de sa plus forte), elle se remplit depuis la garnison de la ville et par des recrues défensives, et rentre se regarnir
 // quand un assaut l'a réduite (avant : 80 soldats au plus, jamais regarnie).
+// Stock commun (décision du 1er novembre 2026, simulation de 200 jours, E1) : le convoi part de la capitale mais se charge
+// dans toutes les villes du joueur (la capitale d'abord, puis la plus pleine) ; ce qu'il peut porter se lit sur le stock
+// commun (../stock.cjs pool), plus sur celui de la capitale seule.
 // Un peu de vie aussi : un membre de C part et revient, le chef de C passe la main, le chef de B exclut puis réinvite un
 // membre, un solitaire refuse une invitation. Les attaques contre le Bastion ennemi sont laissées au module de guerre.
 // Chaque joueur fait au plus 6 appels par tour pour ce module ; les conditions sont vérifiées avant d'appeler.
@@ -593,11 +596,13 @@ async function supplyTurn(bot, ctx, S, m, city, bastion) {
   const need = Object.fromEntries(RES.map(r => [r, Math.max(0, (b.cost?.[r] || 0) - (b.delivered?.[r] || 0))]));
   const totalNeed = RES.reduce((t, r) => t + need[r], 0);
   if (totalNeed <= 0) return;
-  // la réserve gardée pour bâtir ; quand il ne manque presque plus rien, chacun se serre la ceinture pour finir
+  // la réserve gardée pour bâtir, sur le stock commun de ses villes (E1) ; quand il ne manque presque plus rien, chacun se
+  // serre la ceinture pour finir
   const hungry = (Stock.foodBalance(bot)?.net ?? 1) < 0;   // l'entretien puise dans tous les greniers du joueur
   const last = totalNeed < 0.1 * RES.reduce((t, r) => t + (b.cost?.[r] || 0), 0);
   const keep = (r) => (r === 'food' ? (hungry ? 0.5 : last ? 0.2 : 0.4) : last ? 0.15 : 0.3);
-  const spare = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor((city[r] || 0) - storageOf(city, r) * keep(r)))]));
+  const all = Stock.pool(bot, city);
+  const spare = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor((all[r] || 0) - storageOf(all, r) * keep(r)))]));
   const load = Object.fromEntries(RES.map(r => [r, 0]));
   let room = cap;
   for (let pass = 0; pass < 3 && room > 0; pass++) {
@@ -615,7 +620,12 @@ async function supplyTurn(bot, ctx, S, m, city, bastion) {
   const total = RES.reduce((t, r) => t + load[r], 0);
   if (total < (last ? 500 : 1000)) return;
   const s = await S.post(`/api/bastion/${b.id}/send`, { armyId: army.id, mission: 'SUPPLY', resources: load });
-  if (s.ok) { RES.forEach(r => { city[r] -= load[r]; }); army.status = 'TRANSPORTING'; if (borrowed) m.borrowed = (m.borrowed || 0) + 1; }
+  if (s.ok) {
+    // pris dans le stock commun, la capitale d'abord (le serveur : debitPlayer)
+    const outside = Stock.spend(bot, city, load);
+    m.supplied = (m.supplied || 0) + total; m.suppliedFromOthers = (m.suppliedFromOthers || 0) + outside;
+    army.status = 'TRANSPORTING'; if (borrowed) m.borrowed = (m.borrowed || 0) + 1;
+  }
 }
 
 // soldats d'une armée (sans les engins)

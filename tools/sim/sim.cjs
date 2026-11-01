@@ -12,6 +12,9 @@
 //   node tools/sim/sim.cjs --report                     # refaire le rapport à partir des mesures
 // Options : --days, --step=<heures>, --bots=<n>, --db=<nom>, --port=<n>, --out=<dossier>, --modules=a,b, --seed=<n>,
 //           --subticks=<n> (ticks d'un pas qui presse, 6 par défaut ; 1 = un seul tick), --press=0 (jamais de pas qui presse)
+// Mesures (décision D9) : --full-rallies (tous les membres rejoignent les rassemblements contre un Bastion, sans tirage de la
+//           notification), --full-garrison (chaque joueur poste sa plus forte armée de campagne en garnison au Bastion) ;
+//           sans elles, le jeu habituel des joueurs automatiques
 // Modules (noms pour --modules) : alliance, quests, war, market, military, economy, hero, invasion, wonder
 // Base : SIM_DATABASE_URL, sinon DATABASE_URL avec le nom de base remplacé par --db. JWT_SECRET pris de l'environnement.
 // Décisions du 31 octobre 2026 (rapport de vérification) : chaque joueur choisit son côté de la carte à l'inscription (les
@@ -48,6 +51,8 @@ const OPT = {
   maxSteps: ARGS['max-steps'] ? Number(ARGS['max-steps']) : Infinity,             // pour essayer : s'arrêter après N pas
   subTicks: Math.max(1, Math.round(Number(ARGS.subticks || 6))),                   // ticks d'un pas qui presse (un par heure)
   press: ARGS.press !== '0',                                                       // pas qui pressent (voir pressing())
+  fullRallies: !!ARGS['full-rallies'],                                             // 50-war.cjs bastionOps : tous les membres rejoignent
+  fullGarrison: !!ARGS['full-garrison'],                                           // 20-alliance.cjs garrisonTurn : la plus forte armée de campagne
   verbose: !!ARGS.verbose
 };
 fs.mkdirSync(OPT.out, { recursive: true });
@@ -322,7 +327,8 @@ let lastSnapAt = STATE?.lastSnapAt ?? (() => {
 // - pour les membres d'une alliance qui a un rassemblement en cours (en attente ou en marche) contre un site ou un plan de
 //   Merveille ou contre un Bastion, ou un camp devant un Bastion ; les défenseurs de ce Bastion aussi ;
 // - pour une alliance dont le Bastion n'a pas retrouvé toutes ses vies (une chaîne d'assauts peut être en cours) et pour
-//   celles qui l'ont attaqué depuis moins de config.bastion.regenHours (72 h : le temps où toutes ses vies remontent).
+//   celles qui l'ont attaqué depuis moins de config.bastion.regenPauseHours + regenHours (24 h sans assaut gagné avant
+//   qu'une vie ne remonte, puis 72 h pour toutes : décision du 1er novembre 2026, E3).
 // Ces joueurs jouent alors chaque pas, pas un sur deux. Le pas joue en plus des ticks d'une heure (--subticks) aux heures
 // où un rassemblement doit partir ou arriver, ou un camp devant un Bastion donner l'assaut (nextDue) : départs, arrivées et
 // assauts se jouent à l'heure près (le vrai serveur : tick de 30 s), sans tick pour les heures où rien ne se joue. La
@@ -338,7 +344,8 @@ async function pressing(from, to) {
   out.all = !!(win(new Date(from)) || win(new Date(to))) || (await prisma.invasion.count({ where: { endedAt: null } })) > 0;
   const rallies = await prisma.rally.findMany({ where: { status: { in: LIVE } }, select: { allianceId: true, targetKind: true, targetBastionId: true } });
   const camps = await prisma.army.findMany({ where: { status: 'BESIEGING', targetBastionId: { not: null } }, select: { targetBastionId: true, owner: { select: { alliance: { select: { allianceId: true } } } } } });
-  const bastions = await prisma.bastion.findMany({ where: { status: 'ACTIVE' }, select: { id: true, allianceId: true, x: true, y: true, structure: true, structureAt: true } });
+  // la ligne entière : les vies se lisent avec la règle du serveur (structureNow), quels que soient les champs qu'elle lit
+  const bastions = await prisma.bastion.findMany({ where: { status: 'ACTIVE' } });
   const owner = new Map(bastions.map(b => [b.id, b.allianceId]));
   for (const r of rallies) {
     if (r.targetBastionId || ['WONDER', 'PLAN', 'BASTION'].includes(r.targetKind)) out.alliances.add(r.allianceId);
@@ -348,7 +355,7 @@ async function pressing(from, to) {
     if (c.owner?.alliance?.allianceId) out.alliances.add(c.owner.alliance.allianceId);
     if (owner.has(c.targetBastionId)) out.alliances.add(owner.get(c.targetBastionId));
   }
-  const regenMs = config.bastion.regenHours * 3600000;
+  const regenMs = ((Number(config.bastion.regenPauseHours) || 0) + config.bastion.regenHours) * 3600000;
   for (const b of bastions) {
     if (bastionService().structureNow(b, from) >= 1) continue;
     out.alliances.add(b.allianceId);
@@ -449,7 +456,9 @@ async function main() {
   let bots, step;
   if (STATE) {
     bots = STATE.bots.map(o => new Bot(o));
-    for (const b of bots) await b.login();
+    // chaque joueur relu dès la reprise (villes, armées, fiche) : les modules qui regardent les autres joueurs (conseils de
+    // guerre et de la Merveille, aides) ne les voient plus vides jusqu'à leur premier tour
+    for (const b of bots) { await b.login(); try { await b.refresh(); } catch (e) { console.error(`[SIM] relecture ${b.name}:`, e); } }
     step = STATE.step;
   } else {
     bots = await createBots();

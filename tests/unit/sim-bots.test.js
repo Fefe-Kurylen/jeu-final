@@ -386,15 +386,21 @@ test('emplacements de la Place de rassemblement : partagés par ordre de priorit
   assert.equal(Armies.freeSlot(bot, 'hunt'), null);
 });
 
-test('garde d\'une colonie : formée dans la capitale, remplie depuis la garnison, puis postée dans la colonie', async () => {
+test('garde d\'une colonie : formée dans la capitale, remplie depuis la garnison, postée puis rattachée à la colonie (E2)', async () => {
   const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'RALLY_POINT', level: 5, slot: 2 }] });
   const col = city({ id: 'b', x: 30, y: 30, createdAt: '2027-01-01T00:00:00Z' });
   const garrison = { id: 'g', isGarrison: true, cityId: 'a', x: 0, y: 0, status: 'IDLE', units: unitsOf(400) };
   const calls = [];
   const m = { own: ['f1'], k: {} };
+  const reply = (p, body) => {
+    if (p === '/api/army/create') return { army: { id: 'g1', name: body.name, slot: body.slot, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false } };
+    if (p.endsWith('/attach-colony')) return { army: { id: 'g1', cityId: 'b', slot: 1, name: Armies.NAMES.guard }, colony: { id: 'b' } };   // la réponse de POST /api/army/:id/attach-colony
+    if (p.endsWith('/detach-colony')) return { army: { id: 'g1', cityId: 'a', slot: 2, name: Armies.NAMES.guard }, arrivalAt: '2027-02-01T10:00:00Z', travelTime: 3600 };
+    return { newCount: body.count };
+  };
   const bot = botWith([cap, col], {
     armies: [garrison, { id: 'f1', name: 'Armée 1', slot: 1, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false, units: [] }], mem: { mil: m },
-    post: async (p, body) => { calls.push([p, body]); return { ok: true, data: p === '/api/army/create' ? { army: { id: 'g1', name: body.name, slot: body.slot, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false } } : { newCount: body.count } }; }
+    post: async (p, body = {}) => { calls.push([p, body]); return { ok: true, data: reply(p, body) }; }
   });
   await military.guards(bot, { ...ctx(), step: 30 }, { left: 6 }, m, cap);
   assert.deepEqual(calls.map(c => c[0]), ['/api/army/create', '/api/army/g1/set-unit', '/api/army/g1/move']);
@@ -402,12 +408,50 @@ test('garde d\'une colonie : formée dans la capitale, remplie depuis la garniso
   assert.deepEqual(calls[1][1], { unitKey: 'ROM_INF_MILICIEN', count: 60 });   // 15 % des 400 soldats du joueur
   assert.deepEqual(calls[2][1], { x: 30, y: 30 });
   assert.equal(m.guard.b, 'g1');
-  // en poste dans la colonie : rien à faire
-  bot.armies.find(a => a.id === 'g1').status = 'IDLE';
-  Object.assign(bot.armies.find(a => a.id === 'g1'), { x: 30, y: 30 });
+  assert.equal(Armies.freePlaces(bot), 0, 'Place de rassemblement 5 : 2 emplacements, l\'armée de campagne et la garde en route');
+  // arrivée au repos dans la colonie : elle s'y rattache et rend sa place à la capitale
+  const g1 = bot.armies.find(a => a.id === 'g1');
+  Object.assign(g1, { status: 'IDLE', x: 30, y: 30 });
   calls.length = 0;
   await military.guards(bot, { ...ctx(), step: 31 }, { left: 6 }, m, cap);
+  assert.deepEqual(calls.map(c => c[0]), ['/api/army/g1/attach-colony']);
+  assert.equal(g1.cityId, 'b');
+  assert.equal(m.k.guardsAttached, 1);
+  assert.equal(Armies.freePlaces(bot), 1, 'la place de la capitale est libre pour un autre rôle');
+  assert.deepEqual(Armies.attachedArmies(bot).map(a => a.id), ['g1']);
+  assert.equal(Armies.guardsMissing(bot), 0, 'la colonie garde sa garde');
+  // rattachée et assez forte : rien à faire
+  calls.length = 0;
+  await military.guards(bot, { ...ctx(), step: 32 }, { left: 6 }, m, cap);
   assert.deepEqual(calls, []);
+  // affaiblie depuis deux semaines, sans combat récent : renvoyée à la capitale (« Renvoyer à la capitale »), qui lui garde une place
+  g1.units = unitsOf(5);
+  m.gc.g1 = 5;
+  calls.length = 0;
+  await military.guards(bot, { ...ctx(), step: 30 + 57 }, { left: 6 }, m, cap);
+  assert.deepEqual(calls.map(c => c[0]), ['/api/army/g1/detach-colony']);
+  assert.deepEqual([g1.cityId, g1.status, g1.slot], ['a', 'RETURNING', 2]);
+  assert.equal(m.k.guardDetached, 1);
+  assert.equal(m.guard.b, 'g1', 'elle reste la garde de sa colonie : regarnie, elle y retournera');
+});
+
+test('garde rattachée que la mémoire ne suit plus (reprise) : reprise pour sa colonie ; sans place à la capitale, elle reste en poste', async () => {
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'RALLY_POINT', level: 5, slot: 2 }] });
+  const col = city({ id: 'b', x: 30, y: 30 });
+  const garrison = { id: 'g', isGarrison: true, cityId: 'a', x: 0, y: 0, status: 'IDLE', units: unitsOf(400) };
+  const guard = { id: 'g7', name: Armies.NAMES.guard, slot: 1, cityId: 'b', x: 30, y: 30, status: 'IDLE', isGarrison: false, units: unitsOf(5) };
+  const calls = [];
+  const m = { own: [], k: {}, gs: { g7: 0 }, gc: { g7: 5 } };
+  const bot = botWith([cap, col], {
+    armies: [garrison, guard], mem: { mil: m },
+    post: async (p, body = {}) => { calls.push([p, body]); return p.endsWith('/detach-colony') ? { ok: false, status: 400, data: { error: 'Aucun emplacement d\'armée libre dans la capitale (2 au plus avec sa Place de rassemblement) : libérez-en un avant de la renvoyer' } } : { ok: true, data: {} }; }
+  });
+  await military.guards(bot, { ...ctx(), step: 100 }, { left: 6 }, m, cap);
+  assert.equal(m.guard.b, 'g7');
+  assert.equal(m.k.guardAdopted, 1);
+  assert.deepEqual(calls.map(c => c[0]), ['/api/army/g7/detach-colony']);
+  assert.equal(m.k.guardDetachNoSlot, 1);
+  assert.deepEqual([guard.cityId, guard.status], ['b', 'IDLE'], 'refusée : elle reste rattachée et en poste');
 });
 
 test('économie des joueurs automatiques : le Mur d\'abord dans une colonie neuve ; la Ville Merveille ne bâtit que son Mur', () => {
@@ -687,4 +731,259 @@ test('colon de la Ville Merveille : le module militaire ne le prend pas pour une
   assert.ok(!(await run(15)).some(([, p]) => p.startsWith('/api/map/free-sites')));
   // Résidence 20 : une seconde colonie est permise, le colon sert à la fonder
   assert.ok((await run(20)).some(([, p]) => p.startsWith('/api/map/free-sites')));
+});
+
+// ---------- décisions du 1er novembre 2026 (simulation de 200 jours) : E1 à E6 ----------
+const hero = require('../../tools/sim/modules/25-hero.cjs');
+const pathfinding = require('../../src/utils/pathfinding');
+const war = require('../../tools/sim/modules/50-war.cjs');
+
+test('stock commun (E1) : ce qui peut partir se lit sur toutes les villes ; un départ prend la capitale d\'abord, une offre rendue y revient', () => {
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, wood: 1000, food: 200, maxStorage: 10000, maxFoodStorage: 10000 });
+  const col = city({ id: 'c', wood: 9500, food: 9000, maxStorage: 10000, maxFoodStorage: 10000 });
+  const bot = botWith([cap, col]);
+  const all = Stock.pool(bot, cap);
+  assert.deepEqual([all.id, all.wood, all.food, all.maxStorage, all.maxFoodStorage], ['a', 10500, 9200, 20000, 20000]);
+  // 3 000 de bois : 1 000 de la capitale, 2 000 de la colonie (compté à part)
+  assert.equal(Stock.spend(bot, cap, { wood: 3000 }), 2000);
+  assert.deepEqual([cap.wood, col.wood], [0, 7500]);
+  // rendue : la capitale jusqu'à son plafond, puis la colonie ; rien de perdu tant qu'une ville a de la place
+  assert.equal(Stock.credit(bot, cap, { wood: 12000 }), 0);
+  assert.deepEqual([cap.wood, col.wood], [10000, 9500]);
+  assert.equal(Stock.credit(bot, cap, { wood: 1000 }), 500, 'toutes les villes pleines : le reste est perdu');
+});
+
+test('marché (E1) : l\'offre se charge dans le stock commun (la colonie pleine de bois paie ce que la capitale n\'a pas)', async () => {
+  const cap = marketCity();
+  Object.assign(cap, { wood: 1000, stone: 1000, iron: 1000, food: 1000 });
+  const col = city({ id: 'c', x: 20, y: 20, wood: 9500, stone: 1000, iron: 1000, food: 8000, maxStorage: 10000, maxFoodStorage: 10000 });
+  const calls = [];
+  const bot = botWith(withBalance([cap, col], { production: 100, consumption: 0, net: 100 }), {
+    name: 'Marchand', playerId: 'p1', me: { faction: 'ROME', alliance: null }, armies: [armyAt('car', Armies.NAMES.caravan, 2)], mem: { mil: { own: [] } },
+    get: async (p) => { calls.push(['GET', p]); return p.startsWith('/api/market/state') ? { ok: true, data: { taxPct: 30, armies: [{ id: 'car', name: Armies.NAMES.caravan, capacity: 5000, hero: false }] } } : { ok: true, data: [] }; },
+    post: async (p, body) => { calls.push(['POST', p, body]); return { ok: true, data: { offer: { id: 'o1' }, armyId: body.armyId, taxPct: 30 } }; },
+    del: async () => ({ ok: true, data: {} })
+  });
+  const c = { ...ctx(), step: 20, clock: { now: () => Date.parse('2027-01-10T12:00:00Z'), day: () => 6 }, bots: [bot], event: () => {}, prisma: {} };
+  await market.act(bot, c);
+  const offer = calls.find(x => x[0] === 'POST' && x[1] === '/api/market/offer');
+  assert.ok(offer, `capitale seule à 10 % de bois : avant le stock commun, rien à offrir (${JSON.stringify(calls)})`);
+  assert.equal(offer[2].sellResource, 'wood');
+  assert.equal(offer[2].cityId, 'a', 'l\'armée part toujours de la capitale');
+  const sold = offer[2].sellAmount;
+  assert.equal(cap.wood, Math.max(0, 1000 - sold));
+  assert.equal(col.wood, 9500 - Math.max(0, sold - 1000));
+  assert.equal(bot.mem.mkt.k.loadFromOthers, Math.max(0, sold - 1000));
+  // une offre qui convient se juge aussi sur le stock commun : fer manquant partout, bois en trop dans la colonie
+  const all = Stock.pool(bot, cap);
+  const deal = { sellResource: 'iron', sellAmount: 800, buyResource: 'wood', buyAmount: 500 };
+  assert.ok(market.offerValue(all, deal, false, true, 0.7) > 0);
+  assert.equal(market.offerValue(cap, deal, false, true, 0.7), null, 'la capitale seule n\'a plus le bois à donner');
+});
+
+test('marché : un échange accepté compte ce que l\'acheteur paie (paidVolume)', async () => {
+  const offer = { id: 'x1', sellerId: 'p2', status: 'ACTIVE', sellResource: 'iron', sellAmount: 400, buyResource: 'wood', buyAmount: 380, city: { x: 5, y: 5 }, createdAt: '2027-01-10T00:00:00Z', expiresAt: '2027-01-12T00:00:00Z' };
+  const armies = [armyAt('car', Armies.NAMES.caravan, 3, { status: 'MARKET' }), armyAt('f1', 'Armée 1', 1)];
+  const ok = await runMarket({ armies, offers: [offer], state: [{ id: 'f1', name: 'Armée 1', capacity: 600, hero: false }] });
+  assert.equal(ok.bot.mem.mkt.k.accepted, 1);
+  assert.equal(ok.bot.mem.mkt.k.boughtVolume, 400);
+  assert.equal(ok.bot.mem.mkt.k.paidVolume, 380);
+});
+
+test('Merveille (E1) : les céréales des colonies partent sans achat ; rien ne part pendant qu\'un assaut de Bastion se prépare', async () => {
+  const cost = (from, to) => { const t = { wood: 0, stone: 0, iron: 0, food: 0 }; for (let l = from; l <= to; l++) for (const [r, v] of Object.entries(WS.levelCost(l))) t[r] += v; return t; };
+  const big = cost(2, 40);
+  const wcOf = () => ({ id: 'w', x: 50, y: 50, playerId: 'p9', wonderLevel: 1, wonderWood: big.wood, wonderStone: big.stone, wonderIron: big.iron, wonderFood: 38140 });
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'MARKET', level: 20, slot: 1 }], wood: 120000, stone: 150000, iron: 90000, food: 6833, maxStorage: 160000, maxFoodStorage: 160000 });
+  const col = city({ id: 'c', x: 10, y: 10, wood: 600000, stone: 600000, iron: 600000, food: 600000, maxStorage: 640000, maxFoodStorage: 640000 });
+  const calls = [];
+  const bot = botWith(withBalance([cap, col], { production: 1000, consumption: 900, net: 100 }), {
+    name: 'Livreur', playerId: 'p1', group: 'A', me: { faction: 'ROME' }, armies: [armyAt('f1', 'Armée 1', 1)], mem: { mil: { own: ['f1'] } },
+    get: async (p) => { calls.push(['GET', p]); return { ok: true, data: { armies: [{ id: 'f1', name: 'Armée 1', capacity: 100000, hero: false }] } }; },
+    post: async (p, body) => { calls.push(['POST', p, body]); return { ok: true, data: {} }; }
+  });
+  // le stock commun a de quoi : pas d'achat au marchand du serveur, les céréales qui manquent partent
+  assert.equal(wonder.foodPurchase(bot, cap, 100000, wcOf()), null);
+  const load = wonder.deliveryLoad(bot, cap, 100000, wcOf());
+  assert.ok(load.food >= cost(2, 4).food - 38140 - 10, JSON.stringify(load));
+  assert.deepEqual([load.wood, load.stone, load.iron], [0, 0, 0], 'bois, pierre et fer : déjà là pour 39 niveaux');
+  // assaut de Bastion en préparation (mem.war.muster du premier membre suivi de l'alliance) : aucune armée ne part
+  const keeper = { playerId: 'p0', mem: { war: { muster: 12 } } };
+  const m = { k: {} };
+  await wonder.deliverTurn(bot, { step: 10, byGroup: () => [keeper, bot] }, { left: 8 }, m, wcOf());
+  assert.deepEqual(calls, []);
+  assert.equal(m.k.deliverMuster, 1);
+  // l'assaut passé : la livraison part de la capitale, les céréales viennent surtout de la colonie
+  keeper.mem.war.muster = 9;
+  await wonder.deliverTurn(bot, { step: 10, byGroup: () => [keeper, bot] }, { left: 8 }, m, wcOf());
+  const send = calls.find(x => x[1] === '/api/trade/send');
+  assert.ok(send, JSON.stringify(calls));
+  assert.equal(send[2].fromCityId, 'a');
+  assert.equal(cap.food, 0, 'la capitale d\'abord');
+  assert.equal(m.k.deliveredFoodFromOthers, send[2].resources.food - 6833);
+  assert.equal(m.k.delivered_food, send[2].resources.food);
+});
+
+test('Merveille : l\'achat de céréales se fait dans la ville qui a la ressource donnée et la place au grenier', () => {
+  const fresh = { wonderLevel: 0, wonderWood: 0, wonderStone: 0, wonderIron: 0, wonderFood: 0 };
+  const cap = city({ id: 'a', isCapital: true, buildings: [{ key: 'MARKET', level: 20, slot: 1 }], wood: 10000, stone: 10000, iron: 10000, food: 0, maxStorage: 160000, maxFoodStorage: 160000 });
+  const col = city({ id: 'c', wood: 300000, stone: 600000, iron: 300000, food: 0, maxStorage: 640000, maxFoodStorage: 640000 });
+  const bot = botWith(withBalance([cap, col], { production: 900, consumption: 1000, net: -100 }));
+  const buy = wonder.foodPurchase(bot, cap, 100000, fresh);
+  assert.equal(buy.cityId, 'c');
+  assert.equal(buy.receiveResource, 'food');
+  assert.ok(buy.giveAmount <= col[buy.giveResource]);
+});
+
+test('site de Merveille réservé (E6) : 6 h pour l\'alliance qui l\'a libéré, puis à qui le prend ; le fondateur attend ou part', async () => {
+  const T = Date.parse('2027-05-20T12:00:00Z');
+  const site = (o) => ({ hasDefenders: false, cityId: null, hasPlayerArmy: false, lastDefeat: new Date(T - 3600000).toISOString(), ...o });
+  const theirs = site({ id: 'w1', x: 5, y: 5, reservedFor: 'alB', reservedUntil: T + 5 * 3600000 });
+  const s = { now: T, sites: [theirs], allianceOf: new Map([['p1', 'alA']]), tagOf: new Map([['alA', 'AQL'], ['alB', 'LUP']]) };
+  assert.equal(wonder.freeSite(s, { x: 0, y: 0 }, 'alA'), null, 'réservé à LUP pendant 6 h');
+  assert.equal(wonder.freeSite(s, { x: 0, y: 0 }, 'alB').id, 'w1');
+  assert.equal(wonder.freeSite({ ...s, now: T + 5 * 3600000 }, { x: 0, y: 0 }, 'alA').id, 'w1', 'ensuite, toute alliance');
+  // le site libéré par son alliance passe avant un site plus proche libre pour tous
+  const ours = site({ id: 'w2', x: 90, y: 90, reservedFor: 'alA', reservedUntil: T + 5 * 3600000 });
+  const open = site({ id: 'w3', x: 2, y: 2 });
+  assert.equal(wonder.freeSite({ ...s, sites: [theirs, open, ours] }, { x: 0, y: 0 }, 'alA').id, 'w2');
+  // le fondateur : réservé à une autre alliance, il attend (sans appel) ; sur le site de son alliance, il part aussitôt
+  const calls = [], events = [];
+  const fcap = city({ id: 'a', isCapital: true, x: 0, y: 0, settlers: 1, wood: 50000, stone: 50000, iron: 50000, food: 50000, maxStorage: 60000, maxFoodStorage: 60000 });
+  const founder = botWith([fcap], { name: 'Fondateur', playerId: 'p1', me: { alliance: { allianceId: 'alA' } }, armies: [armyAt('f1', 'Armée 1', 1, { units: unitsOf(100) })], mem: { mil: { own: ['f1'] } },
+    post: async (p, body) => { calls.push([p, body]); return { ok: true, data: { arrivalAt: new Date(T + 7200000).toISOString() } }; } });
+  const m = { k: {} };
+  const c = { event: (k, d) => events.push([k, d]) };
+  assert.equal(await wonder.foundTurn(founder, c, { left: 1 }, m, s), false);
+  assert.deepEqual(calls, []);
+  assert.equal(m.k.foundWaitReserve, 1);
+  assert.equal(await wonder.foundTurn(founder, c, { left: 1 }, m, { ...s, sites: [theirs, ours] }), true);
+  assert.deepEqual(calls[0], ['/api/army/f1/found-city', { resourceNodeId: 'w2' }]);
+  assert.equal(m.k.foundReserved, 1);
+  assert.deepEqual([events[0][0], events[0][1].reserved, events[0][1].freedBy, events[0][1].hoursAfterBattle], ['wonder_found_sent', true, 'AQL', 1]);
+});
+
+test('héros : pas d\'expédition pendant qu\'un assaut de Bastion se prépare (mem.war.muster)', async () => {
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0 });
+  const calls = [];
+  const army = armyAt('f1', 'Armée 1', 1, { heroId: 'h1', units: unitsOf(500), power: 1e6 });
+  const bot = botWith([cap], { group: 'A', playerId: 'p1', armies: [army], me: { expeditions: [{ id: 'e1', status: 'AVAILABLE', expiresAt: '2027-01-11T00:00:00Z', enemyPower: 10, difficulty: 1 }] }, mem: {},
+    post: async (p, body) => { calls.push([p, body]); return { ok: true, data: {} }; } });
+  const keeper = { playerId: 'p0', mem: { war: { muster: 15 } } };
+  const m = { k: {} };
+  const c = { step: 10, OPT: { stepHours: 6 }, clock: { now: () => Date.parse('2027-01-10T00:00:00Z') }, byGroup: () => [keeper, bot] };
+  await hero.expedition(bot, c, { left: 5 }, m, { id: 'h1' }, cap);
+  assert.deepEqual(calls, []);
+  assert.equal(m.k.expKeptForMuster, 1);
+  keeper.mem.war.muster = 10;
+  await hero.expedition(bot, c, { left: 5 }, m, { id: 'h1' }, cap);
+  assert.deepEqual(calls.map(x => x[0]), ['/api/expeditions/e1/start']);
+});
+
+test('briser le camp d\'un Bastion (E4) : un groupe réglé sur tout le camp, dont les arrivées tombent dans la même minute', async () => {
+  const realRoute = pathfinding.routeLength;
+  pathfinding.routeLength = async (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1);   // pas de carte ni de base dans ce test
+  try {
+    const row = (unitKey, count) => ({ unitKey, tier: unitsData.find(u => u.key === unitKey).tier, count });
+    const camp = [row('ROM_INF_TRIARII', 900), row('ROM_CAV_AUXILIAIRE', 300)];   // trois armées réunies
+    const player = (i) => ({ name: `P${i}`, faction: 'ROME', capital: { buildings: [] }, mem: {} });
+    const cand = (i, n, t) => { const units = [row('ROM_INF_TRIARII', n)]; return { b: player(i), army: { id: `a${i}`, units, status: 'IDLE' }, sortie: false, t, p: n }; };
+    const cands = [cand(1, 500, 3000), cand(2, 450, 3300), cand(3, 420, 2800), cand(4, 400, 3100), cand(5, 900, 3000 + 20 * 60)];
+    // une armée seule ne bat pas le camp ; le groupe (au plus 3 + 2 armées) le bat, sans celle dont la marche sort de l'écart
+    assert.equal(war.breakOdds(cands[0].b, cands[0].army.units, camp, 'ROME').won, false);
+    const plan = war.breakPlan(cands, camp, 'ROME', 3);
+    assert.equal(plan.mode, 'break');
+    assert.ok(plan.group.length >= 2 && plan.group.length <= 5, String(plan.group.length));
+    assert.ok(war.groupOdds(plan.group, camp, 'ROME').won);
+    assert.ok(Math.max(...plan.group.map(o => o.t)) - Math.min(...plan.group.map(o => o.t)) <= 15 * 60);
+    // trop faibles même ensemble : pas de groupe (ni sortie), ou une usure quand elles pèsent 80 % du camp
+    assert.equal(war.breakPlan([cand(6, 40, 3000), cand(7, 30, 3000)], camp, 'ROME', 3), null);
+    // départs : la marche la plus longue d'abord, les autres quand la leur finit au même instant (l'horloge avance d'autant)
+    let now = Date.parse('2027-03-01T10:00:00Z');
+    const clock = { now: () => now, set: (t) => { now = Math.max(now, t); } };
+    const sent = [];
+    for (const o of plan.group) o.b.api = async (method, p, body) => { now += 1000; sent.push({ id: body.armyId, at: now }); return { ok: true, data: { arrivalAt: new Date(now + o.t * 1000).toISOString() } }; };
+    const v = { number: 1 };
+    const out = await war.syncLaunch({ clock }, v, { id: 'bast' }, plan.group, { left: 20 }, plan.mode);
+    assert.equal(out.sent, plan.group.length);
+    assert.equal(sent[0].id, [...plan.group].sort((p, q) => q.t - p.t)[0].army.id, 'la plus lente part d\'abord');
+    assert.ok(out.spreadS < config.bastion.breakGroupSeconds, `écart ${out.spreadS} s`);
+    assert.equal(out.missed, 0);
+    assert.equal(out.waitS, Math.max(...plan.group.map(o => o.t)) - Math.min(...plan.group.map(o => o.t)) - (plan.group.length - 1), 'le joueur attend le temps qu\'il faut avant chaque départ');
+    assert.ok(plan.group.every(o => o.army.status === 'ATTACKING'));
+  } finally { pathfinding.routeLength = realRoute; }
+});
+
+test('chaîne d\'assauts (E3) : le prochain assaut gagné doit tomber avant la fin de la pause de 24 h', () => {
+  assert.equal(war.CHAIN_WINDOW_MS, config.bastion.regenPauseHours * 3600000);
+  assert.equal(config.bastion.regenPauseHours, 24);
+});
+
+test('rassemblements contre le Bastion (lot M, E3) : essai avec la plus forte armée, chaîne sous la pause de 24 h, reprise, fin', async () => {
+  const realRoute = pathfinding.routeLength;
+  pathfinding.routeLength = async (ax, ay, bx, by) => Math.hypot(bx - ax, by - ay) * 1.1;   // route simulée, sans carte
+  try {
+    const T = Date.parse('2027-05-01T08:00:00Z');
+    const inf = (n) => ({ unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: n });
+    const siegeKey = unitsData.find(u => u.faction === 'ROME' && u.class === 'SIEGE').key;
+    const E = (n) => ({ unitKey: siegeKey, tier: 'siege', count: n });
+    const calls = [], events = [], bots = [], cities = [], armiesOf = new Map();
+    for (let i = 0; i < 12; i++) {
+      const pid = `p${i}`;
+      const cap = { id: `c${i}`, name: `C${i}`, x: i * 3, y: 0, playerId: pid, isCapital: true, isSieged: false, buildings: [{ key: 'RALLY_POINT', level: 20 }], player: { name: `B${i}`, faction: 'ROME' } };
+      cities.push(cap);
+      const b = { name: `B${i}`, playerId: pid, group: 'A', faction: 'ROME', turn: 0, mem: {}, cities: [cap], armies: [] };
+      Object.defineProperty(b, 'capital', { get() { return this.cities[0]; } });
+      b.api = async (method, p, body) => {
+        calls.push([b.name, method, p, body]);
+        if (p === '/api/rallies') return { ok: true, data: { rally: { id: `r${calls.length}`, launchAt: new Date(T + body.waitMinutes * 60000).toISOString() }, maxArmies: 25 } };
+        return { ok: true, data: {} };
+      };
+      bots.push(b);
+      armiesOf.set(pid, [
+        { id: `g${i}`, ownerId: pid, cityId: cap.id, isGarrison: true, status: 'IDLE', x: cap.x, y: cap.y, units: [E(65), inf(1000)] },
+        { id: `o${i}`, ownerId: pid, cityId: cap.id, isGarrison: false, name: 'Ost', status: 'IDLE', x: cap.x, y: cap.y, units: [inf(300)] },
+        { id: `a${i}`, ownerId: pid, cityId: cap.id, isGarrison: false, name: 'Armée 1', status: 'IDLE', x: cap.x, y: cap.y, units: [inf(1200)] }
+      ]);
+    }
+    const c = { step: 100, OPT: { stepHours: 6, days: 200, subTicks: 6, press: true }, clock: { now: () => T }, rand: () => 0.99, bots, byGroup: g => bots.filter(b => b.group === g), event: (k, d) => events.push([k, d]), say: () => {} };
+    const v = { number: 1, day: 100, now: T, allianceOf: new Map(bots.map(b => [b.playerId, 'AL'])), tagOf: new Map([['AL', 'AQL'], ['EN', 'LUP']]), allianceRel: (a, b) => (a === b ? 'SAME' : 'ENEMY'),
+      bastions: [{ id: 'eb', allianceId: 'EN', x: 150, y: 0, status: 'ACTIVE', isSieged: false }], incoming: [], camps: [], cities, cityById: new Map(cities.map(x => [x.id, x])),
+      citiesOf: new Map(cities.map(x => [x.playerId, [x]])), armiesOf, botOf: new Map(bots.map(b => [b.playerId, b])) };
+    const idleAll = () => { for (const b of bots) for (const a of armiesOf.get(b.playerId)) if (!a.isGarrison) a.status = 'IDLE'; };
+    // 1. essai : la plus forte armée (Armée 1, pas l'Ost), ses engins et 70 % des soldats de la garnison
+    await war.bastionOps(c, v, { left: 220 }, 'A');
+    const created = calls.find(x => x[2] === '/api/rallies');
+    assert.match(created[3].armyId, /^a/);
+    assert.deepEqual(calls.filter(x => x[0] === created[0] && x[2].endsWith('/set-unit')).map(x => x[3]), [{ unitKey: siegeKey, count: 65 }, { unitKey: 'ROM_INF_MILICIEN', count: 1200 + 700 }]);
+    assert.equal(events.find(e => e[0] === 'bastion_rally')[1].chain, 0);
+    // 2. chaîne : un rassemblement par pas, un groupe plus petit ; l'assaut suivant tombe avant la fin de la pause (24 h)
+    const keeper = bots[0];
+    keeper.mem.war.chain = { b: 'eb', s: 100, n: 0, wins: 1, losses: 0, skip: 0, tw: T - 2 * 3600000, def: [inf(4000)] };
+    c.OPT.fullRallies = true;
+    idleAll(); calls.length = 0; events.length = 0; c.step = 101;
+    await war.bastionOps(c, v, { left: 220 }, 'A');
+    const r1 = events.find(e => e[0] === 'bastion_rally')[1];
+    assert.deepEqual([r1.chain, r1.wait], [1, 180]);
+    assert.ok(r1.armies < 12, 'pas toute l\'alliance d\'un coup');
+    assert.ok(r1.gapH !== null && r1.gapH < 24, String(r1.gapH));
+    assert.ok(!keeper.mem.war.k.chainRestart);
+    // 3. dernier assaut gagné il y a 20 h : l'assaut prévu tombe après la pause, la chaîne repart de lui (compté)
+    keeper.mem.war.chain.tw = T - 20 * 3600000;
+    idleAll(); events.length = 0;
+    await war.bastionOps(c, v, { left: 220 }, 'A');
+    const r2 = events.find(e => e[0] === 'bastion_rally')[1];
+    assert.ok(r2.gapH > 24, String(r2.gapH));
+    assert.equal(keeper.mem.war.k.chainRestart, 1);
+    // 4. la pause est passée sans nouvel assaut gagné (les vies remontent) : la chaîne s'arrête
+    keeper.mem.war.chain.tw = T - 25 * 3600000;
+    events.length = 0; c.step = 102;
+    await war.bastionOps(c, v, { left: 220 }, 'A');
+    assert.equal(keeper.mem.war.chain, undefined);
+    assert.ok(events.some(e => e[0] === 'bastion_chain_end' && e[1].why === 'pause passée'), JSON.stringify(events));
+    // 5. grille des ticks : une heure dans un pas qui presse, le pas entier sinon
+    assert.equal(war.slotOf(c, T + 3600000), 1);
+    assert.equal(war.slotOf(c, T + 3600000 + 1000), 2);
+    assert.equal(war.slotOf({ ...c, OPT: { ...c.OPT, subTicks: 1 } }, T + 6 * 3600000), 1);
+  } finally { pathfinding.routeLength = realRoute; }
 });

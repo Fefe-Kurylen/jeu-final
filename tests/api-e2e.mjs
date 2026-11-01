@@ -1537,6 +1537,119 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       assert('own cities: no transport between them, the same refusal everywhere', send?.error === OWN && carry?.error === OWN && sql(`SELECT status FROM "Army" WHERE id='${colTrader}'`) === 'IDLE', `${send?.error} / ${carry?.error}`);
     }
     sql(`DELETE FROM "Army" WHERE id='${colTrader}'`);
+    { // E1 (décision du 1er novembre 2026, simulation de 200 jours) : stock commun pour tout ce qu'une armée emporte. L'armée
+      // part de sa ville (ici la capitale, où sont le Marché et le Comptoir), mais une offre, un envoi ou un transport se paie
+      // sur toutes les villes du joueur : la ville de départ d'abord, puis la plus pleine. Une offre rendue et une livraison
+      // qui arrive vont à la ville visée d'abord, puis aux autres villes du joueur selon la place
+      const trader = mkTrader(A.player.id, cityA.id, 'Mercator Communis', infKey);
+      sql(`UPDATE "City" SET wood=0, "maxStorage"=100000 WHERE id='${cityA.id}'`);
+      sql(`UPDATE "City" SET wood=20000, "maxStorage"=100000 WHERE id='${colony[0]}'`);
+      const c0 = stockOf(cityA.id), k0 = stockOf(colony[0]);
+      const off = await call('E1: market offer from the capital, its wood only in the colony', 'POST', '/api/market/offer', tA, { cityId: cityA.id, sellResource: 'wood', sellAmount: 300, buyResource: 'iron', buyAmount: 300, armyId: trader });
+      const c1 = stockOf(cityA.id), k1 = stockOf(colony[0]);
+      assert('E1: the offer waits in the capital, its goods are taken in the colony (common stock)', off?.armyId === trader && armyLine(trader) === 'MARKET:MARKET_OFFER:0:0:-' && c1.wood <= 2 && Math.abs((k0.wood - k1.wood) - (300 - c0.wood)) <= 2, JSON.stringify({ capital: [c0.wood, c1.wood], colony: [k0.wood, k1.wood], error: off?.error }));
+      // retirée avec une capitale presque pleine : la capitale se remplit, le reste va à la colonie, rien ne se perd
+      sql(`UPDATE "City" SET wood="maxStorage"-100 WHERE id='${cityA.id}'`);
+      const k2 = stockOf(colony[0]);
+      const back = await call('E1: cancel the offer, the capital nearly full', 'DELETE', `/api/market/offer/${off?.offer?.id}`, tA);
+      const c3 = stockOf(cityA.id), k3 = stockOf(colony[0]);
+      assert('E1: the refund fills the capital first, the rest goes to the colony, nothing is lost', back?.message === 'Offre annulée : marchandises rendues, armée libre' && c3.wood >= 99999 && Math.abs((k3.wood - k2.wood) - 200) <= 2 && armyLine(trader) === 'IDLE:-:0:0:-', JSON.stringify({ message: back?.message, capital: c3.wood, colony: [k2.wood, k3.wood] }));
+      // un envoi et un transport partent de la capitale avec l'armée, le bois vient de la colonie
+      sql(`UPDATE "City" SET wood=0 WHERE id='${cityA.id}'`);
+      const c4 = stockOf(cityA.id), k4 = stockOf(colony[0]);
+      const sent = await call('E1: trade/send to B from the capital, its wood only in the colony', 'POST', '/api/trade/send', tA, { fromCityId: cityA.id, armyId: trader, targetX: cityB.x, targetY: cityB.y, resources: { wood: 250 } });
+      const k5 = stockOf(colony[0]);
+      assert('E1: the send leaves the capital with its army, the wood comes from the colony', sent?.armyId === trader && armyLine(trader) === `TRANSPORTING:TRANSPORT:250:0:${cityB.id}` && Math.abs((k4.wood - k5.wood) - (250 - c4.wood)) <= 2, `${armyLine(trader)} | colony ${k4.wood} -> ${k5.wood} | ${sent?.error || ''}`);
+      await call('E1: recall the send on its home tile', 'POST', `/api/army/${trader}/return`, tA, {});
+      sql(`UPDATE "City" SET wood=0 WHERE id='${cityA.id}'`);
+      const c6 = stockOf(cityA.id), k6 = stockOf(colony[0]);
+      const tr = await call('E1: army transport to B, its wood only in the colony', 'POST', `/api/army/${trader}/transport`, tA, { targetCityId: cityB.id, wood: 200, stone: 0, iron: 0, food: 0 });
+      const k7 = stockOf(colony[0]);
+      assert('E1: the army transport takes its load in the colony too', armyLine(trader) === `TRANSPORTING:TRANSPORT:200:0:${cityB.id}` && Math.abs((k6.wood - k7.wood) - (200 - c6.wood)) <= 2, `${armyLine(trader)} | colony ${k6.wood} -> ${k7.wood} | ${tr?.error || ''}`);
+      await call('E1: recall the transport on its home tile', 'POST', `/api/army/${trader}/return`, tA, {});
+      // une livraison qui arrive dans une capitale pleine va aux autres villes du joueur ; rien ne repart
+      const fromB = mkTrader(B.player.id, cityB.id, 'Negotiator Communis', unitKeyFor('HUN', 'INFANTRY', 'base'));
+      sql(`UPDATE "City" SET wood=GREATEST(wood, 5000), "maxStorage"=GREATEST("maxStorage", 100000) WHERE id='${cityB.id}'`);
+      sql(`UPDATE "City" SET wood="maxStorage" WHERE id='${cityA.id}'`);
+      const k8 = stockOf(colony[0]);
+      await call('E1: B sends wood to the full capital of A', 'POST', '/api/trade/send', tB, { fromCityId: cityB.id, armyId: fromB, targetX: cityA.x, targetY: cityA.y, resources: { wood: 300 } });
+      sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${fromB}'`);
+      await waitTick('E1: delivery to the full capital of A', () => armyLine(fromB).startsWith('RETURNING:'));
+      const k9 = stockOf(colony[0]);
+      const note = sql(`SELECT body FROM "Notification" WHERE "playerId"='${A.player.id}' AND title LIKE '%Marchandises livrées%' ORDER BY "createdAt" DESC LIMIT 1`);
+      assert('E1: what the full capital cannot hold goes to the colony, the army comes home empty, A is told', /^RETURNING:[A-Z_]+:0:0:/.test(armyLine(fromB)) && Math.abs((k9.wood - k8.wood) - 300) <= 2 && /autres villes/.test(note), `${armyLine(fromB)} | colony ${k8.wood} -> ${k9.wood} | ${note}`);
+      sql(`DELETE FROM "Army" WHERE id IN ('${trader}','${fromB}')`);
+      richCity(cityA.id); richCity(colony[0]);
+    }
+    { // E2 (décision du 1er novembre 2026, simulation de 200 jours) : armées rattachées aux colonies. Une armée à l'arrêt dans
+      // une de ses colonies s'y rattache : elle prend une place d'armée de la colonie (autant que la Place de rassemblement de
+      // la capitale en permet), la défend comme une garnison et y rentre après chaque mission ; on n'y ajoute ni n'y retire de
+      // troupes ; « Renvoyer à la capitale » la ramène, s'il y a une place libre dans la capitale
+      const [colX, colY] = [Number(colony[2]), Number(colony[3])];
+      const rp0 = Number(sql(`SELECT level FROM "CityBuilding" WHERE "cityId"='${cityA.id}' AND key='RALLY_POINT'`));
+      sql(`UPDATE "CityBuilding" SET level=20 WHERE "cityId"='${cityA.id}' AND key='RALLY_POINT'`);   // 5 armées par ville
+      const slotsOf = (cityId) => sql(`SELECT coalesce(string_agg(slot::text, ','), '') FROM "Army" WHERE "cityId"='${cityId}' AND NOT "isGarrison"`).split(',').filter(Boolean).map(Number);
+      const freeSlot = (cityId) => [1, 2, 3, 4, 5].find(s => !slotsOf(cityId).includes(s));
+      const where = (id) => sql(`SELECT status||':'||x||':'||y||':'||coalesce("cityId",'-') FROM "Army" WHERE id='${id}'`);
+      const soldiers = (id) => Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${id}'`));
+      // une case libre à côté de la colonie, où l'armée peut aller et d'où elle revient
+      const out = [[2, 0], [2, 1], [0, 2], [1, 2], [-1, 0], [-1, 1], [0, -1], [1, -1], [2, 2], [-1, -1], [3, 0], [0, 3]].map(([dx, dy]) => ({ x: colX + dx, y: colY + dy }))
+        .find(({ x, y }) => { const f = Terrain.getTerrainType(x, y).feature; return Terrain.inWorld(x, y) && !Terrain.BLOCKED[f] && !Terrain.WATER[f] && sql(`SELECT (SELECT count(*) FROM "City" WHERE x BETWEEN ${x - 1} AND ${x} AND y BETWEEN ${y - 1} AND ${y}) + (SELECT count(*) FROM "ResourceNode" WHERE x=${x} AND y=${y})`) === '0' && Terrain.findPath(colX, colY, x, y); });
+      sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garA}','${infKey}','base',100) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count="ArmyUnit".count+100`);
+      const made = await call('E2: an army formed in the capital', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: freeSlot(cityA.id), name: 'Praesidium Coloniae' });
+      const guard = made?.army?.id, capSlot0 = made?.army?.slot;
+      await call('E2: 40 soldiers from the capital garrison', 'POST', `/api/army/${guard}/set-unit`, tA, { unitKey: infKey, count: 40 });
+      const atHome = await call('E2: attach an army standing in the capital -> 400', 'POST', `/api/army/${guard}/attach-colony`, tA, {}, 400);
+      assert('E2: only an army standing in one of its colonies can be attached', /colonie/.test(atHome?.error || ''), atHome?.error);
+      await call('E2: the army marches to the colony', 'POST', `/api/army/${guard}/move`, tA, { x: colX, y: colY });
+      sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${guard}'`);
+      await waitTick('E2: the army stands in the colony', () => where(guard) === `IDLE:${colX}:${colY}:${cityA.id}`);
+      const colSlot = freeSlot(colony[0]);
+      const att = await call('E2: attach the army to the colony', 'POST', `/api/army/${guard}/attach-colony`, tA, {});
+      assert('E2: attached, it takes a free army slot of the colony and frees its slot in the capital', att?.army?.cityId === colony[0] && att.army.slot === colSlot && att?.colony?.id === colony[0] && sql(`SELECT "cityId"||':'||slot FROM "Army" WHERE id='${guard}'`) === `${colony[0]}:${colSlot}` && !slotsOf(cityA.id).includes(capSlot0), JSON.stringify(att)?.slice(0, 200));
+      const listed = ((await call('E2: the armies list shows the attachment', 'GET', '/api/armies', tA)) || []).find(a => a.id === guard);
+      assert('E2: the armies list says which colony the army belongs to', listed?.attachedColony?.id === colony[0] && listed.attachedColony.name === colony[1], JSON.stringify(listed?.attachedColony));
+      await call('E2: attach it twice -> 400', 'POST', `/api/army/${guard}/attach-colony`, tA, {}, 400);
+      // pas de garnison en colonie : ni troupes ajoutées ou retirées, ni dissolution tant qu'elle a des soldats
+      const adj = await call('E2: adjust-unit of an army attached to a colony -> 400', 'POST', `/api/army/${guard}/adjust-unit`, tA, { unitKey: infKey, delta: 5 }, 400);
+      const dis = await call('E2: disband it with its soldiers in the colony -> 400', 'DELETE', `/api/army/${guard}/disband`, tA, null, 400);
+      assert('E2: no garrison in a colony: troops neither added nor removed there, no disband with soldiers', /^Une colonie n'a pas de garnison/.test(adj?.error || '') && /^Une colonie n'a pas de garnison/.test(dis?.error || '') && soldiers(guard) === 40, `${adj?.error} / ${dis?.error}`);
+      // elle défend la colonie comme une garnison : B la pille (sa dernière visite vieillie de 25 h, hors du délai entre deux raids)
+      sql(`UPDATE "BattleReport" SET "createdAt"=now()-interval '25 hours' WHERE "attackerId"='${B.player.id}' AND loot->>'type'='RAID' AND loot->>'cityId'='${colony[0]}'`);
+      const raiders = mkTrader(B.player.id, cityB.id, 'Praedones', unitKeyFor('HUN', 'CAVALRY', 'base'), 60);
+      const raidsOn = () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='RAID' AND loot->>'cityId'='${colony[0]}'`));
+      const raids0 = raidsOn();
+      await call('E2: B raids the guarded colony', 'POST', `/api/army/${raiders}/raid`, tB, { targetCityId: colony[0] });
+      sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${raiders}'`);
+      await waitTick('E2: raid on the guarded colony', () => raidsOn() > raids0);
+      const defended = JSON.parse(sql(`SELECT "defenderUnits"::text FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='RAID' AND loot->>'cityId'='${colony[0]}' ORDER BY "createdAt" DESC LIMIT 1`) || '[]');
+      assert('E2: the attached army defends the colony (its 40 soldiers fight the raid) and stays there', defended.some(u => u.key === infKey && u.count === 40) && where(guard) === `IDLE:${colX}:${colY}:${colony[0]}` && soldiers(guard) > 0, `${JSON.stringify(defended)} | ${where(guard)}`);
+      sql(`DELETE FROM "Army" WHERE id='${raiders}'`);
+      // chaque retour la ramène à la colonie : elle part, on la rappelle en chemin
+      await call('E2: the attached army leaves the colony', 'POST', `/api/army/${guard}/move`, tA, out);
+      sql(`UPDATE "Army" SET "departedAt"=now()-("arrivalAt"-"departedAt"), "arrivalAt"=now()+("arrivalAt"-"departedAt") WHERE id='${guard}'`);   // à mi-chemin
+      await call('E2: recalled on the way', 'POST', `/api/army/${guard}/return`, tA, {});
+      const homeward = sql(`SELECT status||':'||coalesce("targetX"::text, x::text)||':'||coalesce("targetY"::text, y::text) FROM "Army" WHERE id='${guard}'`);
+      assert('E2: recalled, it heads back to its colony, not to the capital', [`RETURNING:${colX}:${colY}`, `IDLE:${colX}:${colY}`].includes(homeward), homeward);
+      sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${guard}' AND status='RETURNING'`);
+      await waitTick('E2: back in its colony', () => where(guard) === `IDLE:${colX}:${colY}:${colony[0]}`);
+      // « Renvoyer à la capitale » : refusé sans place libre dans la capitale ; sinon elle y rentre et lui appartient de nouveau
+      const fillers = [1, 2, 3, 4, 5].filter(s => !slotsOf(cityA.id).includes(s)).map(s => sql(`INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,status,slot) SELECT gen_random_uuid(),'${A.player.id}','${cityA.id}','Statio ${s}',x,y,'IDLE',${s} FROM "City" WHERE id='${cityA.id}' RETURNING id`).split('\n')[0]);
+      const full = await call('E2: back to the capital with no free army slot there -> 400', 'POST', `/api/army/${guard}/detach-colony`, tA, {}, 400);
+      assert('E2: no free army slot in the capital: refused, the army stays attached to the colony', /emplacement d'armée libre dans la capitale/.test(full?.error || '') && where(guard) === `IDLE:${colX}:${colY}:${colony[0]}`, full?.error);
+      if (fillers.length) sql(`DELETE FROM "Army" WHERE id IN (${fillers.map(id => `'${id}'`).join(',')})`);
+      const kept = soldiers(guard);
+      const det = await call('E2: send the army back to the capital', 'POST', `/api/army/${guard}/detach-colony`, tA, {});
+      assert('E2: it marches back to the capital', !!det?.message && sql(`SELECT status||':'||"targetX"||':'||"targetY" FROM "Army" WHERE id='${guard}'`) === `RETURNING:${cityA.x}:${cityA.y}`, `${JSON.stringify(det)?.slice(0, 160)} | ${where(guard)}`);
+      sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${guard}'`);
+      await waitTick('E2: the army is home in the capital', () => where(guard) === `IDLE:${cityA.x}:${cityA.y}:${cityA.id}`);
+      const slotNow = Number(sql(`SELECT slot FROM "Army" WHERE id='${guard}'`));
+      assert('E2: back in the capital, it takes a capital army slot of its own', slotNow >= 1 && slotNow <= 5 && slotsOf(cityA.id).filter(s => s === slotNow).length === 1 && !slotsOf(colony[0]).includes(colSlot), `slot ${slotNow}, capital ${slotsOf(cityA.id)}`);
+      await call('E2: in the capital its troops can change again', 'POST', `/api/army/${guard}/adjust-unit`, tA, { unitKey: infKey, delta: 5 });
+      assert('E2: adjust-unit works again in the capital', soldiers(guard) === kept + 5, `${kept} -> ${soldiers(guard)}`);
+      await call('E2: disband it in the capital (its troops back to the garrison)', 'DELETE', `/api/army/${guard}/disband`, tA);
+      sql(`UPDATE "CityBuilding" SET level=${rp0} WHERE "cityId"='${cityA.id}' AND key='RALLY_POINT'`);
+    }
     // décision 13 : une colonie a 12 emplacements dans son anneau
     {
       const ring = ECO.city.ringSlots.colony;
@@ -1893,6 +2006,24 @@ if (MAIL_LOG) {
   assert('bastion: assault won, 9 lives left of 10, a report for each side', lives1 === '9' && Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'bastionId'='${bId}'`)) === 1, lives1);
   assert('bastion: the assault met the 60 000 HP shield wall', sql(`SELECT loot->>'wallMaxHp' FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`) === '60000');
   assert('bastion: the attacker goes home and the siege is lifted', sql(`SELECT status FROM "Army" WHERE id='${siege}'`) === 'RETURNING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'false');
+  { // E3 (décision du 1er novembre 2026, simulation de 200 jours) : une vie ne revient qu'après 24 h sans assaut gagné, puis
+    // une toutes les 7,2 h (72 h pour 10 vies) ; le panneau du Bastion et la carte disent la fin de la pause et la prochaine vie
+    const pauseH = BR.regenPauseHours, lifeH = BR.regenHours / BR.assaults;
+    const panel = (label) => call(label, 'GET', '/api/bastion', tA);
+    const r0 = await panel('E3: the Bastion panel right after the won assault');
+    const p0 = r0?.bastion;
+    const pauseLeft = (Date.parse(p0?.regenPausedUntil) - Date.now()) / 3600000;
+    const nextGap = (Date.parse(p0?.nextLifeAt) - Date.parse(p0?.regenPausedUntil)) / 3600000;
+    assert('E3: right after a won assault, 9 lives, none back for 24 h, then the next one 7.2 h later (the panel says when)', pauseH === 24 && r0?.rules?.regenPauseHours === 24 && p0?.lives === 9 && pauseLeft > pauseH - 0.1 && pauseLeft <= pauseH && Math.abs(nextGap - lifeH) < 0.01, JSON.stringify({ lives: p0?.lives, pausedUntil: p0?.regenPausedUntil, nextLifeAt: p0?.nextLifeAt, rules: r0?.rules?.regenPauseHours }));
+    sql(`UPDATE "Bastion" SET "structureAt"=now()-interval '23 hours 50 minutes' WHERE id='${bId}'`);
+    const p1 = (await panel('E3: the panel 23 h 50 after the won assault'))?.bastion;
+    assert('E3: 23 h 50 later, still 9 lives (90 %): nothing comes back during the pause', p1?.lives === 9 && p1.structurePct === 90 && !!p1.regenPausedUntil, JSON.stringify({ lives: p1?.lives, pct: p1?.structurePct, pausedUntil: p1?.regenPausedUntil }));
+    sql(`UPDATE "Bastion" SET "structureAt"=now()-interval '${pauseH} hours'-interval '${Math.round(lifeH * 60) + 5} minutes' WHERE id='${bId}'`);
+    const p2 = (await panel('E3: the panel 24 h + 7.2 h after the won assault'))?.bastion;
+    const seen = ((await call('E3: the map after the pause', 'GET', `/api/map/viewport?x=${spot?.x}&y=${spot?.y}&radius=8`, tB))?.bastions || []).find(b => b.id === bId);
+    assert('E3: after 24 h without a won assault, one life every 7.2 h: 10 lives again (panel and map)', p2?.lives === 10 && p2.regenPausedUntil === null && p2.nextLifeAt === null && seen?.lives === 10, JSON.stringify({ panel: p2?.lives, map: seen?.lives }));
+    sql(`UPDATE "Bastion" SET structure=0.9, "structureAt"=now() WHERE id='${bId}'`);   // de nouveau l'état d'après l'assaut
+  }
   // une sortie victorieuse reste au Bastion ; une attaque victorieuse du dehors reste devant lui
   const weakCamp = (name) => {
     const id = mk(B.player.id, cityB.id, name, [['HUN_INF_NOMADE', 'base', 3]]);
@@ -1934,6 +2065,10 @@ if (MAIL_LOG) {
     await waitTick('both camps fought', () => camps.every(id => sql(`SELECT status FROM "Army" WHERE id='${id}'`) !== 'BESIEGING'));
     const lives = sql(`SELECT string_agg(l, ',' ORDER BY t) FROM (SELECT loot->'lives'->>'after' AS l, "createdAt" AS t FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 2) r`);
     assert('bastion: two camps of the same alliance outside a rally fight two assaults (two reports, two lives)', reportsOfB() === before + 2 && lives === '8,7', `${reportsOfB() - before} reports, lives ${lives}`);
+    // E3 : chaque assaut gagné relance la pause de 24 h
+    const restarted = (await call('E3: the panel after two more won assaults', 'GET', '/api/bastion', tA))?.bastion;
+    const left = (Date.parse(restarted?.regenPausedUntil) - Date.now()) / 3600000;
+    assert('E3: each won assault starts the 24 h pause again', restarted?.lives === 7 && left > BR.regenPauseHours - 0.1 && left <= BR.regenPauseHours, JSON.stringify({ lives: restarted?.lives, pausedUntil: restarted?.regenPausedUntil }));
     sql(`DELETE FROM "Army" WHERE id IN ('${camps[0]}','${camps[1]}')`);
     sql(`UPDATE "Bastion" SET "isSieged"=false WHERE id='${bId}'`);
     refill(gar, 10);
@@ -1955,9 +2090,14 @@ if (MAIL_LOG) {
   assert('bastion rally: the group camps 1 h before the Bastion, which is besieged', sql(`SELECT "missionType"||':'||round(extract(epoch FROM "arrivalAt"-now())/60)::int||':'||("rallyId" IS NULL) FROM "Army" WHERE id='${agmen}'`) === 'BASTION_ATTACK:60:false' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'true', sql(`SELECT "missionType"||':'||"arrivalAt" FROM "Army" WHERE id='${agmen}'`));
   // l'assaut du rassemblement : mené par l'armée du lanceur (son héros), le lien au rassemblement est ensuite effacé
   const reports0 = Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`));
+  const structureAt0 = sql(`SELECT "structureAt"::text FROM "Bastion" WHERE id='${bId}'`);
   sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${agmen}'`);
   await waitTick('bastion rally assault', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`)) > reports0);
   assert('bastion rally: one assault, then the army leaves the rally', sql(`SELECT ("rallyId" IS NULL)::text||':'||status FROM "Army" WHERE id='${agmen}'`).startsWith('true:') && sql(`SELECT status FROM "Army" WHERE id='${agmen}'`) !== 'BESIEGING', sql(`SELECT ("rallyId" IS NULL)::text||':'||status FROM "Army" WHERE id='${agmen}'`));
+  { // E3 : un assaut repoussé (5 engins contre le mur de 60 000 PV) ne relance pas la pause
+    const winner = sql(`SELECT winner FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`);
+    assert('E3: a repelled assault leaves the lives and the pause as they were', winner === 'DEFENDER' && sql(`SELECT "structureAt"::text FROM "Bastion" WHERE id='${bId}'`) === structureAt0, `${winner}, ${structureAt0} -> ${sql(`SELECT "structureAt"::text FROM "Bastion" WHERE id='${bId}'`)}`);
+  }
   sql(`DELETE FROM "Army" WHERE id IN ('${noEngine}','${agmen}')`);
   { // le camp d'un rassemblement devant un Bastion se brise comme un autre (D9, mise à jour finale du propriétaire) : une
     // sortie de la garnison le chasse, il ne livre pas d'assaut
@@ -1976,6 +2116,41 @@ if (MAIL_LOG) {
     assert('bastion: a rally camp is broken by a sortie like any camp, and never assaults', so2?.sortie === true && sql(`SELECT status FROM "Army" WHERE id='${agmen2}'`) !== 'BESIEGING' && sql(`SELECT status||':'||"targetBastionId" FROM "Army" WHERE id='${gar}'`) === `STATIONED:${bId}` && bastionReports() === reports1, `${sql(`SELECT status FROM "Army" WHERE id='${agmen2}'`)} / ${sql(`SELECT status FROM "Army" WHERE id='${gar}'`)}`);
     sql(`DELETE FROM "Army" WHERE id='${agmen2}'`);
     refill(gar, 10);
+  }
+  { // E4 (décision du 1er novembre 2026, simulation de 200 jours) : les armées du côté du Bastion (son alliance et ses alliés,
+    // sorties comprises) qui atteignent le camp dans la même minute se battent ensemble, en une seule bataille, chacune avec
+    // ses pertes. Ici le camp vaut 60 000 (1 000 nomades) : une armée de 600 miliciens (44 400) ne le chasse pas, deux oui
+    nourrirB();
+    const castra = mk(B.player.id, cityB.id, 'Castra', [['HUN_INF_NOMADE', 'base', 1000]]);
+    const cohorts = ['Cohors I', 'Cohors II'].map(name => mk(A.player.id, cityA.id, name, [['ROM_INF_MILICIEN', 'base', 600]]));
+    const pitch = () => {   // le camp, plein, devant le Bastion pour une heure
+      sql(`DELETE FROM "ArmyUnit" WHERE "armyId"='${castra}'`); sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${castra}','HUN_INF_NOMADE','base',1000)`);
+      sql(`UPDATE "Army" SET status='BESIEGING', x=${spot?.x}, y=${spot?.y}, "targetX"=${spot?.x}, "targetY"=${spot?.y}, "targetBastionId"='${bId}', "missionType"='BASTION_ATTACK', "arrivalAt"=now()+interval '1 hour', "claimedAt"=NULL WHERE id='${castra}'`);
+      sql(`UPDATE "Bastion" SET "isSieged"=true WHERE id='${bId}'`);
+    };
+    const statusOf = (id) => sql(`SELECT status FROM "Army" WHERE id='${id}'`);
+    const breakReports = (playerId) => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${playerId}' AND loot->>'type'='SIEGE_BREAK' AND rounds->>'bastionId'='${bId}'`));
+    const lastBreak = () => sql(`SELECT winner||':'||coalesce(loot->>'armies','1')||':'||coalesce(rounds->>'armies','1') FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='SIEGE_BREAK' AND rounds->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`);
+    pitch();
+    const a0 = breakReports(A.player.id);
+    await call('E4: one army alone against the camp', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: cohorts[0], mission: 'BREAK' });
+    sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${cohorts[0]}'`);
+    await waitTick('E4: the lone army fought', () => statusOf(cohorts[0]) !== 'ATTACKING');
+    const solo = lastBreak();
+    assert('E4: alone, the army (44 400) is beaten by the camp (60 000), the camp stays', solo === 'DEFENDER:1:1' && breakReports(A.player.id) === a0 + 1 && statusOf(castra) === 'BESIEGING', `${solo} | camp ${statusOf(castra)}`);
+    // le même camp, plein ; les deux armées l'atteignent dans la même seconde
+    pitch();
+    sql(`DELETE FROM "ArmyUnit" WHERE "armyId"='${cohorts[0]}'`); sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${cohorts[0]}','ROM_INF_MILICIEN','base',600)`);
+    sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "targetX"=NULL, "targetY"=NULL, "arrivalAt"=NULL, "departedAt"=NULL, "missionType"=NULL, "targetBastionId"=NULL, "claimedAt"=NULL, "woundedCarry"='[]' WHERE id='${cohorts[0]}'`);
+    const a1 = breakReports(A.player.id), b1 = breakReports(B.player.id);
+    for (const [i, id] of cohorts.entries()) await call(`E4: army ${i + 1} of 2 attacks the camp`, 'POST', `/api/bastion/${bId}/send`, tA, { armyId: id, mission: 'BREAK' });
+    sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id IN ('${cohorts[0]}','${cohorts[1]}')`);
+    await waitTick('E4: the two armies fought', () => cohorts.every(id => statusOf(id) !== 'ATTACKING'));
+    const duo = lastBreak();
+    assert('E4: arriving together, the two armies fight one battle (one report on each side, 2 armies) and break the camp', duo === 'ATTACKER:2:2' && breakReports(A.player.id) === a1 + 1 && breakReports(B.player.id) === b1 + 1 && statusOf(castra) !== 'BESIEGING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'false', `${duo} | reports A +${breakReports(A.player.id) - a1}, B +${breakReports(B.player.id) - b1} | camp ${statusOf(castra)}`);
+    const left = cohorts.map(id => Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${id}'`)));
+    assert('E4: each winner stays before the Bastion, with its own share of the losses', cohorts.every(id => sql(`SELECT status||':'||x||':'||y FROM "Army" WHERE id='${id}'`) === `IDLE:${spot?.x}:${spot?.y}`) && left[0] === left[1] && left[0] > 0 && left[0] < 600, `${cohorts.map(id => sql(`SELECT status||':'||x||':'||y FROM "Army" WHERE id='${id}'`)).join(' / ')} | soldiers ${left.join(', ')}`);
+    sql(`DELETE FROM "Army" WHERE id IN ('${castra}','${cohorts[0]}','${cohorts[1]}')`);
   }
   sql(`UPDATE "Bastion" SET "isSieged"=false WHERE id='${bId}'`);
   // dernière vie : le Bastion est rasé, 7 jours avant d'en rebâtir un
@@ -2079,7 +2254,32 @@ if (MAIL_LOG) {
   sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0, "lastDefeat"=now() WHERE id='${siteNode[0]}'`);
   sql(`UPDATE "City" SET settlers=1, wood=50000, stone=50000, iron=50000, food=50000, "maxStorage"=100000, "maxFoodStorage"=100000 WHERE id='${cityA.id}'`);
   const settlerArmy = mkTrader(A.player.id, cityA.id, 'Coloni', infKey, 20);
-  await call('wonder: found the Wonder City (no colony slot needed)', 'POST', `/api/army/${settlerArmy}/found-city`, tA, { resourceNodeId: siteNode[0], name: 'Babylone' });
+  // E6 (décision du 1er novembre 2026, simulation de 200 jours) : un site libéré est réservé 6 h à l'alliance qui a battu les
+  // Immortels ; une autre alliance attend la fin de la réservation, puis le site est à tous jusqu'au retour des Immortels
+  // (24 h après leur défaite). L'état du monde le donne à la carte et au panneau du site
+  const alOfA = sql(`SELECT "allianceId" FROM "AllianceMember" WHERE "playerId"='${A.player.id}'`);
+  const [alOfB, tagOfB] = sql(`SELECT m."allianceId"||'|'||a.tag FROM "AllianceMember" m JOIN "Alliance" a ON a.id=m."allianceId" WHERE m."playerId"='${B.player.id}'`).split('|');
+  const reserveH = CONF().world.wonderSiteReserveHours;
+  {
+    sql(`UPDATE "ResourceNode" SET "reservedAllianceId"='${alOfB}' WHERE id='${siteNode[0]}'`);   // B a battu les Immortels
+    const st = await call('E6: the world state lists the reserved site', 'GET', '/api/world/state', null);
+    const res = (st?.wonderSites?.reserved || []).find(r => r.nodeId === siteNode[0]);
+    const leftH = (Date.parse(res?.until) - Date.now()) / 3600000;
+    assert('E6: the freed site is reserved 6 h to the alliance that beat the Immortals (world state, for the map and the site panel)', reserveH === 6 && st?.wonderSites?.reserveHours === 6 && res?.allianceId === alOfB && res.allianceTag === tagOfB && leftH > reserveH - 0.1 && leftH <= reserveH, JSON.stringify(st?.wonderSites));
+    const no = await call('E6: another alliance cannot found there during the 6 h -> 400', 'POST', `/api/army/${settlerArmy}/found-city`, tA, { resourceNodeId: siteNode[0], name: 'Babylone' }, 400);
+    assert('E6: the refusal names the alliance and the end of the reservation; nothing is taken, the army stays', /^Site réservé à l'alliance \[/.test(no?.error || '') && no.error.includes(`[${tagOfB}]`) && sql(`SELECT status FROM "Army" WHERE id='${settlerArmy}'`) === 'IDLE' && sql(`SELECT settlers FROM "City" WHERE id='${cityA.id}'`) === '1', no?.error);
+    if (!no?.error) {   // refus manquant (déjà compté en échec) : le colon revient, pour que la suite de la section reste juste
+      sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "targetX"=NULL, "targetY"=NULL, "targetResourceId"=NULL, "arrivalAt"=NULL, "departedAt"=NULL, "missionType"=NULL, "claimedAt"=NULL, settlers=0, "carryWood"=0, "carryStone"=0, "carryIron"=0, "carryFood"=0, "harvestResourceType"=NULL WHERE id='${settlerArmy}'`);
+      sql(`UPDATE "City" SET settlers=1, wood=50000, stone=50000, iron=50000, food=50000 WHERE id='${cityA.id}'`);
+    }
+    sql(`UPDATE "ResourceNode" SET "lastDefeat"=now()-interval '${reserveH} hours'-interval '1 minute' WHERE id='${siteNode[0]}'`);
+    const st2 = await call('E6: the world state after the 6 h', 'GET', '/api/world/state', null);
+    assert('E6: after 6 h the site is open to every alliance (no longer reserved)', Array.isArray(st2?.wonderSites?.reserved) && !st2.wonderSites.reserved.some(r => r.nodeId === siteNode[0]), JSON.stringify(st2?.wonderSites));
+    // le vainqueur, ici l'alliance de A, fonde pendant ses 6 h (ci-dessous)
+    sql(`UPDATE "ResourceNode" SET "lastDefeat"=now(), "reservedAllianceId"='${alOfA}' WHERE id='${siteNode[0]}'`);
+  }
+  const founded = await call('wonder: found the Wonder City (no colony slot needed)', 'POST', `/api/army/${settlerArmy}/found-city`, tA, { resourceNodeId: siteNode[0], name: 'Babylone' });
+  assert('E6: the alliance that beat the Immortels founds during its 6 h', !!founded?.arrivalAt && !!alOfA && sql(`SELECT "reservedAllianceId" FROM "ResourceNode" WHERE id='${siteNode[0]}'`) === alOfA, JSON.stringify(founded)?.slice(0, 160));
   sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${settlerArmy}'`);
   await waitTick('wonder foundation started', () => sql(`SELECT status FROM "Army" WHERE id='${settlerArmy}'`) === 'FOUNDING');
   sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${settlerArmy}'`);
@@ -2305,12 +2505,20 @@ if (MAIL_LOG) {
   const view0 = await call('invasion: a dungeon', 'GET', `/api/invasion/horde/${hNode}`, P1?.token);
   assert('invasion: 3 floors, the outpost first', view0?.floors?.length === 3 && view0.floors[0].current && view0.floors[0].name === 'Avant-poste' && view0.floor === 1, JSON.stringify(view0?.floors?.map(f => f.name)));
   // force réglée sur les joueurs (recommandation 9) : l'avant-poste du niveau 1 vaut la puissance notée sur l'invasion
-  // (médiane des joueurs actifs × 50 %, 3 000 au moins) ; trop peu de joueurs mesurés : l'ancienne formule (15 000 au niveau 1)
+  // (médiane des joueurs actifs × 42 % depuis le 1er novembre 2026, 3 000 au moins) ; trop peu de joueurs mesurés :
+  // l'ancienne formule (15 000 au niveau 1)
   const CFG = createRequire(import.meta.url)('../src/config'), INV = CFG.invasion;
   const basePower = st1?.invasion?.basePower ?? null;
   const outpost = view0?.floors?.[0]?.power || 0;
   assert('invasion: the outpost of level 1 follows the measured power (or the old formula)', (basePower === null || basePower >= INV.powerRef.minOutpost) && Math.abs(outpost - (basePower ?? INV.basePower)) <= 0.15 * (basePower ?? INV.basePower), `basePower ${basePower}, outpost ${outpost}`);
   assert('invasion: floors ×1 / ×2 / ×4', Math.abs(view0?.floors?.[2]?.power / outpost - 4) < 0.5, JSON.stringify(view0?.floors?.map(f => f.power)));
+  { // E5 (décision du 1er novembre 2026, simulation de 200 jours) : donjons taillés sur une armée par joueur, celle de sa
+    // capitale : l'avant-poste du niveau 1 vaut 42 % de la médiane (50 % avant), mesurée sur les soldats, sans les engins
+    process.env.DATABASE_URL ||= DB;
+    const HS = nodeRequire('../src/services/hordeService');
+    const median = 1000000;
+    assert('E5: the level-1 outpost is 42 % of the median power (one army per player, the capital\'s)', INV.powerRef.outpostPctOfMedian === 42 && HS.outpostPower(Array(INV.powerRef.minPlayers).fill(median)) === median * 42 / 100 && INV.powerRef.levelFactor === 1.8, JSON.stringify(INV.powerRef));
+  }
   // D17 (décision du 31 octobre 2026, rapport de vérification) : 200 or au trésor d'un donjon de niveau 1 (40 avant), × 2 par niveau
   assert('invasion: the treasure of a level-1 dungeon holds 200 gold', INV.treasure.gold === 200 && view0?.treasure?.gold === 200, JSON.stringify(view0?.treasure));
   // armées du test taillées sur la force réelle du donjon : puissance d'une unité = (attaque + défense) × coefficient du palier

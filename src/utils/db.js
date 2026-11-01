@@ -50,7 +50,13 @@ async function creditCity(tx, cityId, gain) {
 // puisent d'abord dans la ville de l'action, puis dans les autres villes du joueur, la plus pleine d'abord (stock rapporté
 // à son plafond : Dépôt pour bois, pierre et fer, Silo pour les céréales ; décision des colonies, question 8).
 // L'entretien des troupes puise aussi dans tous les greniers (resourceProcessor.processUpkeep, § 1 bis), dans le même
-// ordre. Le marché, les transports, les convois, le pillage et les raids restent propres à chaque ville.
+// ordre. Ce qu'une armée emporte (offre et échange du marché, envoi, livraison à la Merveille, ravitaillement du Bastion)
+// se prend de la même façon dans toutes les villes, la ville de départ d'abord (debitPlayer) ; une offre rendue et une
+// livraison qui arrive vont à la ville visée d'abord, puis aux autres selon la place (creditPlayer) (décision du
+// 1er novembre 2026, simulation de 200 jours : stock commun). Le pillage et les raids restent propres à chaque ville.
+
+// Une ville verrouillée, au format de lockPlayerCities
+const lockedCity = (r) => ({ id: r.id, isCapital: !!r.isCapital, wood: Number(r.wood) || 0, stone: Number(r.stone) || 0, iron: Number(r.iron) || 0, food: Number(r.food) || 0, maxStorage: Number(r.maxStorage) || 0, maxFoodStorage: Number(r.maxFoodStorage) || 0 });
 
 // Verrouille toutes les villes du joueur, toujours dans le même ordre (id), pour éviter les interblocages ;
 // renvoie leurs stocks et plafonds
@@ -58,7 +64,21 @@ async function lockPlayerCities(tx, playerId) {
   const rows = await tx.$queryRaw`
     SELECT id, wood, stone, iron, food, "maxStorage", "maxFoodStorage", "isCapital"
     FROM "City" WHERE "playerId" = ${playerId} ORDER BY id FOR UPDATE`;
-  return rows.map(r => ({ id: r.id, isCapital: !!r.isCapital, wood: Number(r.wood) || 0, stone: Number(r.stone) || 0, iron: Number(r.iron) || 0, food: Number(r.food) || 0, maxStorage: Number(r.maxStorage) || 0, maxFoodStorage: Number(r.maxFoodStorage) || 0 }));
+  return rows.map(lockedCity);
+}
+
+// Verrouille en une seule passe, dans l'ordre des id, les villes de plusieurs joueurs (un échange du marché touche
+// l'acheteur et le vendeur : deux échanges croisés prennent leurs verrous dans le même ordre, décision du 1er novembre
+// 2026, simulation de 200 jours). Renvoie { [playerId]: villes } au format de lockPlayerCities (liste vide sans ville)
+async function lockCitiesOfPlayers(tx, playerIds) {
+  const ids = [...new Set((playerIds || []).filter(Boolean))];
+  const byPlayer = Object.fromEntries(ids.map(id => [id, []]));
+  if (!ids.length) return byPlayer;
+  const rows = await tx.$queryRaw`
+    SELECT id, "playerId", wood, stone, iron, food, "maxStorage", "maxFoodStorage", "isCapital"
+    FROM "City" WHERE "playerId" = ANY(${ids}) ORDER BY id FOR UPDATE`;
+  for (const r of rows) (byPlayer[r.playerId] ||= []).push(lockedCity(r));
+  return byPlayer;
 }
 
 // Remplissage d'un stock : part de son plafond (Silo pour les céréales, Dépôt pour le reste) ; plafond nul : plein s'il
@@ -279,4 +299,4 @@ async function transition(tx, model, id, fromStatus, data) {
 
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64;
 
-module.exports = { RESOURCES, RES_FR, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, lostNote, stockTotals, capitalBuildingsOf, buildingsWithCapital, capitalTrainBoostOf, debitGold, creditGold, capitalGarrisonId, addArmyUnits, plunderCity, claimNode, takeFromNode, withDeadlockRetry, transition, isId };
+module.exports = { RESOURCES, RES_FR, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, lockCitiesOfPlayers, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, lostNote, stockTotals, capitalBuildingsOf, buildingsWithCapital, capitalTrainBoostOf, debitGold, creditGold, capitalGarrisonId, addArmyUnits, plunderCity, claimNode, takeFromNode, withDeadlockRetry, transition, isId };

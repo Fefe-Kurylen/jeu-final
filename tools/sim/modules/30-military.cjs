@@ -23,6 +23,12 @@
 // gisement, et l'armée qui libère le site prend d'abord les soldats de la garnison ; le soin à l'or sert aussi les lits
 // lancés pendant la visite ; les camps d'or sont attaqués ; le fondateur de la Ville Merveille garde une escorte à la
 // maison quand le module de la Merveille le demande (bot.mem.wonder.holdEscort).
+// Armées rattachées aux colonies (décision du 1er novembre 2026, simulation de 200 jours, E2) : la garde, arrivée au repos
+// dans sa colonie, lui est rattachée (POST /api/army/:id/attach-colony) : elle prend un emplacement de la colonie, libère
+// celui de la capitale, défend la colonie comme une garnison et y revient après chaque mission. Trop faible, elle est
+// renvoyée à la capitale (POST /api/army/:id/detach-colony, une place libre de la capitale y est prise dès le départ) pour
+// se regarnir, puis repart et se rattache. Avant : toutes les armées restaient sur les 5 emplacements de la capitale
+// (16 joueurs sur 38 avaient besoin d'une armée de plus que possible).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -537,10 +543,12 @@ function pickColonySite(bot, m, cap, sites, fieldPower) {
 
 // ---------- gardes des colonies (rapport de vérification du 31 octobre 2026) ----------
 // Une colonie n'a pas de garnison : une armée « Garde » se forme dans la capitale (emplacement de la Place de rassemblement,
-// juste après l'armée de campagne), prend une part des soldats de la garnison et se déplace dans la colonie, où elle se tient
-// au repos et la défend. Trop faible depuis deux semaines (pertes, armée du joueur qui a grandi), et sans combat depuis
-// 2 jours, elle rentre se regarnir. Une colonie disparue (rasée) : sa garde sert une autre colonie qui n'en a pas, sinon
-// elle rentre et se dissout (ses soldats retournent à la garnison) : elle ne garde plus sa place pour rien.
+// juste après l'armée de campagne), prend une part des soldats de la garnison et se déplace dans la colonie, où elle se
+// rattache (E2 : elle passe sur un emplacement de la colonie et rend celui de la capitale) et la défend. Trop faible depuis
+// deux semaines (pertes, armée du joueur qui a grandi), et sans combat depuis 2 jours, elle est renvoyée à la capitale se
+// regarnir (une armée rattachée ne prend pas de troupes dans la colonie). Une colonie disparue (rasée) : le serveur rattache
+// sa garde à la capitale, où elle rentre ; elle sert une autre colonie qui n'en a pas, sinon elle se dissout (ses soldats
+// retournent à la garnison) : elle ne garde plus sa place pour rien.
 async function guards(bot, ctx, B, m, cap) {
   m.guard ||= {};
   const cols = Armies.colonies(bot);
@@ -554,6 +562,11 @@ async function guards(bot, ctx, B, m, cap) {
     if (!a) { delete m.guard[colId]; delete m.gs[armyId]; delete m.gc[armyId]; delete m.gh[armyId]; continue; }
     if (cols.some(c => c.id === colId)) continue;
     delete m.guard[colId];   // la colonie n'est plus à lui (rasée) : la garde est sans poste
+  }
+  // une garde rattachée à une colonie que la mémoire ne suit pas (reprise de la simulation) : elle garde cette colonie
+  for (const a of bot.armies.filter(x => !x.isGarrison && x.name === Armies.NAMES.guard && cols.some(c => c.id === x.cityId))) {
+    if (Object.values(m.guard).includes(a.id) || bot.armies.some(x => x.id === m.guard[a.cityId])) continue;
+    m.guard[a.cityId] = a.id; bump(m, 'guardAdopted');
   }
   // gardes sans poste (colonie rasée, ou une garde que la mémoire a perdue) : une colonie sans garde la reçoit (elle y
   // marchera avec le reste de la boucle), sinon elle rentre puis se dissout
@@ -582,22 +595,31 @@ async function guards(bot, ctx, B, m, cap) {
       if (m.gc[a.id] !== undefined && n < m.gc[a.id] && !isHome(a, cap)) m.gh[a.id] = ctx.step;
       m.gc[a.id] = n;
     }
-    if (a && a.status === 'IDLE' && a.x === col.x && a.y === col.y) {
-      // en poste : trop faible depuis deux semaines, et pas de combat ces 2 derniers jours, elle rentre se regarnir
+    if (a && a.status === 'IDLE' && !a.claimedAt && a.x === col.x && a.y === col.y) {
+      // en poste, pas encore rattachée : elle se rattache à la colonie (E2) et rend sa place à la capitale
+      if (a.cityId !== col.id) {
+        if (B.left <= 0) break;
+        B.left--;
+        const r = await bot.post(`/api/army/${a.id}/attach-colony`);
+        if (r.ok) { a.cityId = col.id; if (r.data?.army?.slot) a.slot = r.data.army.slot; bump(m, 'guardsAttached'); }
+        else bump(m, 'guardAttachRefused');
+        continue;
+      }
+      // rattachée : trop faible depuis deux semaines, et pas de combat ces 2 derniers jours, elle est renvoyée à la capitale
+      // se regarnir (il lui faut une place libre à la capitale, prise dès le départ)
       const hit = ctx.step - (m.gh[a.id] ?? -99) < GUARD_HIT_STEPS;
       if (countOf(a.units) < GUARD_REFILL_SHARE * want && ctx.step - (m.gs[a.id] ?? ctx.step) >= GUARD_REFILL && !hit) {
-        B.left--;
-        const r = await bot.post(`/api/army/${a.id}/return`);
-        if (r.ok) { a.status = 'RETURNING'; bump(m, 'guardRefills'); }
+        if (await sendGuardHome(bot, B, m, a, cap)) bump(m, 'guardRefills');
       }
       continue;
     }
     if (a && a.status === 'IDLE' && !a.claimedAt && !isHome(a, cap)) {
       // arrêtée ailleurs (la garde d'une colonie rasée qui reçoit ce poste) : elle y marche si elle a des soldats, sinon elle
-      // rentre se regarnir
+      // rentre se regarnir (rattachée à une colonie : renvoyée à la capitale)
       if (B.left <= 0) break;
-      B.left--;
       const go = countOf(a.units) >= Math.min(GUARD_MIN, want);
+      if (!go && a.cityId !== cap.id) { await sendGuardHome(bot, B, m, a, cap); continue; }
+      B.left--;
       const r = go ? await bot.post(`/api/army/${a.id}/move`, { x: col.x, y: col.y }) : await bot.post(`/api/army/${a.id}/return`);
       if (r.ok) { a.status = go ? 'MOVING' : 'RETURNING'; if (go) { m.gs[a.id] = ctx.step; bump(m, 'guardsPosted'); } else bump(m, 'guardRecalls'); }
       else bump(m, 'guardMoveRefused');
@@ -629,6 +651,20 @@ async function guards(bot, ctx, B, m, cap) {
     if (r.ok) { a.status = 'MOVING'; m.gs[a.id] = ctx.step; bump(m, 'guardsPosted'); }
     else bump(m, 'guardMoveRefused');
   }
+}
+
+// « Renvoyer à la capitale » (E2) : une garde rattachée à une colonie rentre à la capitale, qui lui garde dès le départ une
+// place libre (refus sans place : elle reste en poste et réessaiera) ; true si elle est partie
+async function sendGuardHome(bot, B, m, a, cap) {
+  if (B.left <= 0) return false;
+  B.left--;
+  const r = await bot.post(`/api/army/${a.id}/detach-colony`);
+  if (!r.ok) { bump(m, /emplacement/i.test(String(r.data?.error || '')) ? 'guardDetachNoSlot' : 'guardDetachRefused'); return false; }
+  a.cityId = cap.id;
+  if (r.data?.army?.slot) a.slot = r.data.army.slot;
+  a.status = r.data?.arrivalAt ? 'RETURNING' : 'IDLE';
+  bump(m, 'guardDetached');
+  return true;
 }
 
 // une case libre à côté du point (pas sur le bloc 2 × 2 de la future ville) : l'armée s'y poste avant de frapper

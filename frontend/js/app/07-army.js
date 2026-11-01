@@ -27,16 +27,84 @@ function forgeNoteHtml() {
   return atk || def ? `<span class="forge-note" title="Forge de la capitale : vaut dans tous les combats (attaque, défense, renfort, camps, donjons, Bastion)">${resIconHtml('attack')} Forge : +${fmtTechPct(atk)} % d'attaque et +${fmtTechPct(def)} % de défense au combat</span>` : '';
 }
 
+// ---- Armées rattachées aux colonies (décision du 1er novembre 2026, simulation de 200 jours, E2) ----
+// Une armée à l'arrêt dans une de vos colonies peut lui être rattachée : elle prend une place d'armée de la colonie (autant
+// que la Place de rassemblement de la capitale en permet), la défend comme une garnison et y rentre après chaque mission.
+// Pas de garnison en colonie : on n'y ajoute ni n'y retire de troupes ; « Renvoyer à la capitale » la ramène (il faut une
+// place libre dans la capitale). La Ville Merveille n'est pas une colonie (serveur : config.army.colonyArmies).
+const COLONY_ARMY_RULE = 'Rattachée à une colonie, une armée la défend (attaques, raids, sièges) et y rentre après chaque mission. Pas de garnison en colonie : on n\'y ajoute ni n\'y retire de troupes. Renvoyez-la à la capitale pour changer ses troupes.';
+// Colonie (ou Ville Merveille) de l'armée, null pour une armée de la capitale (attachedColony de GET /api/armies)
+function armyColonyOf(army) {
+  if (!army || army.isGarrison) return null;
+  if (army.attachedColony !== undefined) return army.attachedColony;
+  const city = (cities || []).find(c => c.id === army.cityId);
+  return city && !city.isCapital ? { id: city.id, name: city.name, isWonder: !!city.isWonder } : null;
+}
+// Colonie du joueur où se tient une armée à l'arrêt d'une autre ville : on peut l'y rattacher (null sinon)
+function colonyToAttach(army) {
+  if (!army || army.isGarrison || army.status !== 'IDLE') return null;
+  return (cities || []).find(c => !c.isCapital && !c.isWonder && c.x === army.x && c.y === army.y && c.id !== army.cityId) || null;
+}
+// Armées du joueur venues d'une autre ville et posées dans cette colonie (à rattacher)
+const armiesToAttachIn = (city) => (armies || []).filter(a => colonyToAttach(a)?.id === city?.id);
+
+async function attachArmyToColony(armyId) {
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/attach-colony`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
+    const data = await res.json().catch(() => ({}));
+    showToast(res.ok ? (data.message || 'Armée rattachée à la colonie') : (data.error || 'Rattachement impossible'), res.ok ? 'success' : 'error');
+  } catch (e) { showToast('Erreur réseau', 'error'); }
+  closeModal();
+  await loadArmies();
+  renderArmies();
+}
+
+async function sendArmyBackToCapital(armyId) {
+  const army = (armies || []).find(a => a.id === armyId);
+  const ok = await confirmModal(`Renvoyer ${army?.name || 'cette armée'} à la capitale ? Elle quitte la colonie et reprend tout de suite une place d'armée de la capitale.`, { title: 'Renvoyer à la capitale', okLabel: 'Renvoyer' });
+  if (!ok) return;
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/detach-colony`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
+    const data = await res.json().catch(() => ({}));
+    showToast(res.ok ? (data.message || 'Armée en route vers la capitale') : (data.error || 'Renvoi impossible'), res.ok ? 'success' : 'error');
+  } catch (e) { showToast('Erreur réseau', 'error'); }
+  await loadArmies();
+  renderArmies();
+}
+
+// Liste des armées posées dans la colonie affichée, à rattacher (onglet Armée d'une colonie, place libre touchée)
+function colonyGuestsHtml(city, freeSlots) {
+  if (!city || city.isCapital) return '';
+  if (city.isWonder) return `<p class="hint-small colony-guests-note">${resIconHtml('defense')} La Ville Merveille n'est pas une colonie : ses défenseurs restent des armées de la capitale.</p>`;
+  const guests = armiesToAttachIn(city);
+  const rows = guests.map(a => {
+    const home = (cities || []).find(c => c.id === a.cityId);
+    const soldiers = (a.units || []).reduce((s, u) => s + u.count, 0);
+    return `<div class="colony-guest-row">
+        <span class="cg-name">${escapeHtml(a.name)}${home ? ` <small>(${escapeHtml(home.name)})</small>` : ''}</span>
+        <span class="cg-units">${resIconHtml('army')} ${formatNum(soldiers)} soldats</span>
+        <button type="button" class="army-btn primary" ${freeSlots > 0 ? '' : 'disabled title="Aucune place d\'armée libre dans la colonie"'} onclick="attachArmyToColony('${a.id}')">${resIconHtml('defense')} Rattacher à cette colonie</button>
+      </div>`;
+  }).join('');
+  return `<div class="colony-guests">
+      <div class="column-header"><h3>${resIconHtml('defense')} Armées posées dans la colonie</h3></div>
+      <p class="hint-small">${escapeHtml(COLONY_ARMY_RULE)} Rattacher une armée libère sa place dans la capitale.</p>
+      ${rows || '<p class="hint-small">Aucune armée à rattacher ici : déplacez une armée de la capitale jusqu\'à la colonie, puis rattachez-la.</p>'}
+    </div>`;
+}
+
 function renderArmies() {
   const container = document.getElementById('armies-management');
   const garrisonSummary = document.getElementById('garrison-summary');
-  
+
   if (!container) return;
 
   // Get garrison units (units in city, not assigned to any army)
   const garrisonUnits = getGarrisonUnits();
   const cityArmies = armies.filter(a => a.cityId === currentCity?.id && !a.isGarrison);
   const maxArmies = getMaxArmies();
+  const inColony = !!currentCity && !currentCity.isCapital;   // ses armées sont rattachées (E2)
+  const freeColonySlots = ARMY_SLOTS.filter(n => n <= maxArmies && !cityArmies.some(a => a.slot === n)).length;
   const heroData = player?.hero;
   // le héros ne combat que joint à une armée (la garnison comprise), depuis le panneau de l'armée (décision du 29 octobre 2026)
   const heroAssignedToArmy = armies.find(a => a.heroId && a.heroId === heroData?.id);
@@ -63,7 +131,7 @@ function renderArmies() {
     <div class="army-header-compact">
       <div class="header-left-info">
         <span class="rally-badge"><img class="ico" src="assets/images/3d/ui/rally.webp" alt=""> Rally Niv.${rallyLevel}</span>
-        <span class="army-count-badge">${cityArmies.length}/${maxArmies} armées</span>
+        <span class="army-count-badge"${inColony ? ` title="${escapeHtml(COLONY_ARMY_RULE)}"` : ''}>${cityArmies.length}/${maxArmies} armées${inColony ? ' rattachées' : ''}</span>
         ${forgeNoteHtml()}
       </div>
       <div class="header-right-info">
@@ -91,6 +159,7 @@ function renderArmies() {
             return cityArmies.filter(a => !shown.has(a.id) && !a.isGarrison).map(a => renderArmyCardNew(a.slot, a, false, heroData)).join('');
           })()}
         </div>
+        ${inColony ? colonyGuestsHtml(currentCity, freeColonySlots) : ''}
       </div>
       
       <!-- Right: Hero + Garrison -->
@@ -141,7 +210,7 @@ function renderArmies() {
           ` : `
             <div class="garrison-empty-compact">
               <p>Aucune unité</p>
-              <p class="hint-small">Recrutez via bâtiments militaires</p>
+              <p class="hint-small">${inColony ? 'Pas de garnison en colonie : rattachez-y une armée de la capitale' : 'Recrutez via bâtiments militaires'}</p>
             </div>
           `}
         </div>
@@ -182,7 +251,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
         </div>
         <div class="army-card-body-empty">
           <span class="create-plus">+</span>
-          <p>Créer une armée</p>
+          <p>${currentCity && !currentCity.isCapital ? 'Rattacher une armée' : 'Créer une armée'}</p>
         </div>
       </div>
     `;
@@ -192,6 +261,10 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
   const hasHero = army.heroId === heroData?.id;
   const totalUnits = army.units?.reduce((s, u) => s + u.count, 0) || 0;
   const armyPower = army.power ?? calculateArmyPower(army);
+  // rattachée à une colonie (E2) : elle la défend et y rentre ; à l'arrêt dans une autre colonie : on peut l'y rattacher
+  const colony = typeof armyColonyOf === 'function' ? armyColonyOf(army) : null;
+  const attachTo = typeof colonyToAttach === 'function' ? colonyToAttach(army) : null;
+  const atColony = colony && army.status === 'IDLE' && (cities || []).some(c => c.id === colony.id && c.x === army.x && c.y === army.y);
   
   const statusMap = {
     'IDLE': { icon: '<img class="ico" src="assets/images/3d/ui/home.webp" alt="">', label: 'En ville', cls: 'idle' },
@@ -240,6 +313,8 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
         `}
       </div>
       
+      ${colony ? `<div class="army-attach-row" title="${escapeHtml(COLONY_ARMY_RULE)}">${resIconHtml('defense')} Rattachée à ${escapeHtml(colony.name)} : elle la défend et y rentre</div>` : ''}
+
       <!-- Units Summary -->
       <div class="army-units-row">
         <div class="units-stat">
@@ -279,7 +354,14 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
 
       <!-- Actions -->
       <div class="army-actions-row">
-        ${army.status === 'IDLE' ? `
+        ${army.status === 'IDLE' && (atColony || attachTo) ? `
+          ${atColony
+            ? `<button class="army-btn primary" ${totalUnits > 0 ? `onclick="sendArmyBackToCapital('${army.id}')" title="Elle quitte la colonie et reprend une place d'armée de la capitale"` : 'disabled title="Armée vide : dissolvez-la dans la colonie"'}>${resIconHtml('home')} Renvoyer à la capitale</button>`
+            : `<button class="army-btn primary" onclick="attachArmyToColony('${army.id}')" title="Elle défendra ${escapeHtml(attachTo.name)} et y rentrera après chaque mission">${resIconHtml('defense')} Rattacher à ${escapeHtml(attachTo.name)}</button>`}
+          <button class="army-btn icon-only" onclick="showArmyActionsMenu('${army.id}')" title="Actions">
+            ${resIconHtml('settings')}
+          </button>
+        ` : army.status === 'IDLE' ? `
           <button class="army-btn primary" onclick="openArmyComposition('${army.id}')" title="Composer">
             ${resIconHtml('list')} Composer
           </button>
@@ -332,13 +414,27 @@ function showArmyActionsMenu(armyId) {
   const hasHero = army.heroId;
   const canMove = totalUnits > 0;
   const disabledReason = !canMove ? (hasHero ? 'Le héros nécessite au moins 1 soldat' : 'Armée vide') : '';
+  // armée rattachée à une colonie (E2) : elle rentre à la capitale avec « Renvoyer », se dissout seulement vide ;
+  // une armée à l'arrêt dans une autre de vos colonies peut lui être rattachée
+  const colony = armyColonyOf(army), attachTo = colonyToAttach(army);
+  const canDisband = !colony || totalUnits === 0;
+  const colonyCards = (colony && army.status === 'IDLE' ? `
+        <button class="action-card ${canMove ? '' : 'disabled'}" ${canMove ? `onclick="closeModal(); sendArmyBackToCapital('${armyId}')"` : 'disabled'}>
+          <span class="action-icon">${resIconHtml('home')}</span>
+          <span class="action-label">Renvoyer à la capitale</span>
+        </button>` : '') + (attachTo ? `
+        <button class="action-card" onclick="attachArmyToColony('${armyId}')">
+          <span class="action-icon">${resIconHtml('defense')}</span>
+          <span class="action-label">Rattacher à ${escapeHtml(attachTo.name)}</span>
+        </button>` : '');
 
   const modal = document.getElementById('modal');
   document.getElementById('modal-body').innerHTML = `
     <div class="army-actions-modal">
       <h3><img class="ico" src="assets/images/3d/ui/settings.webp" alt=""> Actions - ${escapeHtml(army.name)}</h3>
       ${!canMove ? `<p class="warning-text" style="color:#ff6b6b;text-align:center;margin-bottom:10px">${disabledReason}</p>` : ''}
-      <div class="actions-grid">
+      ${colony ? `<p class="hint-small">${resIconHtml('defense')} Rattachée à ${escapeHtml(colony.name)}. ${escapeHtml(COLONY_ARMY_RULE)}</p>` : ''}
+      <div class="actions-grid">${colonyCards}
         <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showMoveModal('${armyId}')"` : 'disabled'}>
           <span class="action-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
           <span class="action-label">Déplacer</span>
@@ -351,7 +447,7 @@ function showArmyActionsMenu(armyId) {
           <span class="action-icon"><img class="ico" src="assets/images/3d/ui/bolt.webp" alt=""></span>
           <span class="action-label">Raid</span>
         </button>
-        <button class="action-card danger" onclick="closeModal(); confirmDisbandArmy('${armyId}')">
+        <button class="action-card danger ${canDisband ? '' : 'disabled'}" ${canDisband ? `onclick="closeModal(); confirmDisbandArmy('${armyId}')"` : 'disabled title="Une armée rattachée à une colonie se dissout vide, ou une fois revenue à la capitale"'}>
           <span class="action-icon">${resIconHtml('skull')}</span>
           <span class="action-label">Dissoudre</span>
         </button>
@@ -372,6 +468,10 @@ function openArmyComposition(armyId) {
   
   if (army.status !== 'IDLE') {
     showToast('L\'armée doit être en ville pour modifier sa composition', 'warning');
+    return;
+  }
+  if (armyColonyOf(army)) {   // rattachée à une colonie : pas de garnison où prendre ou poser des troupes (E2)
+    showToast(COLONY_ARMY_RULE, 'warning');
     return;
   }
   
@@ -718,8 +818,15 @@ function getGarrisonUnits() {
   return armies.find(a => a.cityId === currentCity?.id && a.isGarrison)?.units || [];
 }
 
+// Place libre d'une colonie touchée : pas de troupes propres en colonie, on y rattache une armée posée là (E2)
+function openColonyAttach() {
+  if (currentCity?.isWonder) { showToast('La Ville Merveille n\'est pas une colonie : ses défenseurs restent des armées de la capitale', 'info'); return; }
+  showModal('Rattacher une armée', colonyGuestsHtml(currentCity, 1));
+}
+
 // Create new army
 async function createArmy(slotNum) {
+  if (currentCity && !currentCity.isCapital) { openColonyAttach(); return; }   // colonie : on rattache, on ne crée pas
   const maxArmies = getMaxArmies();
   const cityArmies = armies.filter(a => a.cityId === currentCity?.id && !a.isGarrison);
   

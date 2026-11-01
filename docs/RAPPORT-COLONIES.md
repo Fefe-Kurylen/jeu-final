@@ -66,7 +66,7 @@ L'étude ci-dessous raisonne encore avec 3 colonies, 5 000 joueurs, le +20 % des
 - Construire, recruter, rechercher, soigner, le héros et fonder une ville se paient sur **la somme de toutes vos villes**. On prend d'abord dans la ville de l'action.
 - L'entretien des troupes se paie sur **la somme de tous les greniers**. La famine n'arrive que si ce total est vide.
 - Toute unité formée apparaît dans la capitale. Une colonie n'a pas de garnison propre : seules les armées qu'on y envoie la défendent.
-- Raids, pillage, siège, cachette, marché et transports restent propres à chaque ville. Les routes commerciales entre vos villes ne changent pas. (Le 31 octobre 2026 au soir, décision D7 : routes et marchands retirés, rien ne circule plus entre vos villes, leur stock est commun.)
+- Raids, pillage, siège, cachette, marché et transports restent propres à chaque ville. Les routes commerciales entre vos villes ne changent pas. (Le 31 octobre 2026 au soir, décision D7 : routes et marchands retirés, rien ne circule plus entre vos villes, leur stock est commun. Le 1er novembre 2026, décision E1 : ce qu'une armée emporte, offre, envoi ou convoi, se prend dans toutes vos villes, celle de départ d'abord ; pillage et raids restent propres à chaque ville.)
 - Les convois automatiques sont abandonnés. Tout ce qui ne servait qu'aux convois est retiré de ce projet.
 
 ### Le rôle des colonies

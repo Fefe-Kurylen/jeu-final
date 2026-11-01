@@ -274,3 +274,83 @@ test('rassemblement contre un site : repoussé, les Immortels gardent leurs pert
   const taken = groupTx({ node: null, armies: [] });
   assert.equal((await withGroupStubs(taken.tx, () => W.attackImmortalsGroup(['a1'], 'n3', 'p1'))).gone, true);
 });
+
+// ---- site de Merveille réservé (décision du 1er novembre 2026, simulation de 200 jours, E6) ----
+const HOUR = 3600000;
+// transaction factice : l'alliance des joueurs, la colonne reservedAllianceId lue et écrite en SQL
+function reserveDb({ members = {}, reserved = null, tags = { A1: 'AQL' } } = {}) {
+  const log = { writes: [], notes: [] };
+  const db = {
+    allianceMember: {
+      findUnique: async ({ where }) => (members[where.playerId] ? { allianceId: members[where.playerId] } : null),
+      findMany: async ({ where }) => Object.entries(members).filter(([, a]) => a === where.allianceId).map(([playerId]) => ({ playerId }))
+    },
+    $executeRaw: async (sql, allianceId, nodeId) => { log.writes.push({ allianceId, nodeId }); reserved = allianceId; return 1; },
+    $queryRaw: async () => [{ allianceId: reserved, tag: reserved ? tags[reserved] : null }]
+  };
+  return { db, log };
+}
+const freedSite = (lastDefeat) => ({ id: 'n1', x: 5, y: 6, resourceType: 'WONDER', hasDefenders: false, cityId: null, lastDefeat });
+
+test('site libéré (E6) : réservé 6 h à l\'alliance du vainqueur, toute l\'alliance est prévenue', async () => {
+  assert.equal(world.wonderSiteReserveHours, 6);
+  const { db, log } = reserveDb({ members: { p1: 'A1', p2: 'A1', p3: 'A2' } });
+  const restore = stubPrisma({ notification: { create: async ({ data }) => { log.notes.push(data); return { id: 'n' }; } } });
+  try {
+    const out = await W.onImmortalsBeaten(db, { id: 'n1', x: 5, y: 6, resourceType: 'WONDER' }, 'p1');
+    assert.equal(out.reservedAllianceId, 'A1');
+    assert.deepEqual(log.writes, [{ allianceId: 'A1', nodeId: 'n1' }]);
+    await new Promise(r => setImmediate(r));
+    assert.deepEqual(log.notes.map(n => n.playerId).sort(), ['p1', 'p2'], 'les membres de l\'alliance du vainqueur, pas les autres');
+    assert.ok(log.notes.every(n => n.body.includes('pendant 6 h, seule votre alliance peut y fonder sa Ville Merveille')), JSON.stringify(log.notes.map(n => n.body)));
+    // vainqueur sans alliance : rien de réservé
+    const solo = reserveDb({});
+    assert.deepEqual(await W.onImmortalsBeaten(solo.db, { id: 'n2', x: 1, y: 1, resourceType: 'WONDER' }, 'p9'), {});
+    assert.deepEqual(solo.log.writes, [{ allianceId: null, nodeId: 'n2' }]);
+  } finally { restore(); }
+});
+
+test('fondation sur un site réservé (E6) : seule l\'alliance qui a battu les Immortels pendant 6 h, puis toute alliance', async () => {
+  const beaten = new Date('2026-11-01T12:00:00Z');
+  const { db } = reserveDb({ members: { p1: 'A1', p3: 'A2' }, reserved: 'A1' });
+  const at = (h) => new Date(beaten.getTime() + h * HOUR);
+  const r = await W.siteReserve(db, freedSite(beaten), at(1));
+  assert.deepEqual(r, { allianceId: 'A1', tag: 'AQL', until: at(6) });
+  assert.equal(await W.siteClosedFor(db, freedSite(beaten), 'p1', at(1)), null, 'l\'alliance qui a vaincu fonde');
+  const refusal = await W.siteClosedFor(db, freedSite(beaten), 'p3', at(1));
+  assert.match(refusal, /^Site réservé à l'alliance \[AQL\], qui a battu les Immortels, jusqu'au .+ : ensuite, toute alliance pourra y fonder sa Ville Merveille$/);
+  assert.notEqual(await W.siteClosedFor(db, freedSite(beaten), 'p9', at(5.9)), null, 'un joueur sans alliance non plus');
+  assert.equal(await W.siteClosedFor(db, freedSite(beaten), 'p3', at(6)), null, 'six heures passées : ouvert à tous');
+  // site gardé, bâti, plan, jamais battu : pas de réservation
+  for (const node of [{ ...freedSite(beaten), hasDefenders: true }, { ...freedSite(beaten), cityId: 'c1' }, { ...freedSite(beaten), resourceType: 'PLAN' }, freedSite(null)]) assert.equal(await W.siteReserve(db, node, at(1)), null);
+  // site battu par un joueur sans alliance : ouvert à tous
+  assert.equal(await W.siteClosedFor(reserveDb({ members: { p3: 'A2' } }).db, freedSite(beaten), 'p3', at(1)), null);
+});
+
+test('site réservé (E6) : une alliance dissoute depuis ne bloque plus le site, comme la liste de la carte', async () => {
+  const beaten = new Date('2026-11-01T12:00:00Z'), at = new Date(beaten.getTime() + HOUR);
+  const sqls = [];
+  // la jointure ne rend aucune ligne : l'alliance notée sur le site n'existe plus
+  const db = { $queryRaw: async (sql) => { sqls.push(sql.join('?')); return []; }, allianceMember: { findUnique: async () => ({ allianceId: 'A2' }) } };
+  assert.equal(await W.siteReserve(db, freedSite(beaten), at), null);
+  assert.equal(await W.siteClosedFor(db, freedSite(beaten), 'p3', at), null, 'toute alliance peut fonder');
+  await W.reservedSites(at, db);
+  assert.ok(sqls.length === 3 && sqls.every(s => /\bJOIN "Alliance"/.test(s) && !/LEFT JOIN/.test(s)), sqls.join('\n'));
+});
+
+test('état du monde (E6) : les sites réservés en ce moment, une fois les sites apparus', async () => {
+  const now = new Date('2026-11-01T15:00:00Z');
+  const rows = [{ id: 'n1', x: 5, y: 6, lastDefeat: new Date(now.getTime() - 2 * HOUR), allianceId: 'A1', tag: 'AQL' }];
+  let since = null;
+  const list = await W.reservedSites(now, { $queryRaw: async (sql, s) => { since = s; return rows; } });
+  assert.equal(since.getTime(), now.getTime() - 6 * HOUR);
+  assert.deepEqual(list, [{ nodeId: 'n1', x: 5, y: 6, allianceId: 'A1', allianceTag: 'AQL', until: new Date(now.getTime() + 4 * HOUR) }]);
+  for (const [sitesSpawnedAt, expected] of [[null, 0], [opened, 1]]) {
+    const restore = stubPrisma({ worldConfig: { findUnique: async () => ({ id: 1, readyAt: opened, sitesSpawnedAt }) }, player: { count: async () => 10 }, $queryRaw: async () => rows });
+    try {
+      const st = await W.worldState(now);
+      assert.equal(st.wonderSites.reserveHours, 6);
+      assert.equal(st.wonderSites.reserved.length, expected, `sites apparus : ${!!sitesSpawnedAt}`);
+    } finally { restore(); }
+  }
+});

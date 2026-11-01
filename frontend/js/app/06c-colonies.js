@@ -200,7 +200,10 @@ function myCityRowHtml(city, nowMs) {
   // armées du joueur posées dans la ville (la garnison de la capitale, celles envoyées défendre une colonie)
   const here = (armies || []).filter(a => a.status === 'IDLE' && a.x === city.x && a.y === city.y && (a.units || []).length);
   const soldiers = here.reduce((s, a) => s + a.units.reduce((t, u) => t + u.count, 0), 0);
-  const armyHtml = `${resIconHtml('army')} ${here.length ? `${here.length} armée${here.length > 1 ? 's' : ''} · ${formatNum(soldiers)} soldats` : 'Aucune armée'}`;
+  // armées rattachées à la colonie (décision du 1er novembre 2026, E2), en ville ou en mission : leurs noms en info-bulle
+  const attached = city.isCapital ? [] : (armies || []).filter(a => a.cityId === city.id && !a.isGarrison);
+  const attachedHtml = attached.length ? ` · <span title="${escapeHtml(attached.map(a => a.name).join(', '))}">${attached.length} rattachée${attached.length > 1 ? 's' : ''}</span>` : '';
+  const armyHtml = `${resIconHtml('army')} ${here.length ? `${here.length} armée${here.length > 1 ? 's' : ''} · ${formatNum(soldiers)} soldats` : 'Aucune armée'}${attachedHtml}`;
   const livesHtml = city.lives ? `<span class="mv-lives${city.lives.left < city.lives.total ? ' mv-warn' : ''}">${resIconHtml('defense')} Vies ${city.lives.left}/${city.lives.total}</span>` : '';
   const attack = (incomingAttacks || []).filter(a => a.targetCityId === city.id && (a.type === 'SIEGE' || new Date(a.arrivalAt).getTime() > nowMs))
     .sort((a, b) => new Date(a.arrivalAt) - new Date(b.arrivalAt))[0];

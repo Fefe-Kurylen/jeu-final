@@ -13,6 +13,12 @@ async function loadWorldState(force = false) {
 const frDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
 
 // ---- carte : site de Merveille, plan ----
+// Site libéré réservé à l'alliance qui a battu les Immortels (décision du 1er novembre 2026, simulation de 200 jours, E6) :
+// { allianceId, allianceTag, until } d'après l'état du monde (GET /api/world/state, wonderSites.reserved), ou null
+function wonderSiteReserve(st, nodeId) {
+  const r = (st?.wonderSites?.reserved || []).find(x => x.nodeId === nodeId);
+  return r && new Date(r.until) > new Date() ? r : null;
+}
 function drawWonderNode(x, y, tw, th, tile) {
   const site = tile.resourceType === 'WONDER';
   const imgSize = Math.max(tw, th * 2) * 1.6;
@@ -30,7 +36,8 @@ function drawWonderNode(x, y, tw, th, tile) {
   const draw = () => {
     if (mapZoomLevel <= 0.4) return;
     const px = Math.max(9, 10 * mapZoomLevel);
-    drawMapNamePlate(x, y + th * 0.5, site ? (tile.hasDefenders ? 'Site de Merveille · Immortels' : 'Site de Merveille libre') : 'Plan de construction', px, '#c9a227', true, 'gold');
+    const reserved = site && !tile.hasDefenders ? wonderSiteReserve(worldStateCache, tile.id) : null;   // dernier état du monde connu
+    drawMapNamePlate(x, y + th * 0.5, site ? (tile.hasDefenders ? 'Site de Merveille · Immortels' : reserved ? `Site réservé · [${reserved.allianceTag}]` : 'Site de Merveille libre') : 'Plan de construction', px, '#c9a227', true, 'gold');
   };
   if (mapLabelQueue) mapLabelQueue.push(draw); else draw();
 }
@@ -47,18 +54,37 @@ function renderWonderNodePanel(tile, content) {
     <h3 data-wonder-node="${id}">${resIconHtml(site ? 'crown' : 'reports')} ${site ? 'Site de Merveille' : 'Plan de construction'}</h3>
     <p>Position : (${tile.x}, ${tile.y})</p>
     ${guard}
+    ${site && !tile.hasDefenders ? '<div class="wonder-reserve"></div>' : ''}
     <p class="diplo-help">${site
       ? 'Battez la garnison des Immortels, puis fondez-y une ville avec un colon : elle devient la Ville Merveille de votre alliance (une par joueur). La première alliance qui monte sa Merveille au niveau 100 gagne le monde.'
       : 'Battez la garnison des Immortels pour prendre le plan : il reste dans votre capitale et permet à votre alliance de monter sa Merveille au-delà du niveau 50. Un assaut gagné contre votre capitale l\'emporterait.'}${canRally ? ' Seul ou en rassemblement d\'alliance : la prise revient à celui qui le lance.' : ''}</p>
     <div class="panel-actions">
       ${tile.hasDefenders ? `<button class="btn btn-danger" onclick="raidResource('${id}', ${tile.x}, ${tile.y})" ${hasArmy ? '' : 'disabled title="Aucune armée disponible"'}>${resIconHtml('attack')} Attaquer les Immortels</button>` : ''}
       ${canRally ? `<button class="btn btn-danger" onclick="closeMapPanel(); openRallyLaunch('${id}', ${tile.x}, ${tile.y}, null, '${site ? 'WONDER' : 'PLAN'}')" ${rallyReady ? '' : 'disabled title="Aucune armée libre dans ses murs"'}>${resIconHtml('rally')} Rassemblement</button>` : ''}
-      ${site && !tile.hasDefenders && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" onclick="foundCityAt('${id}', ${tile.x}, ${tile.y})">${resIconHtml('crown')} Fonder la Ville Merveille</button>` : ''}
+      ${site && !tile.hasDefenders && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" data-found-wonder onclick="foundCityAt('${id}', ${tile.x}, ${tile.y})">${resIconHtml('crown')} Fonder la Ville Merveille</button>` : ''}
       ${typeof openSpyMission === 'function' ? `<button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ nodeId: '${id}', label: '${site ? 'le site de Merveille' : 'le plan'} (${tile.x}, ${tile.y})' })">${resIconHtml('spy')} Espionner</button>` : ''}
       ${typeof mapShareButton === 'function' ? mapShareButton(tile.x, tile.y) : ''}
     </div>
     <div class="node-rallies"></div>`;
   if (inAlliance && typeof fillNodeRallies === 'function') fillNodeRallies(content.querySelector('.node-rallies'), tile.id);   // rassemblements de son alliance contre ce nœud
+  if (site && !tile.hasDefenders && typeof fillWonderSiteReserve === 'function') fillWonderSiteReserve(content, tile);
+}
+// Réservation d'un site libéré (E6), relue sur le serveur : l'alliance qui a battu les Immortels fonde seule pendant
+// wonderSites.reserveHours ; pour les autres, le bouton de fondation attend la fin de la réservation
+async function fillWonderSiteReserve(content, tile) {
+  const st = await loadWorldState(true);
+  const box = content.querySelector('.wonder-reserve');
+  if (!box || !content.querySelector(`[data-wonder-node="${chatSafeId(tile.id)}"]`)) return;   // panneau déjà remplacé
+  const r = wonderSiteReserve(st, tile.id);
+  const hours = st?.wonderSites?.reserveHours ?? 6;
+  if (!r) { box.innerHTML = `<p class="diplo-help">Toute alliance peut y fonder sa Ville Merveille (les ${hours} premières heures après la victoire, seule l'alliance qui a battu les Immortels le peut).</p>`; return; }
+  const timer = `<span class="qd-timer" data-ends-at="${escapeHtml(String(r.until))}">${formatTime(r.until)}</span>`;
+  const mine = !!player?.allianceId && player.allianceId === r.allianceId;
+  box.innerHTML = mine
+    ? `<p>${resIconHtml('star')} Réservé à votre alliance pendant encore ${timer} : vous seuls pouvez y fonder votre Ville Merveille. Ensuite, toute alliance le pourra.</p>`
+    : `<p>${resIconHtml('lock')} Réservé à l'alliance <strong>[${escapeHtml(r.allianceTag || '')}]</strong>, qui a battu les Immortels, pendant encore ${timer}. Ensuite, toute alliance pourra y fonder sa Ville Merveille.</p>`;
+  const btn = content.querySelector('[data-found-wonder]');
+  if (btn && !mine) { btn.disabled = true; btn.title = 'Site réservé à l\'alliance qui a battu les Immortels'; }
 }
 
 // ---- Ville Merveille ----

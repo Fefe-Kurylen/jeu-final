@@ -357,13 +357,21 @@ async function onEmptyMap(fn) {
   try { return await fn(); } finally { Object.assign(prisma, saved); }
 }
 // transaction factice du marché : stock des villes débité et crédité comme debitCity / creditCity, armées, offres ; les
-// verrous sont notés dans l'ordre
+// verrous sont notés dans l'ordre (« player:p1 » : toutes les villes du joueur, lockPlayerCities ; « players:p1,p2 » : celles
+// de plusieurs joueurs en une passe, lockCitiesOfPlayers), et renvoient les villes dans l'ordre des id
 function marketDb({ cities = {}, armies = [], offers = [], capital = [] } = {}) {
   const locks = [];
   const match = (row, where) => Object.entries(where).every(([k, v]) => row[k] === v);
+  const citiesOf = (ids) => Object.values(cities).filter(c => ids.includes(c.playerId)).sort((a, b) => (a.id < b.id ? -1 : 1)).map(c => ({ ...c }));
   return {
     locks, cities, armies, offers,
-    $queryRaw: async (strings, ...values) => { locks.push(values[0]); return []; },
+    $queryRaw: async (strings, ...values) => {
+      const text = strings.join('?');
+      if (text.includes('"playerId" = ANY(')) { locks.push(`players:${values[0].join(',')}`); return citiesOf(values[0]); }
+      if (text.includes('FROM "City" WHERE "playerId"')) { locks.push(`player:${values[0]}`); return citiesOf([values[0]]); }
+      locks.push(values[0]);
+      return [];
+    },
     $executeRaw: async (strings, ...values) => {
       const c = cities[values[4]];
       if (!c) return 0;
@@ -426,7 +434,7 @@ test('marché : armées libres de la ville et leur charge (civilisation, Marché
   assert.match((await MS.pickTransportArmy(marketDb({ cities: { a: home } }), home, 'p1', 'EGYPT', 1)).error, /^Aucune armée libre en ville/);
 }));
 
-test('envoi à un joueur : stock de la ville débité, une armée part avec la cargaison (retour aussi long que l\'aller) ; refus sans rien écrire', () => onEmptyMap(async () => {
+test('envoi à un joueur : stock commun débité (la ville de départ d\'abord), une armée part avec la cargaison (retour aussi long que l\'aller) ; refus sans rien écrire', () => onEmptyMap(async () => {
   const from = marketCity('a', 'p1', 0, 5000), to = marketCity('b', 'p2', 12);
   const tx = marketDb({ cities: { a: from, b: to }, armies: [marketArmy('small', 10), marketArmy('big', 100)] });
   const small = Math.floor(calc.getArmyCarryCapacity([{ unitKey: SLAVE.key, count: 10 }], unitsData) * (1 + calc.getFactionBonus('EGYPT', 'transportCapacity', factionsData) / 100));
@@ -438,14 +446,14 @@ test('envoi à un joueur : stock de la ville débité, une armée part avec la c
   const big = tx.armies.find(a => a.id === 'big');
   assert.deepEqual([big.status, big.missionType, big.targetCityId, big.carryWood, big.carryIron, big.carryStone], ['TRANSPORTING', 'TRANSPORT', 'b', small, 1, 0]);
   assert.deepEqual([from.wood, from.iron], [5000 - small, 4999]);
-  assert.deepEqual(tx.locks, ['a'], 'la ville de départ verrouillée');
+  assert.deepEqual(tx.locks, ['player:p1'], 'toutes les villes du joueur verrouillées (stock commun, décision du 1er novembre 2026)');
   // trop lourd pour l'armée restante : rien ne bouge
   assert.equal((await MS.sendResources(tx, { playerId: 'p1', faction: 'EGYPT', fromCity: from, toCity: to, resources: { wood: small + 1 }, now })).error, `Capacité de transport insuffisante : ${small + 1} à porter, ${small} au mieux`);
   assert.equal((await MS.sendResources(tx, { playerId: 'p1', faction: 'EGYPT', fromCity: from, toCity: to, resources: {}, now })).status, 400);
-  // pas assez de stock dans la ville : refusé, l'armée reste
+  // pas assez de stock dans toutes ses villes : refusé avec ce qui manque, l'armée reste
   const empty = marketCity('a', 'p1', 0, 0);
   const poor = marketDb({ cities: { a: empty, b: to }, armies: [marketArmy('small', 10)] });
-  assert.deepEqual(await MS.sendResources(poor, { playerId: 'p1', faction: 'EGYPT', fromCity: empty, toCity: to, resources: { food: 1 }, now }), { error: 'Ressources insuffisantes', status: 400 });
+  assert.deepEqual(await MS.sendResources(poor, { playerId: 'p1', faction: 'EGYPT', fromCity: empty, toCity: to, resources: { food: 1 }, now }), { error: 'Ressources insuffisantes : il manque 1 de nourriture (toutes vos villes comprises)', status: 400 });
   assert.equal(poor.armies[0].status, 'IDLE');
 }));
 
@@ -470,7 +478,7 @@ test('offre : l\'armée du vendeur attend avec les marchandises ; échange : cha
   // offre retirée : marchandises rendues, armée libre
   const other = await MS.createOffer(tx, { playerId: 'p1', faction: 'EGYPT', city: seller, sellResource: 'stone', sellAmount: 100, buyResource: 'iron', buyAmount: 100, now });
   assert.equal(tx.armies[1].status, 'MARKET');
-  assert.equal(await MS.closeOffer(tx, other.offer, 'CANCELLED'), true);
+  assert.deepEqual(await MS.closeOffer(tx, other.offer, 'CANCELLED'), { lost: { wood: 0, stone: 0, iron: 0, food: 0 } }, 'tout a tenu dans ses villes');
   assert.deepEqual([tx.armies[1].status, tx.armies[1].missionType, seller.stone, other.offer.status], ['IDLE', null, 5000, 'CANCELLED']);
   assert.equal(await MS.closeOffer(tx, other.offer, 'CANCELLED'), false, 'déjà fermée');
 }));
@@ -493,7 +501,7 @@ test('échange : une armée partie entre-temps annule tout ; celle de l\'acheteu
   assert.match(accept, /e\.message === 'army busy'\) return res\.status\(409\)\.json\(\{ error: 'Armée déjà en mission' \}\)/);
 }));
 
-test('offre expirée : verrou de l\'offre puis de sa ville (même ordre que l\'acceptation), marchandises rendues, armée libre', async () => {
+test('offre expirée : verrou de l\'offre puis des villes du vendeur (même ordre que l\'acceptation), marchandises rendues, armée libre', async () => {
   const prisma = require('../../src/config/database');
   const home = marketCity('a', 'p1', 0, 0);
   const offer = { id: 'o1', sellerId: 'p1', cityId: 'a', sellResource: 'wood', sellAmount: 700, buyResource: 'iron', buyAmount: 500, status: 'ACTIVE', armyId: 's1', expiresAt: new Date(0) };
@@ -506,7 +514,7 @@ test('offre expirée : verrou de l\'offre puis de sa ville (même ordre que l\'a
   });
   try {
     assert.equal(await MS.expireOffers(new Date()), 1);
-    assert.deepEqual(tx.locks, ['o1', 'a'], 'l\'offre puis la ville');
+    assert.deepEqual(tx.locks, ['o1', 'player:p1'], 'l\'offre puis les villes du vendeur');
     assert.deepEqual([offer.status, home.wood, tx.armies[0].status, tx.armies[0].missionType], ['EXPIRED', 700, 'IDLE', null]);
     assert.equal(await MS.expireOffers(new Date()), 0, 'déjà rendue');
   } finally { Object.assign(prisma, saved); }
@@ -722,17 +730,22 @@ test('colonie rasée : l\'armée réservée par une offre tombe avec la ville, l
   ];
   const offers = [{ id: 'o1', sellerId: 'p1', cityId: 'col', sellResource: 'iron', sellAmount: 700, buyResource: 'wood', buyAmount: 500, status: 'ACTIVE', armyId: 'reserved' }];
   const db = fallDb({ cities: { cap: capital, col: colony }, armies, offers });
+  // le trajet de l'armée libérée vers la capitale lit les villes et les points de la carte (pathfinding) : carte vide
+  const prisma = require('../../src/config/database');
+  const savedMap = { city: prisma.city, resourceNode: prisma.resourceNode };
+  Object.assign(prisma, { city: { findMany: async () => [] }, resourceNode: { findMany: async () => [] } });
   try {
     await razeCity('col', null);
-    assert.deepEqual(db.deleted.filter(d => d.startsWith('army:')).sort(), ['army:idle', 'army:reserved'], 'l\'armée réservée attendait en ville : elle tombe avec elle');
-    assert.deepEqual(db.armies.map(a => [a.id, a.cityId]), [['away', 'cap']], 'celle en mission passe à la capitale');
+    assert.deepEqual(db.deleted.filter(d => d.startsWith('army:')).sort(), ['army:reserved'], 'l\'armée réservée attendait en ville : elle tombe avec elle');
+    // armée rattachée à la colonie qui s'y tenait (décision du 1er novembre 2026, E2) : libérée, elle rentre à la capitale
+    assert.deepEqual(db.armies.map(a => [a.id, a.cityId, a.status]), [['idle', 'cap', 'RETURNING'], ['away', 'cap', 'MOVING']], 'celle en mission et celle rattachée passent à la capitale');
     assert.deepEqual([offers[0].status, offers[0].cityId], ['CANCELLED', 'cap']);
     assert.deepEqual(db.credits, [{ cityId: 'cap', gain: [0, 0, 700, 0] }], 'les marchandises de l\'offre vont à la capitale');
     assert.match(db.sql[0], /FROM "MarketOffer" WHERE "cityId" = \? AND status = 'ACTIVE' ORDER BY id FOR UPDATE/, 'les offres d\'abord');
-  } finally { db.restore(); }
+  } finally { db.restore(); Object.assign(prisma, savedMap); }
 });
 
-test('capitale tombée : les offres de la ville verrouillées avant la ville (ordre du marché) ; elle reste sur son côté de la carte', async () => {
+test('capitale tombée : les offres de la ville verrouillées avant les villes du joueur (ordre du marché) ; elle reste sur son côté de la carte', async () => {
   const { relocateCapital } = require('../../src/services/conquestService');
   const { sideAt } = require('../../src/utils/spawn');
   Terrain.setWorldSeed(0);
@@ -743,7 +756,8 @@ test('capitale tombée : les offres de la ville verrouillées avant la ville (or
     try {
       const out = await relocateCapital('cap', null);
       const offerLock = db.sql.findIndex(q => /FROM "MarketOffer" WHERE "cityId" = \? AND status = 'ACTIVE' ORDER BY id FOR UPDATE/.test(q));
-      const cityLock = db.sql.findIndex(q => /FROM "City" WHERE id = \? FOR UPDATE/.test(q));
+      // puis toutes les villes du joueur dans l'ordre des id (les offres rendues peuvent aller dans ses autres villes, E1)
+      const cityLock = db.sql.findIndex(q => /FROM "City" WHERE "playerId" = \? ORDER BY id FOR UPDATE/.test(q));
       assert.ok(offerLock >= 0 && cityLock > offerLock, `offres (${offerLock}) puis ville (${cityLock})`);
       assert.equal(sideAt(out.to.x, out.to.y), sideAt(x, y), `capitale de (${x}, ${y}) replacée en (${out.to.x}, ${out.to.y})`);
       assert.deepEqual([offers[0].status, db.armies[0].status, db.armies[0].x, db.armies[0].y], ['CANCELLED', 'IDLE', out.to.x, out.to.y], 'offre annulée, armée libre à la nouvelle place');

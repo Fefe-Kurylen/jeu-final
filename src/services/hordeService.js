@@ -14,6 +14,8 @@
 //   camp ; rien à récolter, pas de ville à y fonder.
 // - Force des donjons (décision du 30 octobre 2026, rapport économie, recommandation 9) : au lancement, la puissance
 //   médiane des joueurs actifs règle l'avant-poste du niveau 1 (config.invasion.powerRef), noté sur l'invasion (basePower).
+//   Depuis le 1er novembre 2026 (simulation de 200 jours, E5) : 42 % de la médiane de leurs soldats, sans les engins de
+//   siège, pour un joueur qui n'envoie que l'armée de sa capitale.
 // - Âge du monde (décision du 30 octobre 2026) : au lancement, mult = min(ageMax, 1 + ageFactorPerWeek × max(0, semaine du
 //   monde − ageFromWeek)), noté sur l'invasion ; un donjon de niveau L prend × mult^((L − 1)/4) sur les ressources de son
 //   trésor (ni l'or, ni les points d'alliance) et, sans mesure des joueurs, sur la puissance de ses étages. Le niveau 1 ne
@@ -112,8 +114,11 @@ function outpostPower(powers) {
   const median = s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
   return Math.round(Math.max(P.minOutpost, median * P.outpostPctOfMedian / 100));
 }
-// Avant-poste du niveau 1 d'après les joueurs vus dans les activeDays derniers jours : puissance de toutes leurs unités
-// (armées et garnisons), lue en une requête ; null sans assez de joueurs
+// Avant-poste du niveau 1 d'après les joueurs vus dans les activeDays derniers jours : puissance de tous leurs soldats
+// (armées et garnisons, toutes villes), sans les engins de siège (décision du 1er novembre 2026, simulation de 200 jours,
+// E5 : ils comptaient pour 5 % de la médiane, 628 390 au lieu de 598 883 au jour 200) ; lue en une requête ; null sans
+// assez de joueurs
+const SIEGE_KEYS = new Set(unitsData.filter(u => u.class === 'SIEGE').map(u => u.key));
 async function measuredBasePower(now = new Date(), db = prisma) {
   const since = new Date(now.getTime() - P.activeDays * 86400000);
   const rows = await db.$queryRaw`
@@ -123,6 +128,7 @@ async function measuredBasePower(now = new Date(), db = prisma) {
     GROUP BY a."ownerId", au."unitKey", au.tier`;
   const units = new Map();
   for (const r of rows) {
+    if (SIEGE_KEYS.has(r.unitKey)) continue;
     if (!units.has(r.playerId)) units.set(r.playerId, []);
     units.get(r.playerId).push({ unitKey: r.unitKey, tier: r.tier, count: Number(r.count) });
   }

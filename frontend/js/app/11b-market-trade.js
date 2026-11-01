@@ -3,7 +3,8 @@
 // taxe des échanges. La Place du marché n'existe que dans la capitale et sert toutes les villes du joueur. Plus de
 // marchands ni de routes entre ses villes : le stock du joueur est commun. Une armée libre de la ville porte les échanges
 // entre joueurs et les envois de ressources, selon la charge de ses troupes ; le marchand du serveur (échange immédiat)
-// n'en demande pas.
+// n'en demande pas. Ce qu'elle emporte se prend dans toutes les villes du joueur, la ville de départ d'abord : ce qui peut
+// partir est le total de ses villes (décision du 1er novembre 2026, simulation de 200 jours).
 // Serveur : src/routes/market.js, src/services/marketService.js.
 // ============================================================
 const MARKET_RES = [['wood', 'Bois'], ['stone', 'Pierre'], ['iron', 'Fer'], ['food', 'Nourriture']];
@@ -44,6 +45,15 @@ function fillArmySelect(id) {
 }
 // Après une livraison (réponse du serveur { arrivalAt, returnAt }) : quand les ressources arrivent et quand l'armée rentre
 const deliveryTimesText = (d) => (d?.arrivalAt ? ` · arrivée dans ${formatTime(d.arrivalAt)}${d.returnAt ? `, retour de l'armée dans ${formatTime(d.returnAt)}` : ''}` : '');
+// Ce qui peut partir pour ces ressources : le stock de toutes les villes du joueur (playerStock, GET /api/cities, comme la
+// barre de ressources), en rouge celles dont `want` ({ wood: n, … }) dépasse le total. '' tant que le stock n'est pas connu
+function availableStockHtml(want = {}, keys = RES_KEYS) {
+  const total = playerStock();
+  if (!RES_KEYS.some(r => r in total)) return '';
+  const parts = keys.map(r => `<span${(want[r] || 0) > (total[r] || 0) ? ' class="missing"' : ''}>${formatNum(total[r] || 0)} ${RES_NAMES[r]}</span>`);
+  return `Disponible dans toutes vos villes : ${parts.join(' · ')}`;
+}
+const helpLines = (...lines) => lines.filter(Boolean).join('<br>');
 
 // ---- envoi de ressources ----
 // Formulaire « Envoyer » : armées libres de la ville, puis l'armée qui partira à chaque saisie
@@ -54,8 +64,9 @@ function refreshSendForm() {
 function updateSendHelp() {
   const el = document.getElementById('send-help');
   if (!el) return;
-  const amount = RES_KEYS.reduce((t, r) => t + (parseInt(document.getElementById(`send-${r}`)?.value) || 0), 0);
-  el.innerHTML = transportNeedHtml(amount, document.getElementById('send-army')?.value || '');
+  const want = Object.fromEntries(RES_KEYS.map(r => [r, parseInt(document.getElementById(`send-${r}`)?.value) || 0]));
+  const amount = RES_KEYS.reduce((t, r) => t + want[r], 0);
+  el.innerHTML = helpLines(transportNeedHtml(amount, document.getElementById('send-army')?.value || ''), availableStockHtml(want));
 }
 
 // ---- offres entre joueurs ----
@@ -70,20 +81,28 @@ function refreshOfferForm() {
     help.innerHTML = `L'armée choisie attend en ville avec les marchandises jusqu'à l'échange (${t.offerHours} h au plus). À l'échange, chaque côté envoie une armée, qui livre puis rentre ; taxe sur ce qu'elle porte : <strong>${fmtTechPct(t.taxPct)} %</strong> depuis cette ville (${t.basePct} % de base, −${office} % par niveau du Comptoir de la capitale${treasure ? `, −${fmtTechPct(treasure)} % par niveau de la Chambre au Trésor` : ''}).`;
   }
   fillArmySelect('market-offer-army');
+  // la ressource vendue change ce qui peut partir (stock commun) : l'aide suit le choix
+  const sell = document.getElementById('market-sell-resource');
+  if (sell && !sell.onchange) sell.onchange = updateOfferHelp;
   updateOfferHelp();
 }
 function updateOfferHelp() {
   const el = document.getElementById('market-offer-transport');
-  if (el) el.innerHTML = transportNeedHtml(parseInt(document.getElementById('market-sell-amount')?.value) || 0, document.getElementById('market-offer-army')?.value || '', true);
+  if (!el) return;
+  const amount = parseInt(document.getElementById('market-sell-amount')?.value) || 0;
+  const res = document.getElementById('market-sell-resource')?.value || 'wood';
+  el.innerHTML = helpLines(transportNeedHtml(amount, document.getElementById('market-offer-army')?.value || '', true), availableStockHtml({ [res]: amount }, [res]));
 }
 
 // Accepter une offre : une armée de la ville porte la contrepartie vers la ville du vendeur (celles qui peuvent la porter)
 function openAcceptOffer(offer) {
   const name = (k) => (MARKET_RES.find(r => r[0] === k) || [k, k])[1].toLowerCase();
   const fit = marketArmies().filter(a => a.capacity >= offer.buyAmount);
+  const have = availableStockHtml({ [offer.buyResource]: offer.buyAmount }, [offer.buyResource]);   // stock commun
   openSheetModal('Accepter l\'offre', `
     <p>Vous donnez <strong>${formatNum(offer.buyAmount)} ${name(offer.buyResource)}</strong> et recevez <strong>${formatNum(offer.sellAmount)} ${name(offer.sellResource)}</strong> (moins la taxe de chaque côté).</p>
-    <p class="diplo-help">Une armée de ${escapeHtml(currentCity?.name || 'votre ville')} part vers ${escapeHtml(offer.city?.name || 'la ville du vendeur')} avec votre part ; celle du vendeur vient vers vous. Livraison à l'arrivée, puis retour.</p>
+    <p class="diplo-help">Une armée de ${escapeHtml(currentCity?.name || 'votre ville')} part vers ${escapeHtml(offer.city?.name || 'la ville du vendeur')} avec votre part, prise dans vos villes (celle-ci d'abord) ; celle du vendeur vient vers vous. Livraison à l'arrivée, puis retour.</p>
+    ${have ? `<p class="diplo-help">${have}</p>` : ''}
     ${fit.length
       ? `<label class="form-row">Armée <select id="accept-army"><option value="">Choix automatique</option>${fit.map(a => `<option value="${chatSafeId(a.id)}">${armyLabel(a)}</option>`).join('')}</select></label>`
       : `<p class="diplo-help">${transportNeedHtml(offer.buyAmount) || '<span class="missing">Aucune armée libre en ville</span>'}</p>`}

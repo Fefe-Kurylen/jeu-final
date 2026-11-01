@@ -16,7 +16,7 @@ const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallLevelOf, wallHpNow, campEnd, engineCount } = require('./siegeProcessor');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
 const { survivalRatio, applyLosses, mergeUnits } = require('../../utils/armyUnits');
-const { RES_FR, creditCity, creditPlayer, plunderCity, lockCity, claimNode, buildingsWithCapital } = require('../../utils/db');
+const { RES_FR, creditPlayer, plunderCity, lockCity, claimNode, buildingsWithCapital } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
@@ -147,9 +147,14 @@ async function sendWipedGuestsHome(city, defenders) {
   }
 }
 
+// Ce qu'une armée rapporte chez elle (butin, récolte, cargaison revenue) : sa ville d'abord, puis les autres villes du
+// joueur selon la place (stock commun, décision du 1er novembre 2026, simulation de 200 jours, E1) ; une armée rattachée à
+// une colonie (E2) rentre dans une colonie souvent pleine, rien ne s'y perd tant qu'une autre ville a de la place.
+// Hors transaction : chaque crédit est plafonné par sa propre requête (creditPlayer → creditCity), sans verrou tenu
 async function depositCarry(army, homeCity) {
   await depositCarriedWounded(army.id, homeCity.id);   // les blessés rapportés entrent à la Tente de soins
-  await creditCity(prisma, homeCity.id, { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood });
+  const load = { wood: army.carryWood || 0, stone: army.carryStone || 0, iron: army.carryIron || 0, food: army.carryFood || 0 };
+  if (load.wood + load.stone + load.iron + load.food > 0) await creditPlayer(prisma, army.ownerId, homeCity.id, load);
   if ((army.carryGold || 0) > 0) await prisma.player.update({ where: { id: army.ownerId }, data: { gold: { increment: army.carryGold } } });
   // Settlers that did not found a city go back to the pool of their city (the capital)
   if ((army.settlers || 0) > 0) await prisma.city.update({ where: { id: homeCity.id }, data: { settlers: { increment: army.settlers } } });
@@ -280,6 +285,8 @@ async function handleFoundArrival(army, now) {
     const node = army.targetResourceId ? await tx.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
     const free = node && !node.cityId && !node.hasDefenders && !node.hasPlayerArmy && (army.settlers || 0) > 0 && (await footprintFree(node.x, node.y, { ignoreNodeId: node.id, db: tx }));
     if (!free) return { error: 'not_free' };
+    // site de Merveille libéré : réservé 6 h à l'alliance qui a battu les Immortels (décision du 1er novembre 2026)
+    if (node.resourceType === 'WONDER' && (await require('../../services/wonderService').siteClosedFor(tx, node, army.ownerId, now))) return { error: 'reserved' };
     const taken = await tx.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: false, hasDefenders: false, cityId: null }, data: { hasPlayerArmy: true } });
     if (taken.count !== 1) return { error: 'taken' };
     await tx.army.update({ where: { id: army.id }, data: { status: 'FOUNDING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, arrivalAt: endsAt, departedAt: now, claimedAt: null } });
@@ -288,6 +295,7 @@ async function handleFoundArrival(army, now) {
   if (outcome.error) {
     await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null });
     if (outcome.error === 'not_free') notify(army.ownerId, 'battle', '🏗️ Fondation impossible', `Le point (${army.targetX}, ${army.targetY}) n'est plus libre : ${army.name} rentre avec le colon.`, { to: 'map', x: army.targetX, y: army.targetY });
+    if (outcome.error === 'reserved') notify(army.ownerId, 'battle', '🏛️ Site réservé', `Le site (${army.targetX}, ${army.targetY}) est réservé à l'alliance qui a battu les Immortels : ${army.name} rentre avec le colon.`, { to: 'map', x: army.targetX, y: army.targetY });
     return;
   }
   const { node } = outcome;
@@ -760,29 +768,28 @@ async function handleTransport(army, now) {
   }
   // a camp before the city blocks nothing (décision du 25 octobre 2026): the convoy delivers
   const load = { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood };
-  let kept = load;
+  let kept = load, spread = false;
   // Ville Merveille : tout va au stock du chantier, sans plafond (décision du 28 octobre 2026)
   if (targetCity.isWonder) await require('../../services/wonderService').depositToWonder(prisma, targetCity.id, load);
   else {
-    // ce qui ne tient pas dans l'entrepôt d'arrivée repart avec l'armée vers sa ville
-    kept = await prisma.$transaction(async (tx) => {
-      await lockCity(tx, targetCity.id);
-      const fresh = await tx.city.findUnique({ where: { id: targetCity.id }, select: { wood: true, stone: true, iron: true, food: true, maxStorage: true, maxFoodStorage: true } });
-      const k = {};
-      for (const r of Object.keys(load)) k[r] = fresh ? Math.max(0, Math.min(load[r] || 0, Math.floor((r === 'food' ? fresh.maxFoodStorage : fresh.maxStorage) - fresh[r]))) : 0;
-      await creditCity(tx, targetCity.id, k);
-      await tx.army.update({ where: { id: army.id }, data: { carryWood: load.wood - k.wood, carryStone: load.stone - k.stone, carryIron: load.iron - k.iron, carryFood: load.food - k.food } });
-      return k;
-    }, TX);
+    // stock commun du destinataire (décision du 1er novembre 2026, simulation de 200 jours) : la ville d'arrivée d'abord,
+    // puis ses autres villes selon la place (creditPlayer, sous le verrou de toutes ses villes) ; ce qui ne tient dans
+    // aucune repart avec l'armée vers sa ville
+    ({ kept, spread } = await require('../../utils/db').withDeadlockRetry(() => prisma.$transaction(async (tx) => {
+      const { credited, lost } = await creditPlayer(tx, targetCity.playerId, targetCity.id, load);
+      await tx.army.update({ where: { id: army.id }, data: { carryWood: lost.wood, carryStone: lost.stone, carryIron: lost.iron, carryFood: lost.food } });
+      return { kept: Object.fromEntries(Object.keys(load).map(r => [r, Math.max(0, (load[r] || 0) - (lost[r] || 0))])), spread: Object.keys(credited).some(id => id !== targetCity.id) };
+    }, TX)));
   }
   const back = Object.fromEntries(Object.keys(load).map(r => [r, (load[r] || 0) - kept[r]]));
   const got = resText(kept), over = resText(back);
   // livraison chez un autre joueur (échange du marché, envoi, Ville Merveille) : il est prévenu
   if (targetCity.playerId !== army.ownerId) {
     const who = `Le convoi de ${army.owner?.name || 'votre partenaire'}`;
-    notify(targetCity.playerId, 'market', '📦 Marchandises livrées', got ? `${who} a livré ${got} à ${targetCity.name}${over ? ` (entrepôt plein : ${over} repartent)` : ''}.` : `${who} n'a rien pu livrer à ${targetCity.name} : l'entrepôt est plein.`, { to: 'city', cityId: targetCity.id });
+    const where = spread ? `${targetCity.name} et vos autres villes (${targetCity.name} était pleine)` : targetCity.name;
+    notify(targetCity.playerId, 'market', '📦 Marchandises livrées', got ? `${who} a livré ${got} à ${where}${over ? ` (toutes vos villes sont pleines : ${over} repartent)` : ''}.` : `${who} n'a rien pu livrer : toutes vos villes sont pleines.`, { to: 'city', cityId: targetCity.id });
   }
-  if (over) notify(army.ownerId, 'market', '📦 Entrepôt plein', `${targetCity.name} n'avait pas la place pour ${over} : ${army.name} les ramène.`, { to: 'army', armyId: army.id });
+  if (over) notify(army.ownerId, 'market', '📦 Entrepôts pleins', `${targetCity.name} et les autres villes de son joueur n'avaient plus de place pour ${over} : ${army.name} les ramène.`, { to: 'army', armyId: army.id });
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: back.wood, carryStone: back.stone, carryIron: back.iron, carryFood: back.food });
 }
 

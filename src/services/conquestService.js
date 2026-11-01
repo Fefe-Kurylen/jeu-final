@@ -77,8 +77,9 @@ async function turnBackHostiles(tx, city, except) {
   return [...new Set(hostiles.map(a => a.ownerId))];
 }
 
-// Ville secondaire rasée : troupes et blessés présents perdus, armées en mission rattachées à la capitale, héros enfui
-// vers la capitale
+// Ville secondaire rasée : garnison (anciennes colonies) et blessés présents perdus, armées en mission rattachées à la
+// capitale, héros enfui vers la capitale. Une armée rattachée à la colonie (décision du 1er novembre 2026, simulation de
+// 200 jours, E2) qui s'y tenait est libérée : rattachée à la capitale, elle y rentre avec ses survivants.
 async function razeCity(cityId, byArmyId) {
   return prisma.$transaction(async (tx) => {
     // lock order of the market routes: offers first, then the city
@@ -95,13 +96,18 @@ async function razeCity(cityId, byArmyId) {
     const capital = await tx.city.findFirst({ where: { playerId: city.playerId, isCapital: true } });
     const usedSlots = new Set(capital ? (await tx.army.findMany({ where: { cityId: capital.id, isGarrison: false }, select: { slot: true } })).map(a => a.slot) : []);
     const heroes = [];
+    let released = 0;
     const ownerFaction = (await tx.player.findUnique({ where: { id: city.playerId }, select: { faction: true } }))?.faction || null;
+    // trajet de la colonie à la capitale (secondes), à la vitesse de ces unités ; 0 si la route est introuvable
+    const marchHome = (units) => routeLength(city.x, city.y, capital.x, capital.y, ownerFaction).then(len => getArmyTravelTime(units, city.x, city.y, capital.x, capital.y, ownerFaction, null, len)).catch(() => 0);
     for (const a of city.armies) {
-      // une armée réservée par une offre du marché (statut MARKET) attend en ville : elle tombe avec elle
-      const atHome = a.isGarrison || ((a.status === 'IDLE' || a.status === 'MARKET') && a.x === city.x && a.y === city.y);
-      if (atHome) { if (a.heroId) heroes.push(a.heroId); await tx.army.delete({ where: { id: a.id } }); continue; }
-      // away on a mission: it now belongs to the capital, on the lowest free slot there (beyond the Rally Point limit if
-      // need be, so that it is never lost); an army on an expedition will come back to the capital
+      const inCity = a.x === city.x && a.y === city.y;
+      // la garnison, et une armée réservée par une offre du marché (statut MARKET, elle attend en ville) : elles tombent avec
+      // la ville
+      if (a.isGarrison || (a.status === 'MARKET' && inCity)) { if (a.heroId) heroes.push(a.heroId); await tx.army.delete({ where: { id: a.id } }); continue; }
+      // away on a mission, or attached to the colony and standing in it (E2): it now belongs to the capital, on the lowest
+      // free slot there (beyond the Rally Point limit if need be, so that it is never lost); an army on an expedition will
+      // come back to the capital
       const data = { cityId: capital?.id || null };
       if (capital) {
         let slot = 1; while (usedSlots.has(slot)) slot++; usedSlots.add(slot);
@@ -109,8 +115,18 @@ async function razeCity(cityId, byArmyId) {
         if (a.name === `Armée ${a.slot}`) data.name = `Armée ${slot}`;
         if (a.status === 'EXPEDITION') Object.assign(data, { x: capital.x, y: capital.y });
       }
+      if (a.status === 'IDLE' && inCity && capital) {
+        // the attached army that defended the colony walks home with its survivors (with none, it is home at once, as
+        // sendArmyHome does); its hero goes with it (Hero.cityId moved to the capital below)
+        released++;
+        const now = Date.now();
+        const alive = a.units.filter(u => u.count > 0);
+        Object.assign(data, alive.length
+          ? { status: 'RETURNING', missionType: 'RETURN', targetX: capital.x, targetY: capital.y, targetCityId: null, departedAt: new Date(now), arrivalAt: new Date(now + (await marchHome(alive)) * 1000), claimedAt: null }
+          : { x: capital.x, y: capital.y });
+      }
       if (a.status === 'RETURNING' && capital) {
-        const extra = await routeLength(city.x, city.y, capital.x, capital.y, ownerFaction).then(len => getArmyTravelTime(a.units, city.x, city.y, capital.x, capital.y, ownerFaction, null, len)).catch(() => 0);
+        const extra = await marchHome(a.units);
         Object.assign(data, { targetX: capital.x, targetY: capital.y, arrivalAt: new Date(Math.max(Date.now(), new Date(a.arrivalAt || Date.now()).getTime()) + extra * 1000) });
       }
       await tx.army.update({ where: { id: a.id }, data });
@@ -147,7 +163,7 @@ async function razeCity(cityId, byArmyId) {
     await tx.city.delete({ where: { id: city.id } });
     // the research that was running in the city is gone with it: the next one in the player's queue starts
     await require('../game/processors/researchProcessor').startNextQueued(tx, city.playerId);
-    return { city, owners };
+    return { city, owners, released };
   }, { timeout: 15000 });
 }
 
@@ -158,7 +174,11 @@ async function relocateCapital(cityId, byArmyId) {
     await lockPlacement(tx);   // first, before any row lock: the new place is chosen and taken under it
     // ordre du marché (acceptation, retrait, expiration) : les offres de la ville, puis la ville ; jamais l'inverse
     await tx.$queryRaw`SELECT id FROM "MarketOffer" WHERE "cityId" = ${cityId} AND status = 'ACTIVE' ORDER BY id FOR UPDATE`;
-    await tx.$executeRaw`SELECT id FROM "City" WHERE id = ${cityId} FOR UPDATE`;
+    // puis toutes les villes du joueur dans l'ordre des id, comme un envoi ou une offre : les offres rendues peuvent aller
+    // dans ses autres villes (creditPlayer, stock commun du 1er novembre 2026)
+    const owner = await tx.city.findUnique({ where: { id: cityId }, select: { playerId: true } });
+    if (!owner) return null;
+    await lockPlayerCities(tx, owner.playerId);
     const city = await tx.city.findUnique({ where: { id: cityId }, include: { armies: { include: { units: true } } } });
     if (!city || !city.isCapital || city.wallStructure > 0) return null;   // already moved by another executor
     // sur son côté de la carte (décision du 31 octobre 2026) : la capitale reste près de son alliance ; côté plein, un voisin
@@ -226,7 +246,7 @@ async function applyFall(cityId, by = null) {
     const moved = await relocateCapital(city.id, by?.ids || by?.id);
     if (!moved) return null;
     forgetCityCells(moved.from.x, moved.from.y); noteCityCells(moved.to.x, moved.to.y);
-    notify(city.playerId, 'city_fall', '🏃 Capitale déplacée', `${city.name} est tombée${who} : la cour s'enfuit et rebâtit la capitale en (${moved.to.x}, ${moved.to.y}). Toutes vos armées l'y ont rejointe.`, { to: 'map', x: moved.to.x, y: moved.to.y, cityId: city.id });
+    notify(city.playerId, 'city_fall', '🏃 Capitale déplacée', `${city.name} est tombée${who} : la cour s'enfuit et rebâtit la capitale en (${moved.to.x}, ${moved.to.y}). Toutes les armées de la capitale l'y ont rejointe (celles rattachées à vos colonies y restent).`, { to: 'map', x: moved.to.x, y: moved.to.y, cityId: city.id });
     // the owner's alliance is told where its member's capital went (décision du 25 octobre 2026)
     const member = await prisma.allianceMember.findFirst({ where: { playerId: city.playerId }, select: { allianceId: true, player: { select: { name: true } } } });
     if (member) {
@@ -241,7 +261,8 @@ async function applyFall(cityId, by = null) {
   if (!razed) return null;
   forgetCityCells(razed.city.x, razed.city.y); noteObjectCell(razed.city.x, razed.city.y, 'RESOURCE');
   tellTurnedBack(notify, razed.owners, by, city, razed.city);
-  notify(city.playerId, 'city_fall', '🔥 Ville détruite', `${city.name} est tombée${who} et a été détruite.`, { to: 'map', x: razed.city.x, y: razed.city.y });
+  const back = !razed.released ? '' : razed.released > 1 ? ` Ses ${razed.released} armées rattachées rentrent à la capitale avec leurs survivants.` : ' Son armée rattachée rentre à la capitale avec ses survivants.';   // E2
+  notify(city.playerId, 'city_fall', '🔥 Ville détruite', `${city.name} est tombée${who} et a été détruite.${back}`, { to: 'map', x: razed.city.x, y: razed.city.y });
   if (by?.ownerId) notify(by.ownerId, 'city_fall', '🔥 Ville détruite', `${city.name} est tombée : la ville est détruite.`, by.reportIds?.[by.ownerId] ? { to: 'report', reportId: by.reportIds[by.ownerId], x: razed.city.x, y: razed.city.y } : { to: 'map', x: razed.city.x, y: razed.city.y });
   try { await require('../game/processors/worldProcessor').updatePlayerPopulation(prisma, city.playerId); } catch (e) { /* recomputed by the tick */ }
   return { kind: 'RAZED', ...razed };

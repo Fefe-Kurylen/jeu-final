@@ -42,9 +42,16 @@
 // - chaque armée qui va briser un camp est jugée seule contre tout le camp avec la formule du jeu ; l'usure est comptée à
 //   part des vraies tentatives ;
 // - rassemblements contre le Bastion : la plus forte armée de chaque membre avec 70 % de ses soldats en garnison ; après
-//   un assaut gagné, une chaîne de rassemblements, un par pas, chaque assaut moins de 7,2 h après le précédent, pour
-//   prendre les vies avant qu'elles ne remontent ;
+//   un assaut gagné, une chaîne de rassemblements, un par pas, pour prendre les vies avant qu'elles ne remontent ;
 // - le fondateur de la Ville Merveille garde son escorte (bot.mem.wonder.holdEscort) : ni siège ni rassemblement avec elle.
+// Décisions du 1er novembre 2026 (simulation de 200 jours) :
+// - E3 : une vie du Bastion ne revient qu'après config.bastion.regenPauseHours (24 h) sans assaut gagné ; une chaîne garde
+//   ses assauts gagnés à moins de 24 h l'un de l'autre (avant : 7,2 h) et s'arrête quand la pause est passée ;
+// - E4 : les armées du côté du Bastion qui atteignent le camp dans la même minute se battent ensemble ; l'alliance qui
+//   défend envoie un groupe réglé sur tout le camp (formule du jeu, au plus les armées du camp + 2), dont les départs sont
+//   réglés pour arriver dans la même minute : la marche la plus longue part d'abord, chaque autre armée part quand la
+//   sienne finit au même instant (le joueur attend avant de la lancer ; dans la simulation, l'horloge avance d'autant,
+//   SYNC_WAIT_S au plus : les marches d'un groupe tiennent dans cet écart).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -56,6 +63,10 @@ let PF = null;
 const pathfinding = () => (PF ||= require(path.join(ROOT, 'src/utils/pathfinding')));   // la route que la carte dessine (A* sur le terrain partagé)
 let CS = null;
 const combat = () => (CS ||= require(path.join(ROOT, 'src/services/combatService')));   // formules pures : estimation d'une bataille
+let BSV = null;
+const bastionSvc = () => (BSV ||= require(path.join(ROOT, 'src/services/bastionService')));   // la marche jusqu'à un Bastion, comme l'écran d'envoi
+const { getArmyTravelTime } = require(path.join(ROOT, 'src/utils/calculations'));
+const { techPct } = require(path.join(ROOT, 'src/utils/techEffects'));
 const Stock = require('../stock.cjs');   // stock partagé : engins et bâtiments se paient sur toutes les villes du joueur
 const { spareGold, holdsWonderEscort } = require('./30-military.cjs');   // l'or au-dessus de ce que le joueur garde pour l'élite ; l'escorte du colon de la Merveille
 const Armies = require('../armies.cjs');   // emplacements de la Place de rassemblement partagés entre les modules
@@ -83,14 +94,22 @@ const BAD_STEPS = 40;            // une ville ratée (trop forte, trop d'échecs
 const WAVE_MAX = 6;              // armées par vague
 const SPY_FRESH_H = 30;          // un rapport sert pendant 30 h (raids) ; le conseil veut des défenses de moins de 24 h
 const BASTION_GAP = 12;          // pas entre deux rassemblements d'essai contre le Bastion ennemi (3 jours)
-// Chaîne d'assauts (rapport sim-d) : un assaut gagné ne compte que si le suivant gagne moins de 7,2 h plus tard (une vie
-// remonte en regenHours / assauts, et la part qui remontait est perdue) ; une alliance qui vient de gagner un assaut lance
-// donc un rassemblement à chaque pas, par groupes de membres qui se relaient, tant que les assauts gagnent
+// Chaîne d'assauts (rapport sim-d, E3) : un assaut gagné ne compte que si le suivant gagne avant la fin de la pause qu'il a
+// lancée (CHAIN_WINDOW_MS : 24 h ; ensuite les vies remontent) ; une alliance qui vient de gagner un assaut lance donc un
+// rassemblement à chaque pas, par groupes de membres qui se relaient, tant que les assauts gagnent
 const CHAIN_MAX = 14;            // rassemblements au plus dans une chaîne
 const CHAIN_MARGIN = 1.2;        // un groupe de la chaîne doit battre la garnison vue au dernier assaut, × 1,2
 const ENGINES_PER_WORKSHOP = 3.3;  // engins visés par niveau d'Atelier : 66 à l'Atelier 20 (60 à 70, rapport de vérification)
 const ENGINES_MAX = 70;
-const BREAKS_PER_TARGET = 4;     // armées au plus qui vont briser un même camp dans un pas
+const BREAKS_PER_TARGET = 4;     // armées au plus qui vont briser le camp devant une ville dans un pas
+// Briser le camp devant un Bastion ensemble (E4) : armées d'un groupe au plus (le camp en compte n : n + 2 au plus, mesure de
+// la décision), et l'écart le plus grand entre les marches d'un même groupe (le temps que le joueur attend avant de lancer
+// la dernière armée : 15 min)
+const BREAK_GROUP_MAX = 12;
+const SYNC_WAIT_S = 15 * 60;
+// Pause des vies (E3) : une chaîne d'assauts doit gagner le suivant avant la fin de la pause lancée par le dernier assaut
+// gagné (24 h) ; sans pause (ancienne règle), avant qu'une vie ne remonte (regenHours / assauts)
+const CHAIN_WINDOW_MS = ((Number(config.bastion.regenPauseHours) || 0) > 0 ? config.bastion.regenPauseHours : config.bastion.regenHours / config.bastion.assaults) * 3600000;
 const RALLY_KEEP = 0.3;          // part des soldats de la garnison qui reste en ville quand un membre part en rassemblement
 let STEP_H = 6;                  // heures par pas (ctx.OPT.stepHours)
 
@@ -567,6 +586,95 @@ function breakOdds(bot, units, campUnits, faction) {
   const r = combat().resolveCombat(rows(units), campUnits, 0, null, null, { fieldBattle: true, attackerFaction: bot.faction, defenderFaction: faction, attackerBonusPct: fx.forgeAttackPct(bot.capital?.buildings || []), defenderBonusPct: 15 });
   return { won: !!r.attackerWon, ap: r.attackerPower || 0, dp: r.defenderPower || 0 };
 }
+// Un groupe ([{ b: joueur, army }]) qui atteint le camp devant un Bastion dans la même minute (E4 : il se bat ensemble, comme
+// bastionService.breakBattle) : unités réunies, Forge de chaque joueur selon ses soldats, civilisation de l'armée qui mène
+function groupOdds(group, campUnits, faction) {
+  if (group.length === 1) return breakOdds(group[0].b, group[0].army.units, campUnits, faction);
+  const n = group.reduce((t, g) => t + soldiersOf(g.army.units), 0) || 1;
+  const forge = group.reduce((t, g) => t + fx.forgeAttackPct(g.b.capital?.buildings || []) * soldiersOf(g.army.units), 0) / n;
+  const r = combat().resolveCombat(rows(merge(...group.map(g => g.army.units))), campUnits, 0, null, null, { fieldBattle: true, attackerFaction: group[0].b.faction, defenderFaction: faction, attackerBonusPct: forge, defenderBonusPct: 15 });
+  return { won: !!r.attackerWon, ap: r.attackerPower || 0, dp: r.defenderPower || 0 };
+}
+// La marche (s) jusqu'au Bastion que le serveur comptera, ce que l'écran d'envoi montre : route, unité la plus lente, héros,
+// technologies, bonus du Bastion et de l'Irrigation de la capitale (bastionService.travelSeconds, ou la même formule) ;
+// sans lecture possible (tests), l'estimation par la vraie route
+async function breakMarch(ctx, army, b, faction) {
+  try {
+    const a = await ctx.prisma.army.findUnique({ where: { id: army.id }, include: { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, cities: fx.CAPITAL_BUILDINGS } } } });
+    if (a) {
+      const BS = bastionSvc();
+      if (typeof BS.travelSeconds === 'function') return await BS.travelSeconds(a, b);
+      const len = await routeLen(a, b, a.owner?.faction);
+      if (len == null) return Infinity;
+      return getArmyTravelTime(a.units, a.x, a.y, b.x, b.y, a.owner?.faction, a.hero, len, techPct(a.owner?.technologies, 'armySpeedBonusPct') + (await BS.speedPct(a.ownerId)) + fx.marchSpeedBonusPct(fx.capitalOf(a.owner)));
+    }
+  } catch (e) { /* pas de base : l'estimation */ }
+  return marchSec(army.units, { x: army.x, y: army.y }, b, faction);
+}
+// Le groupe qui va briser le camp (E4), parmi `cands` ([{ b, army, sortie, t: marche en s, p: puissance }]) : les plus fortes
+// d'abord, tant que leurs marches tiennent dans SYNC_WAIT_S, jusqu'à battre tout le camp avec marge (× 1,1), au plus les
+// armées du camp + 2 ; le plus petit groupe qui gagne, en essayant chacune des 6 plus fortes en tête. Aucun ne gagne : les
+// armées du dehors (jamais une sortie, qui affaiblirait la garnison) l'usent ensemble si elles pèsent 80 % de lui.
+// { group, odds, mode: 'break'|'wear' } ou null
+function breakPlan(cands, campUnits, faction, campArmies) {
+  const cap = Math.min(BREAK_GROUP_MAX, Math.max(1, campArmies + 2));
+  const sorted = [...cands].sort((p, q) => q.p - p.p);
+  const fitsWindow = (g, c) => { const ts = [...g, c].map(x => x.t); return Math.max(...ts) - Math.min(...ts) <= SYNC_WAIT_S; };
+  const wins = (o) => o.won && o.ap >= 1.1 * o.dp;
+  const grow = (list, anchor, stop) => {
+    const g = [anchor];
+    let o = groupOdds(g, campUnits, faction);
+    for (const c of list) {
+      if ((stop && wins(o)) || g.length >= cap) break;
+      if (c === anchor || !fitsWindow(g, c)) continue;
+      g.push(c); o = groupOdds(g, campUnits, faction);
+    }
+    return { group: g, odds: o };
+  };
+  let best = null;
+  for (const anchor of sorted.slice(0, 6)) {
+    const t = grow(sorted, anchor, true);
+    if (wins(t.odds) && (!best || t.group.length < best.group.length)) best = { ...t, mode: 'break' };
+  }
+  if (best) return best;
+  const out = sorted.filter(c => !c.sortie);
+  let wear = null;
+  for (const anchor of out.slice(0, 6)) {
+    const t = grow(out, anchor, false);
+    if (!wear || t.odds.ap > wear.odds.ap) wear = { ...t, mode: 'wear' };
+  }
+  return wear && wear.odds.ap >= 0.8 * wear.odds.dp ? wear : null;
+}
+// Départs d'un groupe qui doit atteindre le camp dans la même minute (config.bastion.breakGroupSeconds après la première) :
+// la marche la plus longue part d'abord ; chaque autre armée part quand sa marche finit au même instant (le joueur attend
+// avant de la lancer : l'horloge de la simulation avance d'autant, comme les secondes de chaque appel). L'heure d'arrivée
+// que rend le serveur dit si chacune tient dans la minute. { sent, spreadS, waitS, missed, arrivals }
+async function syncLaunch(ctx, v, bastion, group, budget, mode) {
+  const order = [...group].sort((p, q) => q.t - p.t);
+  const windowMs = (Number(config.bastion.breakGroupSeconds) || 60) * 1000;
+  const arrivals = [];
+  let first = null, sent = 0, waitMs = 0;
+  for (const o of order) {
+    if (budget.left <= 0 || (BREAKS.get(bastion.id) || 0) >= BREAK_GROUP_MAX) break;
+    if (first !== null) {
+      // partir à `first − marche` (l'appel prend lui-même une seconde de l'horloge)
+      const at = first - o.t * 1000 - 1000, now = ctx.clock.now();
+      if (at > now) { ctx.clock.set(at); waitMs += at - now; }
+    }
+    const m = memOf(o.b, v);
+    budget.left--;
+    const r = await call(o.b, m, 'POST', `/api/bastion/${bastion.id}/send`, { armyId: o.army.id, mission: 'BREAK' });
+    if (!r.ok) continue;
+    o.army.status = 'ATTACKING';
+    sent++; BREAKS.set(bastion.id, (BREAKS.get(bastion.id) || 0) + 1);
+    bump(m, mode === 'wear' ? 'bastionWear' : o.sortie ? 'bastionSorties' : 'bastionBreaks');
+    const arr = Date.parse(r.data?.arrivalAt) || (ctx.clock.now() + o.t * 1000);
+    if (first === null) first = arr;
+    arrivals.push(arr);
+  }
+  const lead = arrivals.length ? Math.min(...arrivals) : 0;
+  return { sent, spreadS: arrivals.length ? Math.round((Math.max(...arrivals) - lead) / 1000) : 0, waitS: Math.round(waitMs / 1000), missed: arrivals.filter(t => t - lead >= windowMs).length, arrivals };
+}
 
 // ---------- alertes : sièges en cours (premier tour de chaque pas, juste après le tick) ----------
 const BREAKS = new Map();   // cible -> pas : deux armées au plus par cible et par pas
@@ -613,54 +721,43 @@ async function alerts(ctx, v) {
     if (!helpers.length) { const K = stats(ctx); K.breakNobodyOnline = (K.breakNobodyOnline || 0) + 1; }
     if (!sent) for (const b of helpers) { const m = memOf(b, v); bump(m, 'breakTooWeak'); break; }
   }
-  // Bastions assiégés : l'alliance brise le camp (mission BREAK, rapport de vérification du 31 octobre 2026). Chaque armée se
-  // bat seule contre tout le camp, en terrain ouvert. Une sortie de la garnison quand elle le bat seule (vaincue, elle
-  // rentrerait à la capitale et la garnison serait plus faible pour l'assaut), sinon la plus forte armée du dehors qui le bat
-  // seule (une vraie tentative de briser le siège). Aucune ne le bat : des armées du dehors (membres et alliés), les plus
-  // fortes d'abord, vont l'user l'une après l'autre quand elles pèsent ensemble autant que lui ; elles perdent chacune leur
-  // combat mais affaiblissent le camp avant l'assaut (« usure », comptée à part des vraies tentatives).
+  // Bastions assiégés : l'alliance brise le camp (mission BREAK, rapport de vérification du 31 octobre 2026). Décision du
+  // 1er novembre 2026 (E4) : les armées du côté du Bastion qui l'atteignent dans la même minute se battent ensemble. Les
+  // membres et alliés connectés (qui peuvent attaquer toutes les armées du camp, sinon le serveur les ferait combattre
+  // seules) : les sorties de la garnison (30 s de marche) et la plus forte armée prête de chacun qui arrive avant l'assaut ;
+  // le groupe (breakPlan) se règle sur tout le camp, ses départs sont réglés pour arriver ensemble (syncLaunch).
   for (const b of v.bastions.filter(x => ['BUILDING', 'ACTIVE'].includes(x.status))) {
-    const camps = v.camps.filter(c => c.targetBastionId === b.id && new Date(c.arrivalAt).getTime() > v.now + 60000);
+    const now = Math.max(v.now, ctx.clock.now());   // un groupe d'un autre Bastion a pu faire attendre l'horloge
+    const camps = v.camps.filter(c => c.targetBastionId === b.id && new Date(c.arrivalAt).getTime() > now + 60000);
     if (!camps.length || budget.left <= 0) continue;
     const fightAt = Math.min(...camps.map(c => new Date(c.arrivalAt).getTime()));
     const campUnits = merge(...camps.map(c => c.units)), faction = campFaction(v, camps);
-    const members = ctx.bots.filter(x => x.playerId && ['SAME', 'ALLY'].includes(v.allianceRel(v.allianceOf.get(x.playerId), b.allianceId)) && camps.some(c => v.canAttack(x.playerId, c.ownerId)) && online(ctx, x));
-    const sorties = [], outside = [];
+    const members = ctx.bots.filter(x => x.playerId && ['SAME', 'ALLY'].includes(v.allianceRel(v.allianceOf.get(x.playerId), b.allianceId)) && camps.every(c => v.canAttack(x.playerId, c.ownerId)) && online(ctx, x));
+    const cands = [];
     for (const x of members) {
-      for (const a of (v.armiesOf.get(x.playerId) || [])) if (a.status === 'STATIONED' && a.targetBastionId === b.id && !a.claimedAt && soldiersOf(a.units) > 0) sorties.push({ b: x, army: a, sortie: true, ...breakOdds(x, a.units, campUnits, faction) });
+      for (const a of (v.armiesOf.get(x.playerId) || [])) if (a.status === 'STATIONED' && a.targetBastionId === b.id && !a.claimedAt && soldiersOf(a.units) > 0) cands.push({ b: x, army: a, sortie: true, t: config.bastion.sortieSeconds, p: powerOf(a.units) });
       for (const r of readyArmies(v, x, c => !c.isSieged)) {
-        if (travelSec(r.army.units, r.city, b) > 2 * (fightAt - v.now) / 1000) continue;   // bien trop loin : pas de calcul de route
-        if (v.now + (await marchSec(r.army.units, r.city, b, x.faction)) * 1000 > fightAt - 120000) continue;
-        outside.push({ b: x, army: r.army, sortie: false, ...breakOdds(x, r.army.units, campUnits, faction) });
+        if (travelSec(r.army.units, r.city, b) > 2 * (fightAt - now) / 1000) continue;   // bien trop loin : pas de calcul de route
+        const t = await breakMarch(ctx, r.army, b, x.faction);
+        if (!Number.isFinite(t) || now + t * 1000 > fightAt - 120000) continue;
+        cands.push({ b: x, army: r.army, sortie: false, t, p: powerOf(r.army.units) });
         break;   // une armée par joueur
       }
     }
-    sorties.sort((p, q) => q.ap - p.ap); outside.sort((p, q) => q.ap - p.ap);
-    const dp = (sorties[0] || outside[0])?.dp || 0;
-    const winner = (list) => list.find(o => o.won && o.ap >= 1.1 * o.dp);
-    let send = [], mode = 'break';
-    if (winner(sorties)) send = [winner(sorties)];
-    else if (winner(outside)) send = [winner(outside)];
-    else {
-      mode = 'wear';
-      let sum = 0;
-      for (const o of outside) { if (send.length >= BREAKS_PER_TARGET || sum >= dp) break; send.push(o); sum += o.ap; }
-      if (sum < 0.8 * dp) { if (members[0]) bump(memOf(members[0], v), 'bastionBreakTooWeak'); send = []; }
-    }
-    let sent = 0;
-    for (const o of send) {
-      if (budget.left <= 0 || (BREAKS.get(b.id) || 0) >= BREAKS_PER_TARGET) break;
-      const m = memOf(o.b, v);
-      budget.left--;
-      const r = await call(o.b, m, 'POST', `/api/bastion/${b.id}/send`, { armyId: o.army.id, mission: 'BREAK' });
-      if (!r.ok) continue;
-      o.army.status = 'ATTACKING';
-      sent++; BREAKS.set(b.id, (BREAKS.get(b.id) || 0) + 1);
-      bump(m, mode === 'wear' ? 'bastionWear' : o.sortie ? 'bastionSorties' : 'bastionBreaks');
-    }
-    // `mode` (pas `kind` : ce champ remplacerait le nom de l'événement) : 'break' = une armée qui bat le camp seule,
-    // 'wear' = des armées qui l'usent sans espérer le battre
-    if (sent) ctx.event('bastion_break_sent', { bastion: v.tagOf.get(b.allianceId), mode, camps: camps.length, campPower: Math.round(dp), armies: sent, sortie: send[0]?.sortie || false, power: Math.round(send.slice(0, sent).reduce((t, o) => t + o.ap, 0)) });
+    const plan = cands.length ? breakPlan(cands, campUnits, faction, camps.length) : null;
+    if (!plan) { if (members[0]) bump(memOf(members[0], v), 'bastionBreakTooWeak'); continue; }
+    // un groupe qui doit battre le camp part en entier ou pas du tout (une partie seule perdrait) : il faut un appel par armée
+    if (plan.mode === 'break' && budget.left < plan.group.length) { bump(memOf(plan.group[0].b, v), 'bastionBreakNoBudget'); continue; }
+    const out = await syncLaunch(ctx, v, b, plan.group, budget, plan.mode);
+    if (!out.sent) continue;
+    const K = stats(ctx);
+    if (out.sent > 1) { K.bastionBreakGroups = (K.bastionBreakGroups || 0) + 1; K.bastionBreakGroupArmies = (K.bastionBreakGroupArmies || 0) + out.sent; }
+    if (out.missed) K.breakSyncMissed = (K.breakSyncMissed || 0) + out.missed;
+    if (out.waitS) K.breakSyncWaitS = (K.breakSyncWaitS || 0) + out.waitS;
+    // `mode` (pas `kind` : ce champ remplacerait le nom de l'événement) : 'break' = un groupe qui bat le camp, 'wear' = des
+    // armées qui l'usent ensemble sans espérer le battre ; group : armées prévues, armies : parties ; spreadS : écart entre la
+    // première et la dernière arrivée ; missed : arrivées hors de la minute (elles se battent seules)
+    ctx.event('bastion_break_sent', { bastion: v.tagOf.get(b.allianceId), mode: plan.mode, camps: camps.length, campPower: Math.round(plan.odds.dp), group: plan.group.length, armies: out.sent, sorties: plan.group.filter(o => o.sortie).length, sortie: plan.group.every(o => o.sortie), power: Math.round(plan.odds.ap), spreadS: out.spreadS, waitS: out.waitS, missed: out.missed });
   }
 }
 // armées qui peuvent sortir, y compris d'une ville assiégée (une sortie contre le camp est permise)
@@ -933,8 +1030,9 @@ async function council(ctx, v, S, g) {
 // pas-ci rejoignent, les autres répondent parfois à la notification (tous avec --full-rallies : ctx.OPT.fullRallies). Il
 // faut au moins un engin dans le groupe au départ.
 // Un rassemblement d'essai tous les 3 jours ; après un assaut gagné, une chaîne : un rassemblement à chaque pas, par groupes
-// de membres qui se relaient, chacun donnant l'assaut moins de 7,2 h après le précédent (la vie perdue ne remonte pas),
-// jusqu'à un assaut repoussé, au Bastion rasé, ou à CHAIN_MAX rassemblements.
+// de membres qui se relaient, chacun donnant l'assaut moins de 24 h après le dernier assaut gagné (E3 : pendant cette
+// pause, aucune vie ne remonte), jusqu'à un assaut repoussé, au Bastion rasé, à la pause passée ou à CHAIN_MAX
+// rassemblements.
 // Dans la simulation, le rassemblement part au premier tick après la fin de l'attente, arrive au premier tick après sa
 // marche, campe une heure et donne l'assaut (assaultOf) ; pendant un rassemblement le pas joue un tick à chaque heure où
 // quelque chose part ou arrive (sim.cjs, --subticks), sinon un tick par pas (grille des ticks : gridMs).
@@ -963,8 +1061,10 @@ async function bastionOps(ctx, v, S, g) {
   let chain = wm.chain || null;
   if (chain) {
     const cb = v.bastions.find(b => b.id === chain.b);
+    // E3 : la pause lancée par le dernier assaut gagné est passée sans nouvel assaut gagné (les vies remontent de nouveau)
     const why = !cb || !['BUILDING', 'ACTIVE'].includes(cb.status) ? 'Bastion rasé' : !enemies.has(cb.allianceId) ? 'plus ennemi'
-      : (chain.n || 0) >= CHAIN_MAX ? 'assez de rassemblements' : (chain.skip || 0) >= 2 ? 'à court d\'armées' : null;
+      : (chain.n || 0) >= CHAIN_MAX ? 'assez de rassemblements' : (chain.skip || 0) >= 2 ? 'à court d\'armées'
+        : chain.tw && v.now > chain.tw + CHAIN_WINDOW_MS ? 'pause passée' : null;
     if (why) { endChain(ctx, wm, tag, why); chain = null; }
   }
   const eb = chain ? v.bastions.find(b => b.id === chain.b) : v.bastions.find(b => enemies.has(b.allianceId) && ['BUILDING', 'ACTIVE'].includes(b.status) && !b.isSieged);
@@ -1006,17 +1106,16 @@ async function bastionOps(ctx, v, S, g) {
     return ceilGrid(ctx, ceilGrid(ctx, ceilGrid(ctx, launchAt) + march) + CAMP_MS);
   };
   // chaîne : l'assaut le plus tardif déjà joué (dernier assaut gagné, lu dans les rapports) ou prévu (rassemblements de
-  // l'alliance en marche vers ce Bastion et leurs camps, à l'heure que montre la carte). Le suivant doit tomber moins de
-  // 7,2 h après (une vie remonte en regenHours / assauts ; au-delà, la vie prise est revenue et l'assaut ne fait que la
-  // reprendre). Avant : un « tick de combat » compté en pas de 6 h, faux avec les ticks d'une heure des pas qui pressent.
-  const LIFE_MS = config.bastion.regenHours / config.bastion.assaults * 3600000;
+  // l'alliance en marche vers ce Bastion et leurs camps, à l'heure que montre la carte). Le suivant doit tomber avant la fin
+  // de la pause (E3 : 24 h ; au-delà, les vies remontent de nouveau). Avant : un « tick de combat » compté en pas de 6 h,
+  // faux avec les ticks d'une heure des pas qui pressent.
   let last = 0;
   if (chain) {
     last = chain.tw || 0;
     for (const a of v.incoming) if (a.status === 'RALLY_MARCH' && a.targetBastionId === eb.id && v.allianceOf.get(a.ownerId) === alId) last = Math.max(last, ceilGrid(ctx, ceilGrid(ctx, new Date(a.arrivalAt).getTime()) + CAMP_MS));
     for (const c of v.camps) if (c.targetBastionId === eb.id && v.allianceOf.get(c.ownerId) === alId) last = Math.max(last, ceilGrid(ctx, new Date(c.arrivalAt).getTime()));
   }
-  const limit = last ? last + LIFE_MS - 10 * 60000 : Infinity;
+  const limit = last ? last + CHAIN_WINDOW_MS - 10 * 60000 : Infinity;
   const withEngines = parts.filter(p => enginesOf(p.units) > 0).sort((p, q) => dist(p.cap, eb) - dist(q.cap, eb));
   if (!withEngines.length) {
     bump(wm, 'bastionNoEngines');
@@ -1038,7 +1137,7 @@ async function bastionOps(ctx, v, S, g) {
   const estimate = (units, faction) => { const r = combat().resolveCombatDetailed(merge(units), [], config.bastion.wallReferenceLevel, 'a', 'b', null, null, faction, null, config.bastion.bonuses.garrisonDefensePct, null, { hp: wallMax, maxHp: wallMax }); return Math.round(wallMax - r.wallHpEnd); };
   const beatsGarrison = (units, faction) => !!combat().resolveCombatDetailed(merge(units), scale(merge(chain?.def || []), CHAIN_MARGIN), config.bastion.wallReferenceLevel, 'a', 'b', null, null, faction, null, config.bastion.bonuses.garrisonDefensePct + 10, null, { hp: wallMax, maxHp: wallMax }).attackerWon;
   // lanceurs possibles : les 8 plus proches du Bastion avec des engins ; dans une chaîne, d'abord ceux dont l'assaut tombe
-  // moins de 7,2 h après le précédent (aucun : la chaîne repart de cet assaut, la vie prise remonte) ; puis celui que le plus
+  // avant la fin de la pause (aucun : la chaîne repart de cet assaut, les vies remontent) ; puis celui que le plus
   // de membres rejoignent à temps
   const cands = [];
   for (const l of withEngines.slice(0, 8)) {
@@ -1106,14 +1205,14 @@ async function bastionOps(ctx, v, S, g) {
     bump(m, 'ralliesJoined');
   }
   // l'heure prévue de l'assaut, depuis le vrai départ que donne le serveur ; dans une chaîne, l'écart avec l'assaut précédent
-  // (au-delà de 7,2 h : la chaîne repart de cet assaut, compté à part)
+  // (au-delà de la pause de 24 h : la chaîne repart de cet assaut, compté à part)
   const at = await assaultOf(leader, launchAt);
   const gapH = chain && last ? Math.round((at - last) / 360000) / 10 : null;
   if (chain) {
     chain.n = (chain.n || 0) + 1; chain.skip = 0; bump(wm, 'chainRallies');
     if (last && !fits) bump(wm, 'chainRestart');
   }
-  ctx.event('bastion_rally', { alliance: tag, target: etag, leader: leader.b.name, wait, armies: joined, capacity: max, readyMembers: parts.length, chain: chain ? chain.n : 0, assaultAt: Number.isFinite(at) ? new Date(at).toISOString() : null, gapH, engines: enginesOf(units), soldiers: soldiersOf(units), power: Math.round(powerOf(units)), wallDamageEstimate: estimate(units, leader.b.faction), wallHp: wallMax });
+  ctx.event('bastion_rally', { alliance: tag, target: etag, leader: leader.b.name, wait, armies: joined, capacity: max, readyMembers: parts.length, chain: chain ? chain.n : 0, assaultAt: Number.isFinite(at) ? new Date(at).toISOString() : null, gapH, windowH: CHAIN_WINDOW_MS / 3600000, engines: enginesOf(units), soldiers: soldiersOf(units), power: Math.round(powerOf(units)), wallDamageEstimate: estimate(units, leader.b.faction), wallHp: wallMax });
 }
 
 // ---------- issues des combats (rapports de bataille), événements et renseignements ----------
@@ -1155,9 +1254,10 @@ async function bookkeeping(ctx, v) {
     if (r.playerId !== r.attackerId) continue;   // l'exemplaire de l'attaquant
     const type = r.loot?.type || r.rounds?.type || null;
     if (!['ATTACK', 'RAID', 'SIEGE_BREAK', 'BASTION'].includes(type)) continue;
-    // un rapport d'attaquant par combat pour briser un siège (tous ceux d'un même tick ne font plus qu'un avant) ; l'assaut
-    // d'un Bastion : un rapport par joueur du groupe, compté une fois
-    const dkey = type === 'SIEGE_BREAK' ? r.id : type === 'BASTION' ? `${type}:${assaultKey(r)}` : `${type}:${r.x}:${r.y}:${new Date(r.createdAt).getTime()}`;
+    // un rapport d'attaquant par combat pour briser le siège d'une ville ; devant un Bastion, un groupe arrivé dans la même
+    // minute (E4) laisse un rapport par joueur, au même instant, avec les mêmes noms : compté une fois ; l'assaut d'un
+    // Bastion : un rapport par joueur du groupe, compté une fois
+    const dkey = type === 'SIEGE_BREAK' ? (r.rounds?.bastionId ? `${type}:${r.rounds.bastionId}:${assaultKey(r)}` : r.id) : type === 'BASTION' ? `${type}:${assaultKey(r)}` : `${type}:${r.x}:${r.y}:${new Date(r.createdAt).getTime()}`;
     const won = r.winner === 'ATTACKER';
     const atkAl = v.allianceOf.get(r.attackerId) || null;
     if (seen.has(dkey)) continue;
@@ -1201,7 +1301,12 @@ async function bookkeeping(ctx, v) {
     if (type === 'SIEGE_BREAK') {
       // un camp chassé devant un Bastion (mission BREAK) : compté à part
       const bastionId = r.rounds?.bastionId || null;
-      if (bastionId) K[`bastionBreak_${won ? 'won' : 'lost'}`] = (K[`bastionBreak_${won ? 'won' : 'lost'}`] || 0) + 1;
+      if (bastionId) {
+        K[`bastionBreak_${won ? 'won' : 'lost'}`] = (K[`bastionBreak_${won ? 'won' : 'lost'}`] || 0) + 1;
+        // armées qui se sont battues ensemble (E4 : loot.armies quand elles sont plusieurs)
+        const n = Number(r.loot?.armies) || 1;
+        if (n > 1) { K[`bastionBreakGroup_${won ? 'won' : 'lost'}`] = (K[`bastionBreakGroup_${won ? 'won' : 'lost'}`] || 0) + 1; K.bastionBreakGroupFought = (K.bastionBreakGroupFought || 0) + n; }
+      }
       if (won) ctx.event(bastionId ? 'bastion_siege_broken' : 'siege_broken', { by: who, where: r.loot?.cityName, camp: r.loot?.defenderName, attackerPower: r.loot?.attackerPower, campPower: r.loot?.defenderPower });
     }
     if (type === 'BASTION') {
@@ -1223,7 +1328,7 @@ async function bookkeeping(ctx, v) {
           }
           const c = wm.chain;
           c.wins++;
-          c.tw = Math.max(c.tw || 0, new Date(r.createdAt).getTime());   // l'heure du dernier assaut gagné (le suivant : moins de 7,2 h après)
+          c.tw = Math.max(c.tw || 0, new Date(r.createdAt).getTime());   // l'heure du dernier assaut gagné (le suivant : avant la fin de la pause, 24 h)
           c.def = rows(r.defenderUnits || []).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })).slice(0, 12);   // la garnison qui a défendu
           if (lives) c.low = Math.min(c.low ?? lives.after, lives.after);
         } else if (wm.chain && wm.chain.b === bastionId) { wm.chain.losses++; endChain(ctx, wm, tag, 'assaut repoussé'); }
@@ -1342,7 +1447,7 @@ function fail(ctx, where, e) {
 module.exports = {
   name: 'war',
   roleOf,
-  bastionOps, council, alerts, breakOdds, slotOf, readyArmies,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
+  bastionOps, council, alerts, breakOdds, groupOdds, breakPlan, syncLaunch, slotOf, readyArmies, CHAIN_WINDOW_MS,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
   async early(bot, ctx) { const t0 = performance.now(); try { await early(bot, ctx); } finally { TIME.early += performance.now() - t0; } },
   async act(bot, ctx) { const t0 = performance.now(); try { await act(bot, ctx); } finally { TIME.act += performance.now() - t0; } },
   async afterStep(ctx) { const t0 = performance.now(); TIME.steps++; try { await afterStep(ctx); } finally { TIME.after += performance.now() - t0; } }

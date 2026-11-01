@@ -146,7 +146,8 @@ function escapeHtml(value) {
 // ---- Stock partagé entre les villes (décision du 30 octobre 2026) ----
 // Constructions, recrutements, recherche, héros, soins et fondation puisent dans toutes les villes du joueur : boutons et
 // couleurs des prix se basent sur leur total, que le serveur renvoie avec chaque ville (playerStock, GET /api/cities).
-// Le marché, les transports, l'entretien et le pillage restent ceux de la ville.
+// L'entretien, les offres et échanges du marché, les envois et livraisons s'y prennent aussi (stock commun, décision du
+// 1er novembre 2026, simulation de 200 jours) ; seuls le pillage et les raids restent ceux de la ville.
 const RES_KEYS = ['wood', 'stone', 'iron', 'food'];
 const RES_NAMES = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
 const playerStock = () => currentCity?.playerStock || {};
@@ -1331,7 +1332,7 @@ function updateStockTotals(maxRes, maxFood) {
     if (!box) continue;
     const cap = r === 'food' ? maxFood : maxRes, totalCap = r === 'food' ? total.maxFoodStorage : total.maxStorage;
     box.title = `${RES_NAMES[r]} : ${formatNum(currentCity[r] || 0)} / ${formatNum(cap)} dans cette ville`
-      + (several ? `\nToutes vos villes : ${formatNum(total[r] || 0)} / ${formatNum(totalCap || 0)} (constructions, recrutements, recherche, soins et héros y puisent ; marché, transports et pillage restent ceux de la ville)` : '')
+      + (several ? `\nToutes vos villes : ${formatNum(total[r] || 0)} / ${formatNum(totalCap || 0)} (constructions, recrutements, recherche, soins, héros, échanges et envois y puisent ; le pillage reste celui de la ville)` : '')
       + (several && r === 'food' && total.foodBalance ? `\nBilan par heure de toutes vos villes : ${formatNum(total.foodBalance.net)} (l'entretien de toutes vos troupes puise dans tous vos greniers)` : '');
     let line = box.querySelector('.res-total');
     if (!several) { if (line) line.remove(); continue; }

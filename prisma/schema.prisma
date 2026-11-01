@@ -448,6 +448,9 @@ model ResourceNode {
   lastArmyDeparture DateTime? // Quand la dernière armée a quitté le point
   hasPlayerArmy     Boolean   @default(false) // Une armée joueur est présente sur le point
   cityId            String? // ville secondaire fondée sur ce point : plus de tribu ni de récolte tant qu'elle existe
+  // site de Merveille libéré : alliance qui a battu les Immortels, seule à pouvoir y fonder pendant
+  // config.world.wonderSiteReserveHours après lastDefeat (décision du 1er novembre 2026, migration 0034)
+  reservedAllianceId String?
 
   @@unique([x, y])
   @@index([hasDefenders, lastDefeat])
