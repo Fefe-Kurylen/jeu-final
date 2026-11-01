@@ -189,9 +189,15 @@ test('vague contre une Ville Merveille sans troupes propres : les armées du jou
   const CS = require('../../src/services/combatService');
   const savedCombat = CS.resolveCombatDetailed, mods = [];
   CS.resolveCombatDetailed = (...args) => { mods.push(args[10]); return savedCombat(...args); };
-  const restore = stubPrisma({ $transaction: async (fn) => fn(tx), notification: { create: async () => ({ id: 'n' }) } });
+  // après la vague : les armées venues d'ailleurs qui n'ont plus de soldats rentrent (ici les deux ont survécu)
+  const relooked = [], moved = [];
+  const restore = stubPrisma({ $transaction: async (fn) => fn(tx), notification: { create: async () => ({ id: 'n' }) },
+    army: { findUnique: async ({ where }) => { relooked.push(where.id); return guests.find(g => g.id === where.id) || null; }, update: async ({ where }) => { moved.push(where.id); return {}; } },
+    armyUnit: { count: async () => 1 } });
   try {
     const out = await W.immortalWave({ id: 'w1', wonderLevel: 1 }, new Date());
+    assert.deepEqual(relooked.sort(), ['ally', 'cap'], 'les défenseurs venus d\'ailleurs sont relus');
+    assert.deepEqual(moved, [], 'avec des soldats, ils restent');
     assert.deepEqual(asked[0].OR[0], { ownerId: 'p1', cityId: { not: 'w1' }, isGarrison: false, status: 'IDLE', x: 1, y: 2 }, 'ses armées des autres villes');
     assert.deepEqual(asked[0].OR[1], { status: 'STATIONED', targetCityId: 'w1', NOT: { ownerId: 'p1' } }, 'les renforts alliés');
     assert.equal(reports[0].defenderUnits.reduce((n, u) => n + u.count, 0), 800, 'les 800 soldats présents, pas l\'armée en marche');

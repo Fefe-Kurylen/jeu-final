@@ -17,6 +17,12 @@
 // surtout par le niveau de son gisement (bonus de spécialité), la force de la tribu ne compte que rapportée à ce que
 // l'armée du joueur bat ; un colon formé quand toutes les colonies sont fondées est gardé pour la Ville Merveille
 // (70-wonder.cjs).
+// Simulation après ces décisions (rapport sim-d, relu) : hors fondation, une seconde armée de campagne rend sa place quand
+// une garde (ou un autre rôle) attend ; la garde d'une colonie rasée sert une autre colonie ou se dissout ; une garde
+// affaiblie ne rentre se regarnir qu'après deux semaines et loin d'un combat ; le site d'une colonie vaut davantage par son
+// gisement, et l'armée qui libère le site prend d'abord les soldats de la garnison ; le soin à l'or sert aussi les lits
+// lancés pendant la visite ; les camps d'or sont attaqués ; le fondateur de la Ville Merveille garde une escorte à la
+// maison quand le module de la Merveille le demande (bot.mem.wonder.holdEscort).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -44,13 +50,23 @@ const RES_OF = fx.NODE_RESOURCE;   // { WOOD: 'wood', … } : la ressource d'un 
 const SCAN_RADIUS = 22;          // points de ressource regardés autour de la ville (la carte du client)
 const RAID_RANGE = 20;           // une armée ne part pas plus loin
 const FREE_SITES = 40;           // sites libres demandés pour choisir une colonie (les plus proches de la capitale)
-// choix du site, en cases de marche : un point de bonus de gisement voulu vaut 0,6 case (niveau 3 contre niveau 1, +20 points :
-// 12 cases de plus) ; une tribu au plus fort de ce que l'armée bat en coûte 15 (une tribu faible presque rien)
-const SITE_BONUS = 0.6;
-const SITE_TRIBE = 15;
+// choix du site, en cases de marche : un point de bonus de gisement voulu vaut 1,5 case (niveau 3 contre niveau 1, +20 points :
+// 30 cases de plus) ; une tribu coûte 22 cases × (sa force / ce que l'armée bat)³ : presque rien jusqu'à la moitié de ce que
+// l'armée bat, 22 cases au plus fort. Simulation du 31 octobre 2026 (rapport sim-d) : avec 0,6 case par point et 15 cases
+// pour une tribu (rapport linéaire), 72 colonies sur 77 étaient sur un gisement de niveau 1 ; rejoué sur les mêmes sites,
+// ces poids donnent 38 / 30 / 9 colonies de niveau 1 / 2 / 3
+const SITE_BONUS = 1.5;
+const SITE_TRIBE = 22;
+const SITE_TRIBE_EXP = 3;
+const CLEAR_STEPS = 12;          // pas (3 jours) avant d'abandonner un site dont la tribu reste trop forte (40 avant : 10 jours)
 const GUARD_SHARE = 0.15;        // garde d'une colonie : 15 % des soldats du joueur (40 au moins)
 const GUARD_MIN = 40;
-const GUARD_REFILL = 28;         // pas (une semaine) avant de rappeler une garde trop faible pour la regarnir
+// garde affaiblie : rappelée pour se regarnir quand elle a moins de 30 % de la part voulue depuis deux semaines en poste, et
+// jamais dans les 2 jours qui suivent un combat (la colonie reste vide au moins 12 h pendant l'aller-retour)
+const GUARD_REFILL = 56;
+const GUARD_REFILL_SHARE = 0.3;
+const GUARD_HIT_STEPS = 8;
+const GOLD_VALUE = 50;           // un camp d'or : une pièce vaut 50 ressources (une unité d'élite : 2 or pour environ 100 ressources)
 const CALLS_PER_TURN = 8;        // lectures comprises
 const ELITE_GOLD_UNITS = 100;    // or gardé pour un lot de 100 unités d'élite (quand une ville forme l'élite)
 const HOLD_STEPS = 8;            // une récolte est rappelée après 2 jours (la récolte du jeu ne suit pas le pas de 6 h)
@@ -108,6 +124,10 @@ function memOf(bot) {
 const bump = (m, k, n = 1) => { m.k[k] = (m.k[k] || 0) + n; };
 const garrisonOf = (bot, city) => bot.armies.find(a => a.isGarrison && a.cityId === city.id) || null;
 const cityOf = (bot, id) => bot.cities.find(c => c.id === id) || null;
+// le fondateur de la Ville Merveille garde une escorte à la maison (drapeau du module de la Merveille, 70-wonder.cjs) ; les
+// armées qui ne l'escortent jamais (elles ont leur rôle)
+const holdsWonderEscort = (bot) => bot.mem?.wonder?.holdEscort === true;
+const ESCORT_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.convoy]);
 
 // ---------- recrutement ----------
 // unités que la ville peut former, comme le serveur : le palier se lit sur le bâtiment de LA ville qui forme (Caserne,
@@ -234,23 +254,31 @@ async function heal(bot, ctx, B, m, cap) {
   if (waiting > 0) m.wc = ctx.step + 2;   // des lits se libèrent : revenir bientôt
   // 1. lancer le soin de ceux qui attendent, les plus nombreux d'abord, sans toucher la réserve d'une fondation
   const reserve = colonyReserve(bot);
-  for (const w of r.data.filter(x => x.waiting > 0 && x.healable > 0 && x.healCost).sort((a, b) => b.waiting - a.waiting).slice(0, 2)) {
+  const beds = r.data.map(w => ({ ...w }));   // les lits après ce tour : ceux lancés à l'instant s'ajoutent à la ligne
+  for (const w of beds.filter(x => x.waiting > 0 && x.healable > 0 && x.healCost).sort((a, b) => b.waiting - a.waiting).slice(0, 2)) {
     if (B.left <= 1) break;
     if (!Stock.canPay(bot, w.healCost, { reserve })) { bump(m, 'healWaitRes'); continue; }
     B.left--;
     const h = await bot.post(`/api/cities/${w.cityId}/wounded/start`, { unitKey: w.unitKey, count: w.healable });
     if (!h.ok) { bump(m, 'healStartRefused'); break; }
     Stock.spend(bot, cap, h.data?.cost || w.healCost);   // payé dans la capitale d'abord (la tente y est)
-    bump(m, 'healStarted', h.data?.started || w.healable);
+    const started = h.data?.started || w.healable;
+    bump(m, 'healStarted', started);
+    // le soin à l'or prend toute la ligne au lit (services/woundedService.js healNow) : son prix compte les nouveaux
+    w.count = (w.count || 0) + started; w.waiting -= started;
+    w.instantGold = w.count * (config.wounded.instantHealGoldPerTier[UNIT[w.unitKey]?.tier] ?? config.wounded.instantHealGoldPerTier.base);
   }
-  // 2. soin à l'or des blessés déjà au lit, avec l'or au-dessus de la réserve de l'élite
+  // 2. soin à l'or des blessés au lit (ceux lancés à l'instant compris : la visite suivante ne vient que dans 12 h à 3 jours,
+  // leur soin serait fini), avec l'or au-dessus de la réserve de l'élite ; une ligne trop chère n'empêche pas la suivante.
+  // Simulation du 31 octobre 2026 : 0 soin à l'or, les lits lus au début de la visite étaient déjà vides
   let gold = bot.me?.gold || 0;
   const keep = 30 + goldReserve(bot);   // garder un peu d'or, et de quoi payer un lot d'élite
-  for (const w of r.data.filter(x => x.count >= 1 && x.instantGold > 0).sort((a, b) => b.count - a.count).slice(0, 2)) {
-    if (B.left <= 0 || gold - keep < w.instantGold) break;
+  for (const w of beds.filter(x => x.count >= 1 && x.instantGold > 0).sort((a, b) => b.count - a.count).slice(0, 3)) {
+    if (B.left <= 0) break;
+    if (gold - keep < w.instantGold) { bump(m, 'healGoldWait'); continue; }
     B.left--;
     const h = await bot.post(`/api/cities/${w.cityId}/wounded/heal`, { unitKey: w.unitKey });
-    if (!h.ok) { bump(m, 'healRefused'); break; }
+    if (!h.ok) { bump(m, 'healRefused'); continue; }
     gold -= h.data?.goldSpent || w.instantGold;
     if (bot.me) bot.me.gold = gold;
     bump(m, 'healed', h.data?.healed || w.count); bump(m, 'healGold', h.data?.goldSpent || w.instantGold);
@@ -315,7 +343,9 @@ function bestTarget(bot, m, army, city, view, exclude) {
   for (const n of view.nodes) {
     if (!HARVEST_TYPES.includes(n.resourceType) || n.cityId || exclude.has(n.id)) continue;
     const d = dist(n, city);
-    if (d > RAID_RANGE || d < 1 || (n.amount || 0) < 300) continue;   // un point presque vide ne vaut pas la marche
+    const gold = n.resourceType === 'GOLD';
+    // un point presque vide ne vaut pas la marche ; un camp d'or ne tient que 10 / 20 / 30 or (config.map.goldNode)
+    if (d > RAID_RANGE || d < 1 || (n.amount || 0) < (gold ? 10 : 300)) continue;
     const holders = n.holders || [];
     if ((n.hiddenHolders || 0) > 0) continue;   // tenu par un autre joueur : affaire du module de guerre
     let kind;
@@ -326,7 +356,9 @@ function bestTarget(bot, m, army, city, view, exclude) {
     } else if (tribeOn(n)) { if (power < m.ratio * n.defenderPower) continue; kind = 'r'; }
     else if (!n.hasPlayerArmy) kind = 'c';
     else continue;
-    const loot = Math.min(carry, n.amount || 0);
+    // l'or d'un camp compte au prix de ce qu'il paie (GOLD_VALUE ressources la pièce) : sans cela, 30 or ne valaient rien face
+    // à des milliers de ressources et aucun camp d'or n'était attaqué (simulation du 31 octobre 2026)
+    const loot = Math.min(carry, n.amount || 0) * (gold ? GOLD_VALUE : 1);
     const score = loot * needWeight(city, n.resourceType) * (kind === 'r' ? 1 : 1.2) / (d + 6);
     if (!best || score > best.score) best = { node: n, kind, score };
   }
@@ -342,7 +374,10 @@ async function mission(bot, ctx, B, m, army, city, view, exclude) {
   exclude.add(t.node.id);
   if (!r.ok) { bump(m, t.kind === 'r' ? 'raidRefused' : 'collectRefused'); t.node.hasDefenders = true; return false; }
   bump(m, t.kind === 'r' ? 'raids' : 'collects');
-  m.m[army.id] = { n: t.node.id, s: ctx.step, u: countOf(army.units), t: t.kind };
+  const gold = t.node.resourceType === 'GOLD';
+  // l'or vu dans le camp au départ (l'armée rentre souvent entre deux tours du joueur : l'or rapporté n'est pas toujours vu)
+  if (gold) { bump(m, 'goldCampRaids'); bump(m, 'goldCampExpected', Math.min(carryOf(army.units), t.node.amount || 0)); }
+  m.m[army.id] = { n: t.node.id, s: ctx.step, u: countOf(army.units), t: t.kind, ...(gold ? { g: 1 } : {}) };
   t.node.hasPlayerArmy = true;
   army.status = r.data?.status || 'MOVING';
   return true;
@@ -354,6 +389,8 @@ function review(bot, ctx, m) {
     const a = bot.armies.find(y => y.id === id);
     if (!a) { delete m.m[id]; continue; }
     const city = cityOf(bot, a.cityId);
+    // l'or rapporté d'un camp d'or (compté une fois, sur le chemin du retour : le point vidé, l'armée rentre seule)
+    if (x.g === 1 && (a.carryGold || 0) > 0 && a.status === 'RETURNING') { bump(m, 'goldCampGold', a.carryGold); x.g = 2; }
     if (x.t === 'r' && !x.d) {
       if (a.status === 'HARVESTING') { x.d = 1; bump(m, 'tribeWins'); m.ratio = Math.max(1.1, m.ratio - 0.05); }
       else if (a.status === 'RETURNING' || (a.status === 'IDLE' && isHome(a, city))) {
@@ -480,7 +517,8 @@ function siteWish(bot) {
 // colon en route) : assez loin de ses villes, un camp à sa portée, puis le bonus du gisement (bonusPct, calculé par le
 // serveur selon le niveau du gisement) pondéré par ce dont le joueur a besoin, contre la marche et la force de la tribu
 // rapportée à ce que son armée bat (rapport de vérification du 31 octobre 2026 : 0 colonie de niveau 3 quand la force
-// brute de la tribu décidait)
+// brute de la tribu décidait). `fieldPower` : son armée la plus forte et 70 % de la garnison de la capitale, ce que la
+// phase « clear » de colony() met vraiment dans l'armée qui frappe
 function pickColonySite(bot, m, cap, sites, fieldPower) {
   const wish = siteWish(bot);
   const reach = Math.max(fieldPower / m.ratio, 12000);   // la tribu la plus forte que l'armée du joueur bat
@@ -491,7 +529,7 @@ function pickColonySite(bot, m, cap, sites, fieldPower) {
     if (d < 5 || d > RAID_RANGE) continue;
     if (bot.cities.some(c => dist(c, s) < 6)) continue;
     if (s.tribePower > reach) continue;   // pas un camp hors de portée
-    const score = d + SITE_TRIBE * s.tribePower / reach - s.bonusPct * wish[s.type] * SITE_BONUS;
+    const score = d + SITE_TRIBE * (s.tribePower / reach) ** SITE_TRIBE_EXP - s.bonusPct * wish[s.type] * SITE_BONUS;
     if (!best || score < best.score) best = { s, score };
   }
   return best?.s || null;
@@ -500,36 +538,69 @@ function pickColonySite(bot, m, cap, sites, fieldPower) {
 // ---------- gardes des colonies (rapport de vérification du 31 octobre 2026) ----------
 // Une colonie n'a pas de garnison : une armée « Garde » se forme dans la capitale (emplacement de la Place de rassemblement,
 // juste après l'armée de campagne), prend une part des soldats de la garnison et se déplace dans la colonie, où elle se tient
-// au repos et la défend. Trop faible après une semaine (pertes, armée du joueur qui a grandi), elle rentre se regarnir. Une
-// colonie disparue : sa garde rentre.
+// au repos et la défend. Trop faible depuis deux semaines (pertes, armée du joueur qui a grandi), et sans combat depuis
+// 2 jours, elle rentre se regarnir. Une colonie disparue (rasée) : sa garde sert une autre colonie qui n'en a pas, sinon
+// elle rentre et se dissout (ses soldats retournent à la garnison) : elle ne garde plus sa place pour rien.
 async function guards(bot, ctx, B, m, cap) {
   m.guard ||= {};
   const cols = Armies.colonies(bot);
   const soldiersAll = bot.armies.reduce((t, a) => t + countOf((a.units || []).filter(u => UNIT[u.unitKey]?.class !== 'SIEGE')), 0);
   const want = Math.max(GUARD_MIN, Math.round(GUARD_SHARE * soldiersAll));
   m.gs ||= {};   // garde -> pas de son dernier départ
+  m.gc ||= {};   // garde -> soldats vus au tour d'avant
+  m.gh ||= {};   // garde -> pas où elle a perdu des soldats (un combat dans sa colonie)
   for (const [colId, armyId] of Object.entries(m.guard)) {
     const a = bot.armies.find(x => x.id === armyId);
-    if (!a) { delete m.guard[colId]; delete m.gs[armyId]; continue; }
+    if (!a) { delete m.guard[colId]; delete m.gs[armyId]; delete m.gc[armyId]; delete m.gh[armyId]; continue; }
     if (cols.some(c => c.id === colId)) continue;
-    // la colonie n'est plus à lui (rasée) : la garde rentre
-    if (B.left > 0 && a.status === 'IDLE' && !isHome(a, cityOf(bot, a.cityId))) {
+    delete m.guard[colId];   // la colonie n'est plus à lui (rasée) : la garde est sans poste
+  }
+  // gardes sans poste (colonie rasée, ou une garde que la mémoire a perdue) : une colonie sans garde la reçoit (elle y
+  // marchera avec le reste de la boucle), sinon elle rentre puis se dissout
+  const posted = new Set(Object.values(m.guard));
+  for (const a of bot.armies.filter(x => !x.isGarrison && x.name === Armies.NAMES.guard && x.cityId === cap.id && !posted.has(x.id))) {
+    const bare = cols.find(c => !bot.armies.some(x => x.id === m.guard[c.id]));
+    if (bare) { m.guard[bare.id] = a.id; posted.add(a.id); bump(m, 'guardAdopted'); continue; }
+    if (B.left <= 0) break;
+    if (a.status === 'IDLE' && isHome(a, cap)) {
+      B.left--;
+      const r = await bot.del(`/api/army/${a.id}/disband`);
+      if (r.ok) { bot.armies = bot.armies.filter(x => x.id !== a.id); delete m.gs[a.id]; delete m.gc[a.id]; delete m.gh[a.id]; bump(m, 'guardDisbanded'); }
+      else bump(m, 'disbandRefused');
+    } else if (a.status === 'IDLE' && !a.claimedAt) {
       B.left--;
       const r = await bot.post(`/api/army/${a.id}/return`);
       if (r.ok) { a.status = 'RETURNING'; bump(m, 'guardRecalls'); }
     }
-    delete m.guard[colId]; delete m.gs[armyId];
   }
   for (const col of cols) {
     if (B.left <= 1 || cap.isSieged) break;
     let a = bot.armies.find(x => x.id === m.guard[col.id]) || null;
+    if (a) {
+      // des soldats perdus depuis le tour d'avant (sans être passée par la capitale) : elle a combattu dans sa colonie
+      const n = countOf(a.units);
+      if (m.gc[a.id] !== undefined && n < m.gc[a.id] && !isHome(a, cap)) m.gh[a.id] = ctx.step;
+      m.gc[a.id] = n;
+    }
     if (a && a.status === 'IDLE' && a.x === col.x && a.y === col.y) {
-      // en poste : trop faible depuis une semaine, elle rentre se regarnir
-      if (countOf(a.units) < 0.5 * want && ctx.step - (m.gs[a.id] ?? ctx.step) >= GUARD_REFILL) {
+      // en poste : trop faible depuis deux semaines, et pas de combat ces 2 derniers jours, elle rentre se regarnir
+      const hit = ctx.step - (m.gh[a.id] ?? -99) < GUARD_HIT_STEPS;
+      if (countOf(a.units) < GUARD_REFILL_SHARE * want && ctx.step - (m.gs[a.id] ?? ctx.step) >= GUARD_REFILL && !hit) {
         B.left--;
         const r = await bot.post(`/api/army/${a.id}/return`);
         if (r.ok) { a.status = 'RETURNING'; bump(m, 'guardRefills'); }
       }
+      continue;
+    }
+    if (a && a.status === 'IDLE' && !a.claimedAt && !isHome(a, cap)) {
+      // arrêtée ailleurs (la garde d'une colonie rasée qui reçoit ce poste) : elle y marche si elle a des soldats, sinon elle
+      // rentre se regarnir
+      if (B.left <= 0) break;
+      B.left--;
+      const go = countOf(a.units) >= Math.min(GUARD_MIN, want);
+      const r = go ? await bot.post(`/api/army/${a.id}/move`, { x: col.x, y: col.y }) : await bot.post(`/api/army/${a.id}/return`);
+      if (r.ok) { a.status = go ? 'MOVING' : 'RETURNING'; if (go) { m.gs[a.id] = ctx.step; bump(m, 'guardsPosted'); } else bump(m, 'guardRecalls'); }
+      else bump(m, 'guardMoveRefused');
       continue;
     }
     if (a && !isHome(a, cap)) continue;   // en route
@@ -672,7 +743,14 @@ async function colony(bot, ctx, B, m, cap) {
     if (!tribeOn(node)) { col.ph = 'ready'; return; }
     const a = bot.armies.filter(x => m.own.includes(x.id) && x.cityId === cap.id && x.status === 'IDLE' && isHome(x, cap) && countOf(x.units) > 0).sort((p, q) => powerOf(q.units) - powerOf(p.units))[0];
     if (!a) return;
-    if (powerOf(a.units) < m.ratio * node.defenderPower) { if (ctx.step - col.s > 40) drop('colonySiteTooStrong'); return; }
+    const need = m.ratio * node.defenderPower;
+    // le site a été choisi sur l'armée et 70 % de la garnison (pickColonySite) : l'armée qui frappe prend d'abord ces
+    // soldats de la garnison (avant ce rattrapage, 21 sites tenus 10 jours puis abandonnés alors que la garnison suffisait)
+    if (powerOf(a.units) < need && powerOf(a.units) + 0.7 * powerOf(garrisonOf(bot, cap)?.units) >= need && B.left > 2) {
+      await fill(bot, ctx, B, m, a, cap, 0.75);
+      bump(m, 'clearFilled');
+    }
+    if (powerOf(a.units) < need) { if (ctx.step - col.s > CLEAR_STEPS) drop('colonySiteTooStrong'); return; }
     const spot = besideNode(node, view);
     if (!spot) { drop('colonySiteNoApproach'); return; }
     B.left--;
@@ -715,23 +793,49 @@ async function colony(bot, ctx, B, m, cap) {
   }
 }
 
-// armée réduite à presque rien, dans sa ville : dissoute (ses soldats retournent à la garnison)
+const disband = async (bot, B, m, a, why) => {
+  B.left--;
+  const r = await bot.del(`/api/army/${a.id}/disband`);
+  if (r.ok) { m.own = m.own.filter(id => id !== a.id); bot.armies = bot.armies.filter(x => x.id !== a.id); bump(m, 'disbanded'); bump(m, why); delete m.yield; }
+  else bump(m, 'disbandRefused');
+  return r.ok;
+};
+// armées de ce module dans leur ville : une armée réduite à presque rien est dissoute (ses soldats retournent à la
+// garnison) ; hors fondation, une seconde armée de campagne rend sa place quand un autre rôle attend une armée et qu'il ne
+// reste aucune place libre (gardes des colonies d'abord, puis convoi, Ost, garde de la Merveille, caravane : ../armies.cjs).
+// Simulation du 31 octobre 2026 : la seconde armée, souvent celle du héros, n'était rendue qu'une fois et à des conditions
+// rarement réunies ; 8 colonies sur 76 n'ont jamais eu de garde. Elle rend sa place même avec le héros : le serveur le
+// laisse en ville et le module du héros le donne à l'autre armée au tour suivant.
 async function tidy(bot, ctx, B, m) {
+  const cap = bot.capital;
   for (const a of bot.armies) {
     if (B.left <= 3 || !m.own.includes(a.id) || a.status !== 'IDLE') continue;
     const city = cityOf(bot, a.cityId);
-    if (!isHome(a, city) || m.col?.a === a.id || m.col?.b === a.id) continue;
+    if (!isHome(a, city) || m.col?.a === a.id || m.col?.b === a.id || a.heroId) continue;
     const n = countOf(a.units);
     const mine = bot.armies.filter(x => m.own.includes(x.id) && x.cityId === a.cityId).length;
-    // toutes les colonies fondées : l'armée d'escorte n'a plus d'usage, elle rentre dans la garnison (une fois)
-    const done = city.isCapital && bot.cities.filter(c => !c.isCapital && !c.isWonder).length >= config.city.maxSecondaryCities && !(m.k.disbanded > 0) && a.id === m.own.filter(id => bot.armies.some(x => x.id === id && x.cityId === a.cityId)).slice(-1)[0];
-    if (!done && (n === 0 || n >= 5 || mine < 2)) continue;
-    if (mine < 2 || a.heroId) continue;
-    B.left--;
-    const r = await bot.del(`/api/army/${a.id}/disband`);
-    if (r.ok) { m.own = m.own.filter(id => id !== a.id); bot.armies = bot.armies.filter(x => x.id !== a.id); bump(m, 'disbanded'); }
-    else bump(m, 'disbandRefused');
+    if (n > 0 && n < 5 && mine >= 2) await disband(bot, B, m, a, 'disbandedTiny');
   }
+  if (!cap || B.left <= 2 || Armies.founding(bot, cap)) { delete m.yield; return; }
+  const mine = bot.armies.filter(x => m.own.includes(x.id) && x.cityId === cap.id && !x.isGarrison);
+  const waiting = Armies.waitingRoles(bot);
+  if (mine.length < 2 || waiting <= Math.max(0, Armies.freePlaces(bot))) { delete m.yield; return; }
+  // une armée au moins reste toujours (escorte d'un colon, récoltes) : sans le héros d'abord, puis la plus faible ; jamais
+  // une armée gardée pour un rassemblement (bot.mem.mil.idle des invasions et de la Merveille, bot.mem.wonder.keep)
+  const kept = (x) => (m.idle?.[x.id] || 0) > ctx.step || (bot.mem.wonder?.keep?.[x.id] || 0) > ctx.step;
+  // le fondateur de la Ville Merveille qui garde une escorte (holdsWonderEscort) ne rend pas la dernière armée au repos dans
+  // la capitale qui pourrait la faire (comme 70-wonder.cjs : des soldats, ni garde ni convoi) ; l'autre rentre d'abord
+  const escort = (x) => Armies.atHome(x, cap) && countOf((x.units || []).filter(u => UNIT[u.unitKey]?.class !== 'SIEGE')) > 0 && !ESCORT_NEVER.has(x.name);
+  const lastEscort = (x) => holdsWonderEscort(bot) && escort(x) && bot.armies.filter(escort).length <= 1;
+  const home = mine.filter(x => Armies.atHome(x, cap) && !kept(x) && !lastEscort(x)).sort((p, q) => (!!p.heroId - !!q.heroId) || (powerOf(p.units) - powerOf(q.units)));
+  if (home.length) { await disband(bot, B, m, home[0], 'yielded'); return; }
+  // aucune n'est en ville : la plus faible qui récolte (ou attend dehors) rentre, elle rendra sa place au tour suivant
+  if (m.yield && mine.some(x => x.id === m.yield)) return;
+  const away = mine.filter(x => (x.status === 'HARVESTING' || (x.status === 'IDLE' && !x.claimedAt)) && !isHome(x, cap) && !kept(x)).sort((p, q) => powerOf(p.units) - powerOf(q.units))[0];
+  if (!away) return;
+  B.left--;
+  const r = await bot.post(`/api/army/${away.id}/return`);
+  if (r.ok) { away.status = 'RETURNING'; m.yield = away.id; bump(m, 'yieldRecalls'); } else bump(m, 'returnRefused');
 }
 
 function prepare(bot) {
@@ -743,7 +847,8 @@ function prepare(bot) {
 
 module.exports = {
   name: 'military',
-  residence, heal, recruit, unlockedUnits, siteWish, pickColonySite, guards,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
+  residence, heal, recruit, unlockedUnits, siteWish, pickColonySite, guards, tidy, bestTarget,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
+  holdsWonderEscort,   // une escorte gardée pour le colon de la Ville Merveille (module de guerre)
   spareGold,   // or au-dessus de la réserve de l'élite (modules du héros et de la guerre)
   // début du tour, avant l'économie (fichier 09-military-early.cjs) : un joueur qui prépare une colonie envoie son colon et
   // monte sa Résidence avant de dépenser le reste en constructions
@@ -766,12 +871,12 @@ module.exports = {
     await recalls(bot, ctx, B, m);
     // recrutement : chaque ville qui peut former des troupes (capitale ; colonie avec Grande caserne / écurie)
     for (const city of bot.cities) await recruit(bot, ctx, B, m, city);
-    // armées : une armée de campagne, une seconde quand une colonie se prépare ; ou pour une grosse garnison, seulement sur
-    // une place qu'aucun autre rôle n'attend (gardes des colonies, convoi, Ost, garde de la Merveille, caravane : ../armies.cjs)
+    // armées : une armée de campagne, une seconde quand une colonie se prépare (la même règle que ../armies.cjs, et une place
+    // gardée pour chaque colonie sans garde) ; ou pour une grosse garnison, seulement sur une place qu'aucun autre rôle
+    // n'attend (gardes des colonies, convoi, Ost, garde de la Merveille, caravane : ../armies.cjs)
     for (const city of bot.cities) {
       if (B.left <= 0) break;
-      const coloniesLeft = bot.cities.filter(c => !c.isCapital && !c.isWonder).length < config.city.maxSecondaryCities;
-      const pending = city.isCapital && coloniesLeft && ((city.settlers || 0) > 0 || (city.recruitQueue || []).some(q => q.unitKey === 'SETTLER') || lvl(city, 'RESIDENCE') >= 9);
+      const pending = city.isCapital && Armies.founding(bot, city) && Armies.freePlaces(bot) > Armies.guardsMissing(bot);
       const spare = city.isCapital && countOf(garrisonOf(bot, city)?.units) >= 300 && !!Armies.freeSlot(bot, 'hunt');
       await organise(bot, ctx, B, m, city, pending || spare ? 2 : 1);
     }
@@ -781,14 +886,17 @@ module.exports = {
     // missions : les armées de ce module qui attendent dans leur ville
     const exclude = new Set();
     const reserved = new Set([m.col?.a, m.col?.b].filter(Boolean));
-    const keepHome = !!m.col && (m.col.ph === 'approach' || m.col.ph === 'ready');
+    // une armée de la capitale reste à la maison pour escorter un colon : pendant la fondation d'une colonie, et pendant que
+    // l'alliance libère (ou a libéré) un site de la Merveille dont ce joueur est le fondateur (drapeau posé par 70-wonder.cjs,
+    // bot.mem.wonder.holdEscort ; simulation du 31 octobre 2026 : un site libéré 9 fois avant la fondation, l'escorte toujours
+    // partie en mission)
+    const keepHome = (!!m.col && (m.col.ph === 'approach' || m.col.ph === 'ready')) || holdsWonderEscort(bot);
     for (const a of bot.armies) {
       if (B.left <= 0) break;
       if (!m.own.includes(a.id) || a.status !== 'IDLE' || reserved.has(a.id)) continue;
       const city = cityOf(bot, a.cityId);
       if (!city || !isHome(a, city) || city.isSieged) continue;
-      // pendant une fondation, une armée de la capitale reste à la maison pour escorter le colon
-      if (keepHome && city.isCapital && bot.armies.filter(x => m.own.includes(x.id) && x.cityId === city.id && x.status === 'IDLE' && isHome(x, city) && !reserved.has(x.id)).length <= 1) continue;
+      if (keepHome && city.isCapital && bot.armies.filter(x => m.own.includes(x.id) && x.cityId === city.id && x.status === 'IDLE' && isHome(x, city) && !reserved.has(x.id)).length <= 1) { bump(m, 'keptHomeForEscort'); continue; }
       // la garnison garde un quart des soldats, le reste part avec l'armée
       const g = countOf((garrisonOf(bot, city)?.units || []).filter(u => UNIT[u.unitKey]?.class !== 'SIEGE'));
       if (g >= 10 && g > 0.3 * (g + countOf(a.units)) && B.left > 2) await fill(bot, ctx, B, m, a, city, 0.75);

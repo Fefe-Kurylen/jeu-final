@@ -17,7 +17,10 @@
 // - Retirer une offre restée sans preneur (ou devenue absurde) quand l'entrepôt peut reprendre les marchandises (la
 //   caravane redevient libre) ; un joueur sur trois la laisse expirer (48 h).
 // - Marchand du serveur (taxe 30 % − 1 %/niveau du Marché de la capitale, sans armée) : quand une ressource déborde et
-//   qu'une autre manque.
+//   qu'une autre manque. Les céréales s'achètent seulement quand le joueur en manque vraiment (tous ses greniers à moins de
+//   moitié pleins) : la capitale paie ses troupes d'abord, son grenier est presque toujours bas (simulation sim-d : 2 044
+//   achats de céréales alors que les greniers du joueur étaient pleins à 90 %, mangés au tick suivant, 11 % de taxe perdue).
+//   Celles de la Ville Merveille s'achètent dans 70-wonder.cjs, juste avant la livraison.
 // - Envoi à un allié qui manque (POST /api/trade/send, armée libre), jamais vers ses propres villes. Les livraisons à la
 //   Ville Merveille de l'alliance sont dans 70-wonder.cjs.
 // Au plus CALLS appels par tour (lectures comprises) ; les conditions sont vérifiées avant chaque appel.
@@ -96,17 +99,23 @@ async function stateOf(S, city) {
   return S.st[city.id];
 }
 // Les armées que le marché peut faire partir pour un aller-retour : la caravane, le convoi d'alliance, l'armée de campagne
-// du module militaire (pas celles d'une fondation en cours) ; jamais une armée d'un autre rôle
-function tripArmies(bot, armies) {
+// du module militaire (pas celles d'une fondation en cours) ; jamais une armée d'un autre rôle, ni une armée gardée pour la
+// Merveille (l'escorte du colon du fondateur, l'armée annoncée pour le prochain rassemblement : 70-wonder.cjs)
+const wonder = () => require('./70-wonder.cjs');   // chargé à l'appel (70-wonder.cjs charge ce fichier)
+const keptOf = (bot, step) => (bot.mem.wonder ? (id) => wonder().keptForWonder(bot, id, step) : () => false);
+function tripArmies(bot, armies, step = bot.ctx?.step) {
   const col = bot.mem.mil?.col;
   const busy = new Set([col?.a, col?.b].filter(Boolean));
   const own = new Set(bot.mem.mil?.own || []);
-  return armies.filter(a => !NOT_FOR_TRADE.has(a.name) && !busy.has(a.id) && (a.name === Armies.NAMES.caravan || a.name === Armies.NAMES.convoy || own.has(a.id)));
+  const kept = keptOf(bot, step);
+  return armies.filter(a => !NOT_FOR_TRADE.has(a.name) && !busy.has(a.id) && (a.name === Armies.NAMES.caravan || a.name === Armies.NAMES.convoy || own.has(a.id)) && !kept(a.id));
 }
 // l'armée qui porte `amount` pour un aller-retour : la plus petite qui suffit, sans le héros quand c'est possible (comme le
-// serveur quand on ne la choisit pas) ; offer : seulement la caravane (une offre la retient jusqu'à 48 h)
+// serveur quand on ne la choisit pas) ; offer : seulement la caravane (une offre la retient jusqu'à 48 h), sauf quand elle
+// est l'escorte que le fondateur de la Ville Merveille garde (souvent sa plus petite armée)
 function pickArmy(bot, st, amount, { offer = false } = {}) {
-  const list = offer ? st.armies.filter(a => a.name === Armies.NAMES.caravan) : tripArmies(bot, st.armies);
+  const kept = keptOf(bot);
+  const list = offer ? st.armies.filter(a => a.name === Armies.NAMES.caravan && !kept(a.id)) : tripArmies(bot, st.armies);
   const fits = list.filter(a => a.capacity >= amount);
   return fits.find(a => !a.hero) || fits[0] || null;
 }
@@ -125,6 +134,12 @@ const keepOf = (bot) => 1 - p2pTaxPctOf(bot.capital?.buildings || []) / 100;
 // proposée par d'autres a peu de chances ; une ressource que d'autres demandent trouvera preneur)
 // (de la nourriture ne part que si le bilan de tout le joueur est positif : l'entretien puise dans tous ses greniers)
 const foodOk = (bot) => (Stock.foodBalance(bot)?.net ?? -1) > 0;
+// le joueur manque vraiment de céréales : tous ses greniers réunis (stock commun) sont à moins de moitié pleins
+const FOOD_SHORT = 0.5;
+function foodShort(bot) {
+  const t = Stock.totals(bot);
+  return (t.food || 0) / Math.max(1, t.maxFoodStorage || 0) < FOOD_SHORT;
+}
 function postPlan(S, city, cap, offers) {
   const spareFood = foodOk(S.bot);
   const keep = keepOf(S.bot);
@@ -301,7 +316,10 @@ async function npc(S, markets) {
     if ((m.nx.n?.[city.id] || 0) > ctx.step) continue;
     const over = RES.filter(r => ratio(city, r) >= 0.97 && (r !== 'food' || foodOk(bot))).sort((a, b) => ratio(city, b) - ratio(city, a))[0];
     if (!over) continue;
-    const lack = RES.filter(r => r !== over && ratio(city, r) <= 0.6 && ratio(city, over) - ratio(city, r) >= 0.35).sort((a, b) => ratio(city, a) - ratio(city, b))[0];
+    // des céréales seulement quand tout le joueur en manque (le grenier de la capitale est bas à cause de l'entretien)
+    const cands = RES.filter(r => r !== over && ratio(city, r) <= 0.6 && ratio(city, over) - ratio(city, r) >= 0.35).sort((a, b) => ratio(city, a) - ratio(city, b));
+    const lack = cands.find(r => r !== 'food' || foodShort(bot));
+    if (cands[0] === 'food' && lack !== 'food') bump(m, 'npcFoodSkipped');
     if (!lack) continue;
     const waiting = city.isCapital && (m.off.some(t => t.c === city.id) || (caravanFree && !(m.miss > 0) && ratio(city, lack) > 0.15));
     if (waiting) { bump(m, 'npcWaitP2P'); continue; }
@@ -312,6 +330,7 @@ async function npc(S, markets) {
     const r = await bot.post('/api/market/npc-trade', { cityId: city.id, giveResource: over, receiveResource: lack, giveAmount: give });
     if (r.ok) {
       bump(m, 'npcTrades'); bump(m, 'npcGiven', r.data?.given || give); bump(m, 'npcReceived', r.data?.received || 0); bump(m, `npc_${over}_${lack}`);
+      if (lack === 'food') { bump(m, 'npcFoodTrades'); bump(m, 'npcFoodBought', r.data?.received || 0); }
       city[over] -= r.data?.given || give; city[lack] = (city[lack] || 0) + (r.data?.received || 0);
       if ((m.k.npcTrades || 0) === 1) ctx.event('market_npc', { bot: bot.name, give: `${r.data?.given} ${over}`, get: `${r.data?.received} ${lack}`, taxPct: r.data?.taxPct });
     } else bump(m, 'npcRefused');
@@ -485,6 +504,6 @@ module.exports = {
     ctx.event('market_summary', { step: ctx.step, ...db, firstMarketDay: days.length ? Math.min(...days) : null, counters: k });
     const { fill: fl, ...dbShort } = db;
     ctx.say(`marché : remplissage ${JSON.stringify(fl)}`);
-    ctx.say(`marché : ${JSON.stringify({ ...dbShort, posted: k.posted || 0, accepted: k.accepted || 0, ally: k.acceptAlly || 0, borrowed: k.acceptBorrowedArmy || 0, sold: k.sold || 0, expired: k.expired || 0, cancelled: (k.cancelStale || 0) + (k.cancelChanged || 0), raced: k.acceptRaced || 0, npc: k.npcTrades || 0, aid: k.aidSent || 0 })}`);
+    ctx.say(`marché : ${JSON.stringify({ ...dbShort, posted: k.posted || 0, accepted: k.accepted || 0, ally: k.acceptAlly || 0, borrowed: k.acceptBorrowedArmy || 0, sold: k.sold || 0, expired: k.expired || 0, cancelled: (k.cancelStale || 0) + (k.cancelChanged || 0), raced: k.acceptRaced || 0, npc: k.npcTrades || 0, npcFood: k.npcFoodBought || 0, aid: k.aidSent || 0 })}`);
   }
 };

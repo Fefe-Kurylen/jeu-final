@@ -11,6 +11,8 @@
 // Forge et Atelier vont au niveau 20 (60 à 70 engins par joueur pour le Bastion et les sièges) ; la Place de rassemblement
 // monte plus tôt (une garde dans chaque colonie). Une Ville Merveille ne bâtit que son Mur (niveau 15 au plus) et le
 // Bâtiment principal qui le permet : elle reçoit les vagues d'Immortels toutes les 12 h.
+// Simulation après ces décisions (rapport sim-d, relu) : le plan s'arrêtait au Comptoir 15 et aux Grandes caserne et écurie
+// 15 (l'élite) ; une fois tout le reste bâti, ils montent à 20 (taxe plancher de 5 %, formation de la capitale à +30 %).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -56,7 +58,10 @@ function planFor(faction, capital, wonder = false) {
     ['BAKERY', 5], ['SAWMILL', 5], ['STONEMASON', 5], ['FOUNDRY', 5], ['MAIN_HALL', 16], ['FIELDS', 15], ['WAREHOUSE', 16], ['SILO', 16], ['RALLY_POINT', 15], ['ACADEMY', 15], ['FORGE', 15], ['WORKSHOP', 12], ['WALL', 14], ['HIDEOUT', 12], ['HEALING_TENT', 15],
     ['TRADE_OFFICE', 5], [FACTION_BUILDING[faction], 12], ['MAIN_HALL', 20], ['FIELDS', 18], ['BARRACKS', 20], ['STABLE', 16], ['RALLY_POINT', 20], ['WAREHOUSE', 20], ['SILO', 20], ['ACADEMY', 20], ['FORGE', 20], ['WORKSHOP', 20], ['GREAT_WAREHOUSE', 12], ['GREAT_SILO', 10],
     ['GREAT_BARRACKS', 5], ['STABLE', 20], ['GREAT_STABLE', 5], ['WALL', 20], ['HIDEOUT', 16], ['FIELDS', 20], ['TREASURE_CHAMBER', 15], ['HEALING_TENT', 20], [FACTION_BUILDING[faction], 20], ['GREAT_WAREHOUSE', 20], ['GREAT_SILO', 20],
-    ['GREAT_BARRACKS', ELITE_TIER('GREAT_BARRACKS')], ['GREAT_STABLE', ELITE_TIER('GREAT_STABLE')], ['TREASURE_CHAMBER', 20], ['HIDEOUT', 20], ['MARKET', 20], ['TRADE_OFFICE', 15]
+    ['GREAT_BARRACKS', ELITE_TIER('GREAT_BARRACKS')], ['GREAT_STABLE', ELITE_TIER('GREAT_STABLE')], ['TREASURE_CHAMBER', 20], ['HIDEOUT', 20], ['MARKET', 20], ['TRADE_OFFICE', 15],
+    // le reste fini : Comptoir 20 (taxe des échanges à 5 % avec la Chambre au Trésor 20) et Grandes caserne et écurie 20
+    // (formation de la capitale accélérée de 30 %, décision D13)
+    ['TRADE_OFFICE', 20], ['GREAT_BARRACKS', 20], ['GREAT_STABLE', 20]
   ];
   return P.filter(([k]) => k === 'FIELDS' || (capital ? !fx.notInCapital(k) : !fx.capitalOnly(k)))
     .map(([k, l]) => [k, k === 'FIELDS' ? l : Math.min(l, fx.maxLevelIn(k, capital))]);

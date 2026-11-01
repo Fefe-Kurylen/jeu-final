@@ -2,6 +2,11 @@
 // Décisions du 31 octobre 2026 (rapport de vérification) : une section par décision à juger (carte et colonies, or,
 // cachette, échanges par armée, rassemblements, Bastion, Merveille, invasions, quêtes), lue dans les mesures de chaque
 // semaine (checks.cjs, ledger.cjs) et les événements des modules.
+// Analyse de la simulation du 1er novembre 2026 : les échanges entre joueurs, les offres expirées et les caravanes se lisent
+// dans les compteurs des joueurs automatiques (le jeu efface les offres conclues après 30 jours) ; la Chambre au Trésor
+// est mesurée à chaque tick ; colonies sans garde à la fin ; garnisons des Bastions sans les armées vides, vies remontées ;
+// camps devant un Bastion un combat par ligne ; chefs des donjons combattus et donjons détruits par niveau ; rythme de la
+// simulation (pas qui pressent, ticks d'une heure en plus).
 'use strict';
 const fs = require('fs');
 
@@ -11,10 +16,17 @@ const table = (head, rows) => [`| ${head.join(' | ')} |`, `| ${head.map(() => '-
 const kv = (o) => Object.entries(o || {}).map(([k, v]) => `${k} ${n(v)}`).join(', ') || '—';
 const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const lastOf = (events, kind) => events.filter(e => e.kind === kind).slice(-1)[0] || null;
+const byKey = (list, key) => list.reduce((o, e) => { const k = e[key] ?? '?'; o[k] = (o[k] || 0) + 1; return o; }, {});
+// événements écrits avant le 1er novembre 2026 : le champ `kind` des rassemblements de la Merveille (WONDER, PLAN)
+// remplaçait le nom de l'événement ; ils retrouvent leur nom (lancement : un lanceur ; repoussé : une marge) et leur cible
+function normalize(e) {
+  if ((e.kind === 'WONDER' || e.kind === 'PLAN') && e.target === undefined) return { ...e, target: e.kind, kind: e.leader === undefined && e.margin !== undefined ? 'wonder_rally_repelled' : 'wonder_rally' };
+  return e;
+}
 
 function write(FILES, live) {
   const state = fs.existsSync(FILES.state) ? JSON.parse(fs.readFileSync(FILES.state, 'utf8')) : {};
-  const metrics = readLines(FILES.metrics), events = readLines(FILES.events);
+  const metrics = readLines(FILES.metrics), events = readLines(FILES.events).map(normalize);
   const CALLS = live?.CALLS || state.calls || { total: 0, byRoute: {}, fails: [], refusals: {} };
   const ERRORS = live?.ERRORS || state.errors || [];
   const last = metrics[metrics.length - 1];
@@ -24,7 +36,11 @@ function write(FILES, live) {
   L.push(`- Durée simulée : **${days} jours** (${(days / 365).toFixed(1)} ans), pas de ${state.opt?.stepHours || '?'} h, ${state.bots?.length || '?'} joueurs automatiques`);
   L.push(`- Appels au serveur : ${n(CALLS.total)} ; erreurs serveur (5xx) : **${CALLS.fails.length}** ; erreurs écrites par le serveur : **${n(ERRORS.reduce((t, e) => t + e.count, 0))}**`);
   const worlds = [...new Set(metrics.map(m => m.world?.worldNumber))].filter(Boolean);
-  L.push(`- Mondes joués : ${worlds.join(', ') || '1'}`, '');
+  L.push(`- Mondes joués : ${worlds.join(', ') || '1'}`);
+  // rythme (sim.cjs pressing, playTicks) : pas où des joueurs jouent chaque pas, pas avec des ticks d'une heure en plus
+  const pace = state.pace;
+  if (pace?.steps) L.push(`- Rythme : ${n(pace.steps)} pas, dont ${n(pace.pressed)} qui pressent (${n(pace.allPlay)} pour tous les joueurs : week-end ou invasion en cours) ; ${n(pace.fine)} pas avec des ticks d'une heure en plus (départ, arrivée ou assaut à l'heure près), ${n(pace.ticks)} ticks en tout ; ${n(pace.extraTurns)} tours de joueur en plus d'un pas sur deux.`);
+  L.push('');
 
   // contrôles
   const viol = {};
@@ -60,7 +76,7 @@ function write(FILES, live) {
   L.push('## Activité des systèmes (par semaine, moyenne sur la simulation)', '');
   const sumBy = {};
   for (const m of metrics) for (const b of m.week?.battles || []) sumBy[b.t] = (sumBy[b.t] || 0) + b.n;
-  const weeks = Math.max(1, metrics.length);
+  const weeks = Math.max(1, ((last?.day || 0) - (metrics[0]?.day || 0)) / 7);   // semaines couvertes par les relevés
   const avgW = (k) => Math.round(metrics.reduce((t, m) => t + (m.week?.[k] || 0), 0) / weeks * 10) / 10;
   L.push(table(['Système', 'Par semaine'], [
     ...Object.entries(sumBy).sort((a, b) => b[1] - a[1]).map(([t, v]) => [`Combats ${t}`, Math.round(v / weeks * 10) / 10]),
@@ -86,7 +102,7 @@ function write(FILES, live) {
     L.push('', table(['Colonie du joueur', 'Fondées', 'Jour médian'], Object.entries(byRank).map(([k, d]) => [`n° ${k}`, d.length, d.sort((a, b) => a - b)[Math.floor(d.length / 2)]])));
     L.push('');
   }
-  decisions(L, { metrics, events, CALLS, first: metrics[0], last });
+  decisions(L, { metrics, events, CALLS, first: metrics[0], last, startMs: state.startMs });
   // classement final
   if (last) {
     L.push('## Joueurs à la fin', '');
@@ -99,7 +115,7 @@ function write(FILES, live) {
 }
 
 // ---------- les décisions du 31 octobre 2026 ----------
-function decisions(L, { metrics, events, CALLS, first, last }) {
+function decisions(L, { metrics, events, CALLS, first, last, startMs }) {
   const refusals = (re) => Object.entries(CALLS.refusals || {}).filter(([k]) => re.test(k)).reduce((t, [, v]) => t + v, 0);
   const ev = (kind) => events.filter(e => e.kind === kind);
   L.push('## Décisions du 31 octobre 2026 : ce que la simulation en montre', '');
@@ -117,7 +133,10 @@ function decisions(L, { metrics, events, CALLS, first, last }) {
   const fallen = ev('city_fallen');
   L.push(`- Villes tombées : ${fallen.length} (${kv(fallen.reduce((o, e) => { o[e.fate || '?'] = (o[e.fate || '?'] || 0) + 1; return o; }, {}))}). Refus « Colonie protégée » (72 h) : ${n(refusals(/Colonie protégée/))} ; raids écartés d'eux-mêmes pour une colonie protégée : ${n(lastOf(events, 'war_summary')?.counters?.raidSkipProtected || 0)}.`);
   const mil = lastOf(events, 'military_summary')?.counters || {};
-  L.push(`- Gardes des colonies : ${n(mil.guardsCreated || 0)} formées, ${n(mil.guardsPosted || 0)} départs vers une colonie, ${n(mil.guardRefills || 0)} retours pour se regarnir, ${n(mil.guardNoSlot || 0)} fois sans place à la Place de rassemblement.`, '');
+  L.push(`- Gardes des colonies (D18) : ${n(mil.guardsCreated || 0)} formées, ${n(mil.guardsPosted || 0)} départs vers une colonie, ${n(mil.guardRefills || 0)} retours pour se regarnir, ${n(mil.guardNoSlot || 0)} fois sans place à la Place de rassemblement.`);
+  const ug = last?.map?.unguarded;
+  if (ug) L.push(`- Colonies sans garde en poste à la fin (jour ${last.day}) : ${n(ug.n)} sur ${n(ug.of ?? last.world?.colonies ?? '?')}${ug.n ? ` — ${ug.list.join(', ')}` : ''}.`);
+  L.push('');
 
   // or (D4, D5, D17)
   L.push('### Or (D4, D5, D17)', '');
@@ -126,7 +145,7 @@ function decisions(L, { metrics, events, CALLS, first, last }) {
   const rowsGold = [...new Set(marks.map(d => at(d)).filter(m => m?.ledger))].map(m => [m.day, m.ledger.income.treasury, m.ledger.income.expeditions, m.ledger.income.invasion, m.ledger.income.other, m.ledger.spent.elite, m.ledger.spent.instantHeal, m.ledger.spent.spies + m.ledger.spent.talents, m.ledger.goldNow]);
   L.push(rowsGold.length ? table(['Jour', 'Chambre au Trésor', 'Expéditions (héros)', 'Trésor des invasions', 'Autres sources', 'Élites', 'Soins à l\'or', 'Espions et talents', 'Or des joueurs'], rowsGold) : 'Pas de relevé.');
   const lg = last?.ledger;
-  if (lg) L.push('', `Expéditions finies : ${n(lg.expeditions.done)}, dont ${n(lg.expeditions.withGold)} avec de l'or (seules celles menées par le héros en rapportent). Donjons détruits : ${kv(lg.invasionDestroyed)}. Cumuls depuis le début, tous joueurs ; « Autres sources » : la variation de l'or moins ce qui est compté (camps d'or, défi…).`);
+  if (lg) L.push('', `Expéditions finies : ${n(lg.expeditions.done)}, dont ${n(lg.expeditions.withGold)} avec de l'or (seules celles menées par le héros en rapportent). Donjons détruits : ${kv(lg.invasionDestroyed)}. Cumuls depuis le début, tous joueurs. Chambre au Trésor : l'or versé à chaque tick, mesuré (avant le 1er novembre 2026 : estimé d'après le niveau du jour, un peu trop haut les jours d'amélioration). « Autres sources » : la variation de l'or moins ce qui est compté (camps d'or, défi, remboursements…).`);
   L.push('');
 
   // cachette (D15)
@@ -137,13 +156,16 @@ function decisions(L, { metrics, events, CALLS, first, last }) {
 
   // échanges entre joueurs par armée (D7, D8)
   L.push('### Échanges entre joueurs par armée (D7, D8)', '');
+  // compteurs des joueurs automatiques (40-market.cjs) : le jeu efface les offres conclues après 30 jours, la base ne les
+  // compte plus à la fin. Un échange accepté = un échange conclu ; volume : ce que l'acheteur reçoit et ce qu'il paie.
   const mk = lastOf(events, 'market_summary');
-  L.push(`- Échanges conclus : ${n(last?.totals?.trades || 0)} pour ${n(last?.totals?.tradeVolume || 0)} ressources (offres expirées : ${n(last?.totals?.offersExpired || 0)}).`);
   if (mk) {
     const k = mk.counters || {};
+    const paid = k.paidVolume === undefined ? '' : ` + ${n(k.paidVolume)} payées`;
+    L.push(`- Échanges conclus : ${n(k.accepted || 0)} pour ${n(k.boughtVolume || 0)} ressources vendues${paid} (compteurs des joueurs automatiques) ; offres expirées : ${n(k.expired || 0)}.`);
     L.push(`- Offres publiées ${n(k.posted || 0)} (caravane réservée, statut MARKET), acceptées ${n(k.accepted || 0)} (dont ${n(k.acceptBorrowedArmy || 0)} portées par une autre armée que la caravane, ${n(k.acceptAlly || 0)} d'un membre de l'alliance), prises par un autre au même instant ${n(k.acceptRaced || 0)}, retirées ${n((k.cancelStale || 0) + (k.cancelChanged || 0))}, expirées ${n(k.expired || 0)}.`);
-    L.push(`- Envois à un allié : ${n(k.aidSent || 0)} (${n(k.aidVolume || 0)} ressources) ; marchand du serveur : ${n(k.npcTrades || 0)} échanges. Caravanes formées : ${n(mk.caravans || 0)} ; armées qui attendent avec une offre : ${n(mk.armiesWaiting || 0)}, en livraison : ${n(mk.armiesDelivering || 0)}.`);
-  }
+    L.push(`- Envois à un allié : ${n(k.aidSent || 0)} (${n(k.aidVolume || 0)} ressources) ; marchand du serveur : ${n(k.npcTrades || 0)} échanges. Caravanes formées : ${n(k.caravans || 0)} (${n(mk.caravans || 0)} à la fin) ; armées qui attendent avec une offre : ${n(mk.armiesWaiting || 0)}, en livraison : ${n(mk.armiesDelivering || 0)}.`);
+  } else L.push('- Pas de point d\'étape du marché.');
   L.push(`- Refus « Vos villes partagent leur stock » : ${n(refusals(/partagent leur stock/))} ; refus « Armée réservée pour une offre du marché » : ${n(refusals(/réservée pour une offre/))}.`, '');
 
   // rassemblements (D3)
@@ -157,14 +179,27 @@ function decisions(L, { metrics, events, CALLS, first, last }) {
   const br = ev('bastion_rally'), ba = ev('bastion_assault');
   L.push(`- Rassemblements contre un Bastion : ${br.length} ; armées par rassemblement (médiane) ${n(median(br.map(e => e.armies)))}, engins (médiane) ${n(median(br.map(e => e.engines)))}, attente (médiane) ${n(median(br.map(e => e.wait)))} min, dégâts au mur attendus sans garnison (médiane) ${n(median(br.map(e => e.wallDamageEstimate)))} sur ${n(br[0]?.wallHp)}.`);
   L.push(`- Assauts livrés : ${ba.length}, gagnés ${ba.filter(e => e.won).length} ; armées par assaut (médiane) ${n(median(ba.map(e => e.armies)))} ; dégâts au mur (médiane) ${n(median(ba.map(e => e.wallDamage).filter(x => x !== null)))} ; garnison restée après l'assaut (médiane) ${n(median(ba.map(e => e.garrisonAfter).filter(x => x !== null)))} armées. Bastions rasés : ${ev('bastion_destroyed').length}.`);
-  if (ba.length) L.push('', table(['Jour', 'Assaillants', 'Bastion', 'Armées', 'Gagné', 'Mur avant', 'Mur après', 'Vies', 'Garnison après'], ba.slice(-15).map(e => [e.day, String(e.by || '').slice(0, 40), e.bastion, e.armies, e.won ? 'oui' : 'non', e.wallHpStart, e.wallHpEnd, e.lives, e.garrisonAfter])));
-  L.push('', `- Camps devant un Bastion attaqués (mission BREAK) : ${ev('bastion_break_sent').length} envois ; combats gagnés ${n(wk.bastionBreak_won || 0)}, perdus ${n(wk.bastionBreak_lost || 0)}. Refus « Garnison du Bastion complète » : ${n(refusals(/Garnison du Bastion complète/))}.`);
-  L.push(`- Garnisons à la fin : ${(last?.endgame?.bastions || []).map(b => `${b.tag} ${b.status} ${b.garrison} armées, ${b.lives} vies`).join(' ; ') || 'aucun Bastion'}.`, '');
+  if (ba.length) L.push('', table(['Jour', 'Assaillants', 'Bastion', 'Armées', 'Gagné', 'Mur avant', 'Mur après', 'Vies', 'Défenseurs', 'Garnison après'], ba.slice(-15).map(e => [e.day, String(e.by || '').slice(0, 40), e.bastion, e.armies, e.won ? 'oui' : 'non', e.wallHpStart, e.wallHpEnd, e.lives, e.defenders ?? '', e.garrisonAfter])));
+  // chaînes d'assauts (50-war.cjs) : commencées par un assaut gagné, finies par un assaut repoussé ou le Bastion rasé
+  const chains = ev('bastion_chain'), chainEnds = ev('bastion_chain_end');
+  if (chains.length || chainEnds.length) L.push('', `- Chaînes d'assauts : ${chains.length} commencées, ${chainEnds.length} finies (${kv(byKey(chainEnds, 'why'))}) ; rassemblements par chaîne (médiane) ${n(median(chainEnds.map(e => e.rallies || 0)))}, vies les plus basses (médiane) ${n(median(chainEnds.map(e => e.lowestLives).filter(x => x !== null && x !== undefined)))}.`);
+  // camps brisés : un combat par ligne, lu dans les rapports de bataille de chaque semaine (checks.cjs bastionBreaks) ;
+  // envois des joueurs automatiques : pour briser le camp seule (break), pour l'user (wear), sorties de la garnison
+  const sent = ev('bastion_break_sent');
+  const sentBy = sent.reduce((o, e) => { const k = e.sortie ? 'sortie' : e.mode || 'envoi'; o[k] = (o[k] || 0) + (e.armies || 1); return o; }, {});
+  L.push('', `- Camps devant un Bastion attaqués (mission BREAK) : ${sent.length} tours d'envoi, ${n(Object.values(sentBy).reduce((t, v) => t + v, 0))} armées (${kv(sentBy)}). Refus « Garnison du Bastion complète » : ${n(refusals(/Garnison du Bastion complète/))}.`);
+  const breaks = metrics.flatMap(m => m.week?.bastionBreaks || []);
+  if (metrics.some(m => Array.isArray(m.week?.bastionBreaks))) {
+    const dayOf = (at) => (startMs ? Math.floor((Date.parse(at) - startMs) / 86400000) : '?');
+    L.push(`- Combats contre un camp (un par armée, rapports de bataille) : ${breaks.length}, camp brisé ${breaks.filter(b => b.won).length}, repoussés ${breaks.filter(b => !b.won).length} ; puissance de l'armée / du camp (médiane) ${median(breaks.map(b => (b.dp ? b.ap / b.dp : 0)))?.toFixed(2) ?? '—'}.`);
+    if (breaks.length) L.push('', table(['Jour', 'Bastion', 'Armée de', 'Camp', 'Puissance armée', 'Puissance camp', 'Camp brisé'], breaks.slice(-15).map(b => [dayOf(b.at), b.tag, b.by, String(b.camp || '').slice(0, 40), b.ap, b.dp, b.won ? 'oui' : 'non'])), '');
+  } else L.push(`- Combats contre un camp (compteurs des joueurs automatiques, plusieurs combats d'un même tick comptés une fois) : gagnés ${n(wk.bastionBreak_won || 0)}, perdus ${n(wk.bastionBreak_lost || 0)}.`);
+  L.push(`- Garnisons à la fin : ${(last?.endgame?.bastions || []).map(b => `${b.tag} ${b.status} ${b.garrison} armées${b.soldiers !== undefined ? ` (${n(b.soldiers)} soldats postés)` : ''}, ${b.lives} vies`).join(' ; ') || 'aucun Bastion'}.`, '');
 
   // Merveille (D10, D11)
   L.push('### Merveille (D10, D11)', '');
   const wr = ev('wonder_rally'), sum = lastOf(events, 'wonder_summary');
-  L.push(`- Colons du fondateur : ${ev('wonder_settler').length}. Rassemblements contre les Immortels : ${wr.length} (sites ${wr.filter(e => e.kind === 'WONDER').length}, plans ${wr.filter(e => e.kind === 'PLAN').length}, dont pour les user ${wr.filter(e => e.wear).length}) ; armées (médiane) ${n(median(wr.map(e => e.armies)))}, puissance du rassemblement / Immortels (médiane) ${median(wr.map(e => e.immortals ? e.power / e.immortals : 0))?.toFixed(2) ?? '—'}.`);
+  L.push(`- Colons du fondateur : ${ev('wonder_settler').length}. Rassemblements contre les Immortels : ${wr.length} (sites ${wr.filter(e => e.target === 'WONDER').length}, plans ${wr.filter(e => e.target === 'PLAN').length}, dont ${wr.filter(e => e.wear).length} pour les user) ; armées (médiane) ${n(median(wr.map(e => e.armies)))}, puissance du rassemblement / Immortels (médiane) ${median(wr.map(e => e.immortals ? e.power / e.immortals : 0))?.toFixed(2) ?? '—'}.`);
   L.push(`- Sites libérés : ${ev('wonder_site_beaten').length} (premier au jour ${ev('wonder_site_beaten')[0]?.day ?? '—'}) ; Villes Merveille fondées : ${ev('wonder_city_founded').length} (${ev('wonder_city_founded').map(e => `${e.alliance} jour ${e.day}`).join(', ') || '—'}) ; plans pris : ${ev('wonder_plan_taken').length} (${ev('wonder_plan_taken').map(e => `${e.alliance} jour ${e.day}`).join(', ') || '—'}) ; rassemblements repoussés : ${ev('wonder_rally_repelled').length}.`);
   const lv = ev('wonder_level');
   L.push(`- Niveaux (jour atteint) : ${lv.map(e => `${e.alliance} ${e.level} (j${e.day})`).join(', ') || '—'}. Niveaux à la fin : ${(last?.endgame?.wonders || []).map(w => `${w.tag || '?'} ${w.level}`).join(', ') || '—'}.`);
@@ -185,6 +220,15 @@ function decisions(L, { metrics, events, CALLS, first, last }) {
     L.push(`- Rassemblements lancés ${n(b.launched || 0)} (pour user un étage ${n(b.launchedToWear || 0)}), armées envoyées ${n(b.joined || 0)}, repoussés ${n(w.repelled || 0)} ; attentes : ${kv(Object.fromEntries(Object.entries(b).filter(([k]) => /^wait\d+$/.test(k)).map(([k, v]) => [`${k.slice(4)} min`, v])))}.`);
     L.push(`- Trésor : ${n(w.treasureGold || 0)} or, ${n(w.treasureRes || 0)} de chaque ressource (par donjon détruit, avant partage).`);
   } else L.push('Pas de point d\'étape des invasions.');
+  // chefs (dernier étage) : combats des rassemblements des joueurs automatiques, par niveau du donjon ; donjons détruits par
+  // niveau (événements et base) ; étages du chef ouverts (base, toutes invasions)
+  const boss = last?.world?.bossFloor || 3;
+  const lvKv = (o) => kv(Object.fromEntries(Object.entries(o).sort((a, b) => Number(a[0]) - Number(b[0])).map(([k, v]) => [`niveau ${k}`, v])));
+  const fights = events.filter(e => ['rally_repelled', 'horde_floor_cleared', 'horde_destroyed'].includes(e.kind) && e.floor === boss);
+  const destroyed = ev('horde_destroyed');
+  const fromDb = (rows) => Object.fromEntries((rows || []).map(r => [r.level, r.n]));
+  L.push(`- Chefs (étage ${boss}) combattus : ${fights.length} (${lvKv(byKey(fights, 'level'))}), battus ${fights.filter(e => e.kind !== 'rally_repelled').length} (${lvKv(byKey(fights.filter(e => e.kind !== 'rally_repelled'), 'level'))}) ; étages du chef ouverts (base) : ${lvKv(fromDb(last?.world?.hordesBossByLevel))}.`);
+  L.push(`- Donjons détruits par niveau : ${destroyed.length} par les rassemblements (${lvKv(byKey(destroyed, 'level'))}) ; dans la base : ${lvKv(fromDb(last?.world?.hordesDestroyedByLevel))}.`);
   L.push('');
 
   // quêtes

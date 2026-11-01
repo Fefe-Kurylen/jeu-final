@@ -13,6 +13,7 @@
 // état (même choisie par un autre module) y reste.
 // Or des expéditions (décision du 31 octobre 2026, rapport de vérification) : seule une expédition menée par le héros en
 // rapporte ; le joueur part donc toujours avec l'armée que mène son héros (l'or rapporté est relevé par ../ledger.cjs).
+// Jamais avec l'armée que le joueur garde pour la Merveille (escorte du colon, prochain rassemblement : 70-wonder.cjs).
 // Expéditions : le jeu en crée environ une par heure et par joueur actif (une chance de 30/3600 à chaque tick de 30 s,
 // src/game/processors/expeditionProcessor.js generateNewExpeditions, sans tenir compte des heures écoulées). La
 // simulation joue un seul tick par pas de 6 h : sans rattrapage il en apparaîtrait une par mois. afterStep rejoue donc
@@ -28,6 +29,7 @@ const HE = require(path.join(ROOT, 'src/utils/heroEffects'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 const Stock = require('../stock.cjs');   // résurrection et Domus : payés sur toutes les villes du joueur, la capitale d'abord
 const { spareGold } = require('./30-military.cjs');   // l'or au-dessus de ce que le joueur garde pour l'élite
+const { keptForWonder } = require('./70-wonder.cjs');   // armées gardées à la maison pour la Merveille (escorte, rassemblement)
 let nameProblem = () => null;
 try { nameProblem = require(path.join(ROOT, 'src/utils/nameFilter')).nameProblem; } catch (e) { /* filtre absent : le serveur jugera */ }
 
@@ -399,9 +401,11 @@ async function expedition(bot, ctx, B, m, hero, cap) {
   if (B.left <= 0 || ctx.step < (m.ne || 0) || cap.isSieged || (bot.mem.heroHold || 0) > ctx.step) return;
   const army = bot.armies.find(a => a.heroId === hero.id);
   if (!army || army.isGarrison || !atHome(bot, army) || soldiers(army) < 10 || colonyBusy(bot, army.id)) return;
-  // une fondation en cours garde une armée de la capitale pour escorter le colon
+  // une fondation en cours garde une armée de la capitale pour escorter le colon ; l'escorte du colon de la Ville Merveille
+  // et l'armée annoncée pour le prochain rassemblement de l'alliance restent aussi à la maison (70-wonder.cjs)
   const col = bot.mem.mil?.col;
   if (col && (col.ph === 'approach' || col.ph === 'ready')) return;
+  if (keptForWonder(bot, army.id, ctx.step)) { bump(m, 'expKeptForWonder'); return; }
   const now = ctx.clock.now();
   const open = (bot.me?.expeditions || []).filter(e => e.status === 'AVAILABLE' && Date.parse(e.expiresAt) > now + 300000);
   if (!open.length) { bump(m, 'expNone'); m.ne = ctx.step + 2; return; }

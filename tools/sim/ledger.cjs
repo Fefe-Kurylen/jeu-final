@@ -2,15 +2,17 @@
 // des élites, le trésor des invasions sont à juger). Chaque jour, lu dans la base :
 // - l'or des expéditions (Expedition.lootGained.gold : seule une expédition menée par le héros en rapporte, décision du
 //   31 octobre 2026) ; le jeu efface les expéditions finies après quelques jours, d'où le relevé de chaque jour ;
-// - le trésor des donjons d'invasion détruits (l'or du niveau, partagé selon les dégâts) ;
-// - la Chambre au Trésor (l'or par jour de son niveau, dans la capitale de chaque joueur).
+// - le trésor des donjons d'invasion détruits (l'or du niveau, partagé selon les dégâts).
+// La Chambre au Trésor est mesurée à chaque tick (measureTreasury, appelé par sim.cjs autour de l'étape « gold » du tick) :
+// l'or des joueurs avant et après l'étape. L'estimation d'avant (l'or par jour du niveau lu ce jour-là) comptait le nouveau
+// niveau pour toute la journée d'une amélioration, alors que le jeu paie l'or avant les constructions du tick : « Autres
+// sources » devenait négatif (−5 091 au jour 182, analyse de la simulation du 1er novembre 2026).
 // L'or dépensé vient des compteurs des joueurs automatiques : élites, soins à l'or, espions, talents. Le reste de la
-// variation de l'or des joueurs : les autres sources (camps d'or, défi de la semaine…).
+// variation de l'or des joueurs : les autres sources (camps d'or, défi de la semaine, remboursements…).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
 const config = require(path.join(ROOT, 'src/config'));
-const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 
 const DAY = 86400000;
 const T = config.invasion.treasure;
@@ -18,11 +20,26 @@ const treasureGold = (level) => Math.round(T.gold * Math.pow(T.goldFactor, level
 
 const empty = () => ({ lastAt: null, gold0: null, goldNow: 0, treasury: 0, expeditions: { gold: 0, done: 0, withGold: 0 }, invasion: { gold: 0, destroyed: {} }, seenExp: {} });
 
+// l'or de ces joueurs, tous ensemble
+async function goldOf(prisma, ids) {
+  const r = await prisma.player.aggregate({ where: { id: { in: ids } }, _sum: { gold: true } });
+  return Number(r._sum.gold) || 0;
+}
+// l'étape « gold » du tick (run) : ce qu'elle verse aux joueurs va à la Chambre au Trésor du relevé. Rien d'autre ne change
+// l'or pendant qu'elle tourne (les joueurs automatiques attendent la fin du tick). Une lecture qui échoue n'empêche jamais
+// l'étape du jeu de tourner : ce tick n'est simplement pas compté.
+async function measureTreasury(prisma, L, ids, run) {
+  const before = await goldOf(prisma, ids).catch(() => null);
+  const out = await run();
+  const after = before === null ? null : await goldOf(prisma, ids).catch(() => null);
+  if (after !== null) L.treasury += after - before;
+  return out;
+}
+
 async function daily(prisma, clock, L, bots) {
   const now = clock.now();
   const ids = bots.map(b => b.playerId).filter(Boolean);
-  const players = await prisma.player.findMany({ where: { id: { in: ids } }, select: { id: true, gold: true } });
-  L.goldNow = players.reduce((t, p) => t + (p.gold || 0), 0);
+  L.goldNow = await goldOf(prisma, ids);
   if (L.gold0 === null) L.gold0 = L.goldNow;
   // expéditions finies (gagnées ou perdues), une seule fois chacune
   const exps = await prisma.expedition.findMany({ where: { status: 'COMPLETED', endsAt: { gt: new Date(now - 3 * DAY), lte: new Date(now) } }, select: { id: true, lootGained: true, endsAt: true } });
@@ -38,10 +55,6 @@ async function daily(prisma, clock, L, bots) {
   const since = new Date(L.lastAt ?? now - DAY);
   const hordes = await prisma.horde.findMany({ where: { destroyedAt: { gt: since, lte: new Date(now) } }, select: { level: true } });
   for (const h of hordes) { L.invasion.gold += treasureGold(h.level); L.invasion.destroyed[`L${h.level}`] = (L.invasion.destroyed[`L${h.level}`] || 0) + 1; }
-  // Chambre au Trésor de chaque capitale, pour les jours écoulés
-  const days = L.lastAt ? (now - L.lastAt) / DAY : 1;
-  const chambers = await prisma.cityBuilding.findMany({ where: { key: 'TREASURE_CHAMBER', city: { isCapital: true, playerId: { in: ids } } }, select: { level: true } });
-  L.treasury += Math.round(chambers.reduce((t, b) => t + fx.goldPerDayAtLevel(Math.min(20, b.level)), 0) * days);
   L.lastAt = now;
 }
 
@@ -60,4 +73,4 @@ function view(L, bots) {
   return { goldNow: L.goldNow, gold0: L.gold0, income: { ...income, other: Math.round((L.goldNow - (L.gold0 || 0)) + spentTotal - known) }, spent, expeditions: { done: L.expeditions.done, withGold: L.expeditions.withGold }, invasionDestroyed: L.invasion.destroyed };
 }
 
-module.exports = { empty, daily, view, treasureGold };
+module.exports = { empty, daily, view, measureTreasury, treasureGold };

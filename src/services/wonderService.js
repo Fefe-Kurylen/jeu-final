@@ -357,9 +357,11 @@ async function immortalWave(city, now) {
     let lost = null;
     if (result.attackerWon) lost = await loseLevels(tx, full, 1, 'Une vague d\'Immortels');
     await require('./rankingService').recordCombat(tx, { attackers: [], defenders: [{ playerId: full.playerId, units: 1 }], attackerLosses: result.attackerFinalUnits, defenderLosses: [] });
-    return { won: !result.attackerWon, lost, reportId: report.id, playerId: full.playerId, name: full.name };
+    return { won: !result.attackerWon, lost, reportId: report.id, playerId: full.playerId, name: full.name, defenders };
   }, { timeout: 15000 });
   if (outcome && outcome.won) notify(outcome.playerId, 'world', '🛡️ Immortels repoussés', `Les défenseurs de ${outcome.name} ont repoussé une vague d'Immortels.`, { to: 'report', reportId: outcome.reportId });
+  // les armées venues d'autres villes que la vague a vidées rentrent chez elles (armyProcessor.sendWipedGuestsHome)
+  if (outcome) await require('../game/processors/armyProcessor').sendWipedGuestsHome({ id: city.id, name: outcome.name }, outcome.defenders);
   return outcome;
 }
 

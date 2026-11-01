@@ -109,7 +109,7 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
     return;
   }
   const units = await prisma.armyUnit.findMany({ where: { armyId: army.id } });
-  if (units.length === 0) {
+  if (!units.some(u => u.count > 0)) {
     await setArmyIdle(army.id, { x: homeCity.x, y: homeCity.y, ...extraData });
     await depositCarry({ ...army, ...extraData }, homeCity);
     return;
@@ -127,6 +127,24 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
 // Armies physically standing in the city defend it (allied reinforcements stationed there too); armies away on missions do not
 function defendingArmies(city) {
   return city.armies.filter(a => (a.status === 'IDLE' || a.status === 'STATIONED') && a.x === city.x && a.y === city.y);
+}
+
+// Après un combat dans une ville (attaque, raid, vague d'Immortels) : les défenseurs venus d'ailleurs (renforts alliés
+// stationnés, armées du joueur venues de ses autres villes) qui n'ont plus aucun soldat rentrent aussitôt chez eux
+// (sendArmyHome les pose dans leur ville avec leurs blessés). Sinon ils resteraient là, vides, avec leur emplacement d'armée
+// pris dans leur ville. Lus à nouveau : la chute de la ville a pu les renvoyer entre-temps (une armée qui n'est plus là où
+// elle a combattu est déjà partie). Une erreur sur une armée n'arrête ni les autres ni la suite du combat.
+async function sendWipedGuestsHome(city, defenders) {
+  for (const d of defenders || []) {
+    if (!d.cityId || d.cityId === city.id) continue;   // une armée chez elle y reste
+    try {
+      const a = await prisma.army.findUnique({ where: { id: d.id } });
+      if (!a || !['STATIONED', 'IDLE'].includes(a.status) || a.x !== d.x || a.y !== d.y) continue;
+      if (await prisma.armyUnit.count({ where: { armyId: a.id, count: { gt: 0 } } })) continue;
+      await sendArmyHome(a, a.x, a.y);
+      notify(a.ownerId, 'battle', '💀 Armée anéantie', `${a.name} a perdu tous ses soldats à ${city.name} : elle rentre aussitôt dans sa ville.`, { to: 'army', armyId: a.id });
+    } catch (e) { console.error(`[ARMY] renfort anéanti ${d.id} :`, e.message); }
+  }
 }
 
 async function depositCarry(army, homeCity) {
@@ -484,6 +502,7 @@ async function handleAttack(army, now) {
     } catch (fallErr) { console.error('[FALL]', fallErr.message); }
   }
   for (const g of group) await sendArmyHome(g, g.targetX ?? army.targetX, g.targetY ?? army.targetY);
+  await sendWipedGuestsHome(targetCity, defenders);   // après les blessés et la chute : renforts anéantis
   await refreshSiegeFlag(prisma, targetCity.id);   // the siege is lifted when no other army camps before the city
 }
 
@@ -669,7 +688,7 @@ async function handleRaid(army, now) {
     // statistiques des deux joueurs, comme une attaque (unités tuées et perdues)
     await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: defKilled }, unitsLost: { increment: atkKilled }, ...(result.attackerWon ? { raidsWon: { increment: 1 } } : {}) }, create: { playerId: army.ownerId, unitsKilled: defKilled, unitsLost: atkKilled, raidsWon: result.attackerWon ? 1 : 0 } });
     await tx.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: atkKilled }, unitsLost: { increment: defKilled } }, create: { playerId: targetCity.playerId, unitsKilled: atkKilled, unitsLost: defKilled } });
-    return { targetCity, result, defenderHero, atkKilled, defKilled, atkReportId: atkReport.id, defReportId: defReport.id, helperIds: [...new Set(defenders.filter(d => d.ownerId !== targetCity.playerId).map(d => d.ownerId))] };
+    return { targetCity, result, defenderHero, atkKilled, defKilled, atkReportId: atkReport.id, defReportId: defReport.id, helperIds: [...new Set(defenders.filter(d => d.ownerId !== targetCity.playerId).map(d => d.ownerId))], defenders };
   }, TX);
   if (!raid) {
     await sendArmyHome(army, army.targetX, army.targetY);
@@ -706,6 +725,7 @@ async function handleRaid(army, now) {
   for (const helperId of raid.helperIds || []) notify(helperId, 'battle', '🛡️ Renfort au combat', `Vos troupes en renfort à ${targetCity.name} ont repoussé${result.attackerWon ? ' en vain' : ''} le raid de ${army.owner.name} (pertes : ${Math.round(result.defenderLossRate * 100)} %).`, { to: 'map', x: targetCity.x, y: targetCity.y });
   console.log(`[RAID] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Raider won' : 'Defender won'}`);
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: loot.wood, carryStone: loot.stone, carryIron: loot.iron, carryFood: loot.food });
+  await sendWipedGuestsHome(targetCity, raid.defenders);   // renforts anéantis (après le pillard : son butin d'abord)
 }
 
 async function handleSpy(army, now) {
@@ -766,4 +786,4 @@ async function handleTransport(army, now) {
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: back.wood, carryStone: back.stone, carryIron: back.iron, carryFood: back.food });
 }
 
-module.exports = { processArmyMovements, sendArmyHome, raidLosses, withGuestDefenders, defendingArmies };   // sendArmyHome : rassemblements d'alliance (rallyService) ; défenseurs d'une ville : vagues d'Immortels (wonderService) ; raidLosses : tests
+module.exports = { processArmyMovements, sendArmyHome, raidLosses, withGuestDefenders, defendingArmies, sendWipedGuestsHome };   // sendArmyHome : rassemblements d'alliance (rallyService), garnisons de Bastion vidées (bastionService) ; défenseurs d'une ville : vagues d'Immortels (wonderService) ; raidLosses : tests

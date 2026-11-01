@@ -4,7 +4,9 @@
 // un officier près des membres, convois de ravitaillement (armée « Convoi » chargée depuis la capitale), puis garnison
 // (config.bastion.maxGarrisonArmies armées au plus, celles en route comprises : le refus 400 « Garnison du Bastion
 // complète » est normal ; décision du 31 octobre 2026). Le convoi est le rôle convoy des emplacements partagés de la Place
-// de rassemblement (../armies.cjs).
+// de rassemblement (../armies.cjs). Rapport sim-d : l'armée de garnison a la taille d'une armée de campagne du joueur (80 %
+// de sa plus forte), elle se remplit depuis la garnison de la ville et par des recrues défensives, et rentre se regarnir
+// quand un assaut l'a réduite (avant : 80 soldats au plus, jamais regarnie).
 // Un peu de vie aussi : un membre de C part et revient, le chef de C passe la main, le chef de B exclut puis réinvite un
 // membre, un solitaire refuse une invitation. Les attaques contre le Bastion ennemi sont laissées au module de guerre.
 // Chaque joueur fait au plus 6 appels par tour pour ce module ; les conditions sont vérifiées avant d'appeler.
@@ -26,6 +28,19 @@ const MAX_QUEUE = config.build.maxRunning + config.build.maxQueued;
 const BASTION = config.bastion;
 const CONVOY_NAME = Armies.NAMES.convoy;
 const FULL_REST = 24;            // garnison complète : le convoi se dissout et ne se reforme qu'après 6 jours
+// Garnison du Bastion (rapport sim-d : des armées de 80 soldats au plus, jamais regarnies ; après le jour 91, 72 assauts sur
+// 74 n'ont trouvé que 200 défenseurs ou moins et ne testaient que le mur) : une vraie armée de défense, de 80 % de la plus
+// forte armée de campagne du joueur (la « médiane des armées des défenseurs » de la décision D9), remplie depuis la garnison
+// de la ville (30 % y restent) puis par des recrues défensives au fil des tours ; réduite par un assaut, elle rentre se
+// regarnir. Avec --full-garrison (ctx.OPT.fullGarrison), le joueur y envoie sa plus forte armée de campagne elle-même.
+const GARRISON_MIN = 80;
+const GARRISON_SHARE = 0.8;      // taille voulue : 80 % de la plus forte armée de campagne du joueur
+const GARRISON_KEEP = 0.3;       // part de chaque troupe laissée à la ville quand le convoi se remplit
+const GARRISON_SEND = 0.75;      // elle part quand elle a 75 % de la taille voulue…
+const GARRISON_WAIT = 12;        // … ou après 3 jours d'attente avec la moitié au moins
+const GARRISON_REFILL = 0.3;     // postée, sous 30 % de la taille voulue, elle rentre se regarnir
+const GARRISON_TOPUP_DAYS = 14;  // postée depuis 2 semaines et sous la moitié de la taille voulue (l'armée du joueur a grandi)
+const GARRISON_BATCH = 150;      // recrues défensives par lot
 const RECRUIT_BUILDING = { INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE' };
 const U = new Map(unitsData.map(u => [u.key, u]));
 const carryOfUnit = (key) => U.get(key)?.stats?.carry || U.get(key)?.stats?.transport || 50;
@@ -472,7 +487,7 @@ function bestRecruit(city, faction, score) {
   const ok = unitsData.filter(u => u.faction === faction && u.tier === 'base' && RECRUIT_BUILDING[u.class] && levelIn(city, RECRUIT_BUILDING[u.class]) > 0);
   return ok.sort((a, b) => score(b) - score(a))[0] || null;
 }
-async function recruit(bot, S, city, unit, want) {
+async function recruit(bot, S, city, unit, want, batch = 80) {
   if (!unit || want < 10 || city.isSieged) return false;
   const building = RECRUIT_BUILDING[unit.class];
   if ((city.recruitQueue || []).filter(q => q.buildingKey === building).length >= 3) return false;
@@ -480,7 +495,7 @@ async function recruit(bot, S, city, unit, want) {
   // jamais plus que ce qui dépasse un tiers du stockage (toutes les villes, le prix y puise) : la construction continue
   const t = Stock.totals(bot);
   const can = Math.min(...RES.map(r => Math.floor(Math.max(0, t[r] - (r === 'food' ? t.maxFoodStorage : t.maxStorage) / 3) / Math.max(1, one[r]))));
-  const count = Math.min(want, 80, can);
+  const count = Math.min(want, batch, can);
   if (count < 10) return false;
   const r = await S.post(`/api/cities/${city.id}/recruit`, { unitKey: unit.key, count });
   if (!r.ok) return false;
@@ -603,38 +618,60 @@ async function supplyTurn(bot, ctx, S, m, city, bastion) {
   if (s.ok) { RES.forEach(r => { city[r] -= load[r]; }); army.status = 'TRANSPORTING'; if (borrowed) m.borrowed = (m.borrowed || 0) + 1; }
 }
 
-// garnison au Bastion : son armée (le convoi devenu inutile), complétée par des unités de la ville
+// soldats d'une armée (sans les engins)
+const soldiersIn = (army) => (army?.units || []).filter(u => U.get(u.unitKey)?.class !== 'SIEGE').reduce((t, u) => t + (u.count || 0), 0);
+// la taille voulue pour l'armée de garnison : 80 % de la plus forte armée de campagne du joueur (80 au moins)
+function garrisonWant(bot) {
+  const own = new Set(bot.mem.mil?.own || []);
+  const field = bot.armies.filter(a => !a.isGarrison && (own.size ? own.has(a.id) : a.name !== CONVOY_NAME)).reduce((t, a) => Math.max(t, soldiersIn(a)), 0);
+  return Math.max(GARRISON_MIN, Math.round(GARRISON_SHARE * field));
+}
+
+// garnison au Bastion : son armée (le convoi devenu inutile), remplie depuis la garnison de la ville et par des recrues
 async function garrisonTurn(bot, ctx, S, w, m, city, target, own) {
   if (city.isSieged || target.isSieged) return;
   const faction = bot.me.faction || bot.faction;
+  const want = garrisonWant(bot);
   const there = bot.armies.find(a => a.targetBastionId === target.id && ['STATIONED', 'SUPPORTING'].includes(a.status));
   if (there) {
-    // relève : rappelée de temps en temps, elle repartira au tour suivant
-    if (there.status === 'STATIONED' && m.gs !== undefined && w.day - m.gs > 30 && ctx.rand() < 0.1) {
+    // postée : réduite par un assaut (sous 30 % de la taille voulue), ou trop petite depuis deux semaines (l'armée du joueur a
+    // grandi), elle rentre se regarnir et repartira (le serveur renvoie de lui-même une armée anéantie)
+    const n = soldiersIn(there);
+    const topUp = n < 0.5 * want && m.gs !== undefined && w.day - m.gs >= GARRISON_TOPUP_DAYS;
+    if (there.status === 'STATIONED' && (n < Math.max(30, GARRISON_REFILL * want) || topUp) && S.left() > 0) {
       const r = await S.post(`/api/army/${there.id}/return`);
-      if (r.ok) { m.gs = undefined; m.relief = (m.relief || 0) + 1; }
+      if (r.ok) { there.status = 'RETURNING'; m.gs = undefined; m.relief = (m.relief || 0) + 1; if (!topUp) m.refills = (m.refills || 0) + 1; }
     }
     return;
   }
   // garnison trouvée complète il y a peu : pas de convoi (sa place sert à un autre rôle), on retentera plus tard
   if ((m.full || -99) > ctx.step - FULL_REST) return;
-  const army = await moduleArmy(bot, S, m, city);
+  // mesure de la décision D9 : la plus forte armée de campagne elle-même (sans convoi)
+  const big = ctx.OPT?.fullGarrison ? bot.armies.filter(a => !a.isGarrison && (bot.mem.mil?.own || []).includes(a.id) && atHome(a, city) && soldiersIn(a) > 0).sort((a, b) => soldiersIn(b) - soldiersIn(a))[0] : null;
+  const army = big || await moduleArmy(bot, S, m, city);
   if (!army || !atHome(army, city)) return;
-  // compléter avec une partie des défenseurs de la ville (la moitié au plus de chaque type)
-  if (unitsTotal(army) < 80) {
-    let missing = 80 - unitsTotal(army);
-    await fillArmy(bot, S, army, city, { order: (u) => defOfUnit(u.unitKey) * 1000 + u.count, want: () => missing, moved: (n) => { missing -= n; }, keepPct: 0.5 });
-  }
-  if (unitsTotal(army) < 30) {
-    const unit = bestRecruit(city, faction, (u) => (u.stats?.defense || 0));
-    const queued = (city.recruitQueue || []).filter(q => q.unitKey === unit?.key).reduce((t, q) => t + (q.count || 0), 0);
-    if (unit && queued < 40 && S.left() > 1) await recruit(bot, S, city, unit, 60 - queued);
-    return;
+  if (!big && soldiersIn(army) < GARRISON_SEND * want) {
+    // compléter avec les défenseurs de la ville (30 % restent), puis des recrues défensives si l'entretien le permet
+    m.gp ??= ctx.step;   // depuis quand elle se prépare
+    let missing = want - soldiersIn(army);
+    await fillArmy(bot, S, army, city, { order: (u) => defOfUnit(u.unitKey) * 1000 + u.count, want: () => missing, moved: (n) => { missing -= n; }, keepPct: GARRISON_KEEP });
+    if (soldiersIn(army) < GARRISON_SEND * want && S.left() > 1) {
+      const unit = bestRecruit(city, faction, (u) => (u.stats?.defense || 0));
+      const queued = (city.recruitQueue || []).filter(q => q.unitKey === unit?.key).reduce((t, q) => t + (q.count || 0), 0);
+      const fb = Stock.foodBalance(bot);
+      const upkeep = config.army.upkeepPerTier?.base || 5;
+      const room = fb ? Math.floor((fb.net - Math.max(60, 0.3 * (fb.production || 0))) / upkeep) : 0;   // le joueur garde de quoi grandir
+      const count = Math.min(want - soldiersIn(army) - queued, room);
+      if (unit && count >= 10) await recruit(bot, S, city, unit, count, GARRISON_BATCH);
+      else if (room < 10) m.foodWait = (m.foodWait || 0) + 1;
+    }
+    const waited = ctx.step - m.gp >= GARRISON_WAIT;
+    if (soldiersIn(army) < GARRISON_SEND * want && !(waited && soldiersIn(army) >= Math.max(GARRISON_MIN, 0.5 * want))) return;
   }
   if (S.left() < 1) return;
   // garnison complète : le convoi se dissout (ses soldats rentrent dans la garnison de la ville) et rend sa place
   const full = async () => {
-    m.full = ctx.step;
+    m.full = ctx.step; m.gp = undefined;
     if (S.left() > 0 && army.id === m.cv) { const d = await S.del(`/api/army/${army.id}/disband`); if (d.ok) { m.cv = undefined; bot.armies = bot.armies.filter(a => a.id !== army.id); } }
   };
   if (own) {
@@ -642,11 +679,13 @@ async function garrisonTurn(bot, ctx, S, w, m, city, target, own) {
     const g = await S.get('/api/bastion');
     const b = g.ok ? g.data?.bastion : null;
     if (!b || b.id !== target.id || b.status === 'FUNDING' || b.status === 'DESTROYED' || b.isSieged) return;
-    // garnison complète (celles en route et la sortie en cours comprises, comme le compte du serveur) : il attend
-    if ((b.garrison || []).length >= (b.maxGarrisonArmies || BASTION.maxGarrisonArmies)) { m.fullSeen = (m.fullSeen || 0) + 1; await full(); return; }
+    // garnison complète (celles en route et la sortie en cours comprises, comme le compte du serveur ; une armée postée sans
+    // soldats ne compte pas) : il attend
+    const held = (b.garrison || []).filter(x => (x.units || []).length > 0).length;
+    if (held >= (b.maxGarrisonArmies || BASTION.maxGarrisonArmies)) { m.fullSeen = (m.fullSeen || 0) + 1; await full(); return; }
   }
   const r = await S.post(`/api/bastion/${target.id}/send`, { armyId: army.id, mission: 'GARRISON' });
-  if (r.ok) { army.status = 'SUPPORTING'; m.gs = w.day; m.garrisons = (m.garrisons || 0) + 1; return; }
+  if (r.ok) { army.status = 'SUPPORTING'; m.gs = w.day; m.gp = undefined; m.garrisons = (m.garrisons || 0) + 1; m.garrisonSoldiers = (m.garrisonSoldiers || 0) + soldiersIn(army); return; }
   // refus normal : la garnison s'est remplie entre-temps (décision du 31 octobre 2026)
   if (r.status === 400 && /Garnison du Bastion complète/.test(String(r.data?.error || ''))) { m.fullRefused = (m.fullRefused || 0) + 1; await full(); }
 }

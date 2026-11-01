@@ -21,7 +21,23 @@
 //   (rôle wonder de ../armies.cjs ; sans place, l'Ost d'un guerrier) remplie depuis leur garnison : en renfort (POST
 //   /api/army/:id/support), ou déplacée (POST /api/army/:id/move) par le propriétaire, dont c'est la ville.
 // - Suivi : sites pris, plans, niveaux, livraisons par armée, vagues tenues ou perdues (events.jsonl, point d'étape).
-// Au plus 6 appels par joueur et par tour, 120 par pas pour le conseil.
+// Simulation après les décisions du 31 octobre 2026 (rapport sim-d, relu) :
+// - Livraisons : la ressource qui bloque le niveau suivant part d'abord (ce qui manque au chantier pour ses 3 prochains
+//   niveaux), puis ce qui manque pour 10 niveaux ; rien de ce que le chantier a déjà pour 10 niveaux. Les céréales qui
+//   manquent s'achètent au marchand du serveur de la capitale (POST /api/market/npc-trade, sa vraie taxe) juste avant de
+//   partir : le grenier de la capitale paie ses troupes d'abord, il est presque toujours vide (Merveille bloquée 41 jours
+//   au niveau 1 faute de 1 235 céréales, avec 46,8 M de bois, pierre et fer en stock).
+// - Escorte du colon : le fondateur garde une armée au repos dans sa capitale pendant la phase des sites (drapeau
+//   bot.mem.wonder.holdEscort, lu par 30-military.cjs ; le marché, le héros et les invasions ne la font pas partir non
+//   plus). Il fonde dès le début de son tour (28-wonder-early.cjs, avant que le module militaire n'envoie ses armées), et le
+//   conseil relit ses armées avant de fonder pour lui quand il ne joue pas ce pas-ci. Il ne mène plus le rassemblement d'un
+//   site (son armée serait au combat quand le site se libère). Avant : site libéré 9 fois avant la fondation.
+// - Rassemblements : chaque membre y envoie toute son armée de la capitale (ses autres armées au repos s'y fondent, plus
+//   90 % de chaque troupe de la garnison) ; le prochain rassemblement est annoncé : l'armée la plus forte de chaque membre
+//   reste à la maison (bot.mem.wonder.keep, et bot.mem.mil.idle pour le module militaire), sauf pour les donjons du
+//   week-end (60-invasion.cjs) ; après trois conseils de suite sans rassemblement possible, l'annonce s'arrête 3 jours. Un
+//   plan se prend aussi avant la Ville Merveille quand le site n'occupe pas l'alliance.
+// Au plus 8 appels par joueur et par tour, 400 par pas pour le conseil de chaque alliance.
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -39,16 +55,22 @@ const STOCK = { wood: 'wonderWood', stone: 'wonderStone', iron: 'wonderIron', fo
 const UNIT = Object.fromEntries(unitsData.map(u => [u.key, u]));
 const TIER = config.combat.tierCoefficients;
 const GROUPS = ['A', 'B'];       // les alliances assez grandes pour la fin de partie (15 à 20 membres)
-const CALLS = 6;
-const COUNCIL_CALLS = 120;
+const CALLS = 8;
+const COUNCIL_CALLS = 400;       // par alliance (fondre les armées d'un membre et le remplir : une quinzaine d'appels)
 const WAITS = config.rally.waitMinutes;
 const MAX_WAIT_S = Math.max(...WAITS) * 60;
 const ATTRITION = 0.6;           // un rassemblement qui pèse 60 % des Immortels part les user (ils gardent leurs pertes)
-const FILL_SHARE = 0.8;          // part de chaque troupe de la garnison qu'un membre met dans l'armée du rassemblement
+const RALLY_SHARE = 0.9;         // part de chaque troupe de la garnison qu'un membre met dans l'armée du rassemblement
 const KEEP_STOCK = 0.3;          // part du stockage de la capitale gardée pour bâtir quand on livre la Merveille
+const COVER_LEVELS = 3;          // livraisons : ce qui manque au chantier pour ses 3 prochains niveaux part d'abord
+const STOCK_LEVELS = 10;         // puis ce qui manque pour 10 niveaux ; au-delà, la ressource ne part plus
 const DEFENSE_MARGIN = 1.25;     // défenseurs voulus face à la vague suivante
 const GUARD_SHARE = 0.6;         // part des soldats de la garnison que prend la garde de la Merveille
 const NOTIF_ODDS = (wait) => (wait >= 120 ? 0.8 : 0.6);   // un membre qui ne joue pas ce pas-ci voit la notification à temps
+// trois conseils de suite sans rassemblement possible (personne à la maison, ou trop faible) : les membres ne gardent plus
+// leur armée la plus forte pendant 3 jours (récoltes, livraisons), le conseil essaie encore avec ceux qui sont là
+const WEAK_PAUSE = 3;
+const QUIET_STEPS = 12;
 // armées d'un autre rôle, jamais prises pour un rassemblement ni pour escorter le colon
 const ESCORT_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.convoy]);
 const RALLY_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.caravan, Armies.NAMES.convoy]);
@@ -63,10 +85,32 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const minSpeed = (units) => Math.min(100, ...fighters(units).map(u => UNIT[u.unitKey].stats?.speed || 50));
 // durée de marche estimée (s) : la route contourne le relief (× 1,25), sans les bonus de vitesse (prudent)
 const travelSec = (units, a, b) => dist(a, b) * 1.25 * 30 * 50 / Math.max(1, minSpeed(units));
-const online = (ctx, b) => !!b.mem?.alwaysOn || (ctx.step + (b.turn || 0)) % 2 === 0;
+// le joueur joue ce pas-ci : la règle de la boucle (ctx.plays, si la simulation la donne), sinon un pas sur deux
+const online = (ctx, b) => (typeof ctx.plays === 'function' ? !!ctx.plays(b) : !!b.mem?.alwaysOn || (ctx.step + (b.turn || 0)) % 2 === 0);
 const capOf = (city, r) => Math.max(1, (r === 'food' ? city.maxFoodStorage : city.maxStorage) || 1);
 const ms = (d) => (d ? new Date(d).getTime() : 0);
 const bump = (k, key, n = 1) => { k[key] = (k[key] || 0) + n; };
+
+// ---------- armées gardées pour la Merveille (lues aussi par 30-military.cjs, 40-market.cjs, 25-hero.cjs, 50-war.cjs ;
+// 60-invasion.cjs ne lit que l'escorte) ----------
+// bot.mem.wonder : { holdEscort, keep: { armée: pas } }. holdEscort : le fondateur garde une armée au repos dans sa capitale
+// pour escorter son colon ; keep : l'armée annoncée pour le prochain rassemblement de l'alliance, jusqu'à ce pas
+const wonderMem = (bot) => (bot.mem.wonder ||= {});
+// les armées de la capitale qui peuvent escorter le colon : au repos chez elles, avec des soldats, d'aucun rôle réservé ;
+// la plus petite d'abord (c'est elle qui part avec le colon)
+const escortsOf = (armies, cap) => (armies || []).filter(a => Armies.atHome(a, cap) && soldiers(a.units) > 0 && !ESCORT_NEVER.has(a.name))
+  .sort((a, b) => soldiers(a.units) - soldiers(b.units));
+function heldEscort(bot, armies = bot?.armies) {
+  if (bot?.mem?.wonder?.holdEscort !== true || !bot.capital) return null;
+  return escortsOf(armies, bot.capital)[0] || null;
+}
+// une armée que les autres modules ne font pas partir : l'escorte gardée, ou celle annoncée pour le rassemblement
+function keptForWonder(bot, armyId, step = bot?.ctx?.step) {
+  const w = bot?.mem?.wonder;
+  if (!w || !armyId) return false;
+  if (w.holdEscort === true && heldEscort(bot)?.id === armyId) return true;
+  return Number.isFinite(step) && (w.keep?.[armyId] || 0) > step;
+}
 
 // ---------- ce que les joueurs voient (la carte, l'écran « Monde »), lu une fois par pas ----------
 let SNAP = { step: -1 };
@@ -104,6 +148,13 @@ async function snapshot(ctx) {
         const here = guards.filter(a => a.targetCityId === c.id || (a.ownerId === c.playerId && ((a.x === c.x && a.y === c.y && a.status === 'IDLE') || (a.targetX === c.x && a.targetY === c.y && a.status === 'MOVING'))));
         s.defense.set(c.id, { armies: here.length, power: here.reduce((t, a) => t + powerOf(a.units), 0) });
       }
+      // les livraisons en route vers chaque chantier (l'alliance voit ses convois) : comptées dans ce qu'il a déjà
+      const convoys = await P.army.findMany({ where: { status: 'TRANSPORTING', missionType: 'TRANSPORT', OR: wonders.map(c => ({ targetX: c.x, targetY: c.y })) }, select: { targetX: true, targetY: true, carryWood: true, carryStone: true, carryIron: true, carryFood: true } });
+      for (const c of wonders) {
+        const mine = convoys.filter(a => a.targetX === c.x && a.targetY === c.y);
+        c.inbound = { wood: 0, stone: 0, iron: 0, food: 0 };
+        for (const a of mine) { c.inbound.wood += a.carryWood; c.inbound.stone += a.carryStone; c.inbound.iron += a.carryIron; c.inbound.food += a.carryFood; }
+      }
     }
   }
   SNAP = s;
@@ -115,9 +166,12 @@ const waveNeed = (level) => WS.wavePower(Math.max(1, level + 1)) * DEFENSE_MARGI
 
 // ---------- mémoire : celle du joueur, et celle de l'alliance (gardée par le premier joueur du groupe) ----------
 function memOf(bot, s) {
-  if (!bot.mem.won || bot.mem.won.w !== s.number) bot.mem.won = { w: s.number, k: {} };
+  // monde suivant : tout recommence (et plus d'escorte ni d'armée gardée du monde d'avant)
+  if (!bot.mem.won || bot.mem.won.w !== s.number) { bot.mem.won = { w: s.number, k: {} }; bot.mem.wonder = {}; }
   return bot.mem.won;
 }
+// hors de la phase des sites (ou monde fini) : le joueur ne garde pas d'escorte
+const dropEscort = (bot) => { if (bot.mem.wonder) bot.mem.wonder.holdEscort = false; };
 function allianceState(ctx, g, s) {
   const keeper = ctx.byGroup(g).find(b => b.playerId);
   if (!keeper) return null;
@@ -139,7 +193,10 @@ function founderOf(ctx, s, g, as, allianceId) {
   const ready = (b) => b.playerId && s.allianceOf.get(b.playerId) === allianceId && b.capital && lvl(b.capital, 'RESIDENCE') >= 10 &&
     Armies.colonies(b).length >= Math.min(config.city.maxSecondaryCities, fx.settlerSlots(lvl(b.capital, 'RESIDENCE')));
   const cur = ctx.bots.find(b => b.playerId === as.founder);
-  if (cur && (ready(cur) || (cur.capital?.settlers || 0) > 0)) return cur;
+  // pas encore relu depuis une reprise de la simulation (ses villes arrivent à son tour) : il reste le fondateur, on attend
+  // (avant : le premier membre relu le remplaçait, et un second colon était formé)
+  if (cur && !cur.me) return null;
+  if (cur && cur.capital && (ready(cur) || (cur.capital.settlers || 0) > 0 || (cur.armies || []).some(a => (a.settlers || 0) > 0))) return cur;
   const best = ctx.byGroup(g).filter(ready).sort((a, b) => dist(a.capital, { x: 0, y: 0 }) - dist(b.capital, { x: 0, y: 0 }))[0] || null;
   as.founder = best?.playerId || null;
   return best;
@@ -168,9 +225,9 @@ async function foundTurn(bot, ctx, B, m, s) {
   if (!site) return false;
   // le colon part avec les 3 000 de chaque ressource de la fondation (stock de toutes les villes, la capitale d'abord)
   if (!Stock.canPay(bot, config.city.foundationTransport)) { bump(m.k, 'foundWaitRes'); return false; }
-  // l'escorte du colon : une armée au repos dans la capitale (la plus petite), qui rentre après la fondation ; jamais une
-  // garde (colonie, Ville Merveille) ni le convoi du Bastion, qui ont leur rôle
-  const escort = bot.armies.filter(a => Armies.atHome(a, cap) && soldiers(a.units) > 0 && !ESCORT_NEVER.has(a.name)).sort((a, b) => soldiers(a.units) - soldiers(b.units))[0];
+  // l'escorte du colon : une armée au repos dans la capitale (la plus petite, celle gardée à la maison), qui rentre après la
+  // fondation ; jamais une garde (colonie, Ville Merveille) ni le convoi du Bastion, qui ont leur rôle
+  const escort = escortsOf(bot.armies, cap)[0];
   if (!escort) { bump(m.k, 'founderNoEscort'); return false; }
   B.left--;
   const r = await bot.post(`/api/army/${escort.id}/found-city`, { resourceNodeId: site.id });
@@ -179,9 +236,18 @@ async function foundTurn(bot, ctx, B, m, s) {
   cap.settlers = Math.max(0, (cap.settlers || 0) - 1);
   Stock.spend(bot, cap, config.city.foundationTransport);
   site.hasPlayerArmy = true;
+  wonderMem(bot).holdEscort = false;   // le colon est parti avec son escorte
   bump(m.k, 'foundSent');
   ctx.event('wonder_found_sent', { bot: bot.name, x: site.x, y: site.y, arrivalAt: r.data?.arrivalAt || null });
   return true;
+}
+
+// le fondateur garde son escorte à la maison pendant toute la phase des sites, tant qu'il a son colon et qu'un site reste à
+// prendre : le combat qui libère un site se joue au tick, avant son tour, et une armée partie récolter reste dehors deux
+// jours (simulation sim-d : site libéré 9 fois avant la fondation, l'escorte toujours partie)
+function escortWanted(s, founder, wc) {
+  if (wc || !s.sitesOpen || !founder?.capital || !((founder.capital.settlers || 0) > 0)) return false;
+  return (s.sites || []).some(n => !n.cityId);
 }
 
 // ---------- tour du propriétaire : le niveau suivant ----------
@@ -203,18 +269,68 @@ async function buildTurn(bot, ctx, B, m, wc) {
 }
 
 // ---------- livraisons : une armée de transport de la capitale vers la Ville Merveille ----------
-// ce que la capitale a en trop (elle garde de quoi bâtir), réparti comme le coût d'un niveau (le bois, la pierre et le fer
-// pèsent autant, la nourriture un peu moins)
-function deliveryLoad(bot, cap, capacity, level) {
-  const cost = WS.levelCost(level + 1);
+// ce qui manque au chantier pour ses `n` prochains niveaux (coûts réunis moins son stock), par ressource
+function wonderLack(wc, n) {
+  const level = wc?.wonderLevel || 0;
+  const need = Object.fromEntries(RES.map(r => [r, 0]));
+  for (let l = level + 1; l <= Math.min(W.wonderMaxLevel, level + n); l++) { const c = WS.levelCost(l); for (const r of RES) need[r] += c[r]; }
+  // le stock du chantier et les livraisons déjà en route (convois des pas d'avant et de ce pas-ci)
+  return Object.fromEntries(RES.map(r => [r, Math.max(0, need[r] - Math.floor(wc?.[STOCK[r]] || 0) - Math.floor(wc?.inbound?.[r] || 0))]));
+}
+// ce que la capitale peut livrer : son stock moins ce qu'elle garde pour bâtir (30 % du stockage, 60 % des céréales quand le
+// joueur en manque) ; `bought` (achat fait pour cette livraison) part en entier, hors de la réserve. Un envoi part du stock
+// de la capitale seule (marketService.sendResources) : si une armée pouvait un jour charger le stock commun du joueur,
+// c'est ici qu'il faudrait lire Stock.totals.
+function spareOf(bot, cap, bought = {}) {
   const hungry = (Stock.foodBalance(bot)?.net ?? 1) < 0;
-  const spare = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor((cap[r] || 0) - capOf(cap, r) * (r === 'food' && hungry ? 0.6 : KEEP_STOCK)))]));
-  const sum = RES.reduce((t, r) => t + cost[r], 0);
-  const load = Object.fromEntries(RES.map(r => [r, Math.min(spare[r], Math.floor(capacity * cost[r] / sum))]));
-  // la place laissée par une ressource qui manque va aux autres
-  let room = capacity - RES.reduce((t, r) => t + load[r], 0);
-  for (const r of RES) { if (room <= 0) break; const add = Math.min(room, spare[r] - load[r]); if (add > 0) { load[r] += add; room -= add; } }
+  return Object.fromEntries(RES.map(r => {
+    const extra = Math.max(0, Math.floor(bought[r] || 0));
+    const before = (cap[r] || 0) - extra;
+    return [r, Math.min(Math.max(0, Math.floor(cap[r] || 0)), Math.max(0, Math.floor(before - capOf(cap, r) * (r === 'food' && hungry ? 0.6 : KEEP_STOCK))) + extra)];
+  }));
+}
+// le chargement : d'abord ce qui a été acheté pour cette livraison (`bought` : les céréales qui bloquent, qui partent en
+// entier, hors de la réserve de la capitale ; sinon l'entretien du tick suivant les mangerait), puis ce qui manque pour les
+// 3 prochains niveaux, la ressource qui bloque en tête (le plus gros manque rapporté à ce que la capitale a en trop : les
+// céréales quand le grenier est vide) ; la place restante va à ce qui manque pour 10 niveaux, au prorata ; rien de ce que
+// le chantier a déjà pour 10 niveaux
+function deliveryLoad(bot, cap, capacity, wc, bought = {}) {
+  const spare = spareOf(bot, cap, bought);
+  const first = wonderLack(wc, COVER_LEVELS), later = wonderLack(wc, STOCK_LEVELS);
+  const load = Object.fromEntries(RES.map(r => [r, 0]));
+  let room = Math.max(0, Math.floor(capacity));
+  for (const r of RES) {
+    const add = Math.min(room, Math.max(0, Math.floor(bought[r] || 0)), spare[r], later[r]);
+    load[r] += add; room -= add;
+  }
+  for (const r of RES.filter(x => first[x] > load[x]).sort((a, b) => first[b] / Math.max(1, spare[b]) - first[a] / Math.max(1, spare[a]))) {
+    const add = Math.min(room, first[r] - load[r], spare[r] - load[r]);
+    load[r] += add; room -= add;
+  }
+  // la place restante, au prorata de ce qui manque encore pour 10 niveaux ; la part d'une ressource qui manque va aux autres
+  for (let pass = 0; pass < 2 && room > 0; pass++) {
+    const left = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.min(later[r], spare[r]) - load[r])]));
+    const sum = RES.reduce((t, r) => t + left[r], 0);
+    if (sum <= 0) break;
+    const share = room;
+    for (const r of RES) { const add = Math.min(left[r], room, pass ? left[r] : Math.floor(share * left[r] / sum)); load[r] += add; room -= add; }
+  }
   return Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor(load[r] / 10) * 10)]));
+}
+// les céréales qui manquent au chantier, achetées au marchand du serveur de la capitale juste avant de partir (sa taxe :
+// celle du Marché de la capitale) : on donne une ressource que la capitale a en trop, de préférence une que le chantier a
+// déjà, la plus abondante d'abord ; au plus ce que l'armée porte et ce que le grenier peut recevoir
+function foodPurchase(bot, cap, capacity, wc) {
+  const lack = wonderLack(wc, COVER_LEVELS);
+  const spare = spareOf(bot, cap);
+  const want = Math.min(lack.food - spare.food, capacity, Math.floor(capOf(cap, 'food') - (cap.food || 0)));
+  if (!(lack.food > spare.food) || want < 500) return null;
+  const giveRes = ['wood', 'stone', 'iron'].filter(r => spare[r] >= 500).sort((a, b) => ((lack[a] > 0) - (lack[b] > 0)) || (spare[b] - spare[a]))[0];
+  if (!giveRes) return null;
+  const tax = fx.npcMarketTaxPct(lvl(cap, 'MARKET'));
+  const giveAmount = Math.min(spare[giveRes], Math.ceil(want / (1 - tax / 100)));
+  if (giveAmount < 500) return null;
+  return { cityId: cap.id, giveResource: giveRes, receiveResource: 'food', giveAmount };
 }
 async function deliverTurn(bot, ctx, B, m, wc) {
   const cap = bot.capital;
@@ -222,19 +338,39 @@ async function deliverTurn(bot, ctx, B, m, wc) {
   B.left--;
   const st = await bot.get(`/api/market/state?cityId=${cap.id}`);
   if (!st.ok || !Array.isArray(st.data?.armies)) return;
-  // la plus grande armée libre que le joueur peut faire partir (caravane, convoi d'alliance, armée de campagne)
-  const army = market.tripArmies(bot, st.data.armies).sort((a, b) => b.capacity - a.capacity)[0];
+  // la plus grande armée libre que le joueur peut faire partir (caravane, convoi d'alliance, armée de campagne), jamais
+  // l'escorte du colon ni l'armée annoncée pour le prochain rassemblement
+  const army = market.tripArmies(bot, st.data.armies, ctx.step).sort((a, b) => b.capacity - a.capacity)[0];
   if (!army || army.capacity < 2000) { bump(m.k, 'deliverNoArmy'); return; }
-  const load = deliveryLoad(bot, cap, army.capacity, wc.wonderLevel);
+  // les céréales qui bloquent : achetées dans le même tour (l'entretien du tick suivant mangerait un achat fait plus tôt)
+  const bought = {};
+  const buy = B.left >= 2 ? foodPurchase(bot, cap, army.capacity, wc) : null;
+  if (buy) {
+    B.left--;
+    const r = await bot.post('/api/market/npc-trade', buy);
+    if (r.ok) {
+      const given = r.data?.given ?? buy.giveAmount, received = r.data?.received ?? 0;
+      cap[buy.giveResource] = (cap[buy.giveResource] || 0) - given;
+      cap.food = (cap.food || 0) + received;
+      bought.food = received;
+      bump(m.k, 'npcForWonder'); bump(m.k, 'npcForWonderGiven', given); bump(m.k, 'npcForWonderFood', received);
+    } else bump(m.k, 'npcForWonderRefused');
+  }
+  const load = deliveryLoad(bot, cap, army.capacity, wc, bought);
   const total = RES.reduce((t, r) => t + load[r], 0);
   if (total < 1000) { bump(m.k, 'deliverNothing'); return; }
+  if (B.left < 1) return;
   B.left--;
   const r = await bot.post('/api/trade/send', { fromCityId: cap.id, armyId: army.id, targetX: wc.x, targetY: wc.y, resources: load });
   if (!r.ok) { bump(m.k, 'deliverRefused'); return; }
   for (const res of RES) cap[res] -= load[res];
+  // en route : les livreurs suivants du même pas visent ce qui manque encore
+  wc.inbound ||= { wood: 0, stone: 0, iron: 0, food: 0 };
+  for (const res of RES) wc.inbound[res] += load[res];
   const a = bot.armies.find(x => x.id === army.id);
   if (a) { a.status = 'TRANSPORTING'; a.missionType = 'TRANSPORT'; }
   bump(m.k, 'deliveries'); bump(m.k, 'delivered', total);
+  for (const res of RES) if (load[res] > 0) bump(m.k, `delivered_${res}`, load[res]);
   bump(m.k, army.name === Armies.NAMES.caravan ? 'deliveredByCaravan' : army.name === Armies.NAMES.convoy ? 'deliveredByConvoy' : 'deliveredByFieldArmy', total);
   if (wc.playerId === bot.playerId) bump(m.k, 'deliveredOwn', total);
 }
@@ -315,7 +451,37 @@ async function defendTurn(bot, ctx, B, m, s, wc) {
 }
 
 // ---------- conseil de l'alliance (après le tour de tous les joueurs) : rassemblements contre les Immortels ----------
-// les armées des membres vues du serveur (une lecture par conseil), la meilleure armée au repos dans la capitale de chacun
+// les armées des membres vues du serveur (une lecture par conseil). Pour chacun : l'armée qui part (la plus forte au repos
+// dans sa capitale), ses autres armées au repos qui s'y fondent (leurs soldats rentrent dans la garnison, l'armée qui part
+// les reprend : un rassemblement ne prend qu'une armée par joueur) et 90 % de chaque troupe de la garnison. Jamais une
+// garde, la caravane, le convoi, les armées d'une fondation en cours, ni l'escorte du colon que le fondateur garde.
+// `full` : la même chose avec toutes ses armées de campagne, même dehors (pour annoncer le prochain rassemblement)
+function mergeRows(lists) {
+  const by = new Map();
+  for (const u of lists.flatMap(l => fighters(l))) {
+    const row = by.get(u.unitKey);
+    if (row) row.count += u.count; else by.set(u.unitKey, { unitKey: u.unitKey, tier: u.tier || UNIT[u.unitKey].tier, count: u.count });
+  }
+  return [...by.values()];
+}
+const shareOf = (rows) => rows.map(u => ({ ...u, count: Math.floor(u.count * RALLY_SHARE) })).filter(u => u.count >= 5);
+function memberPart(b, cap, mine) {
+  const garrison = mine.find(a => a.isGarrison && a.cityId === cap.id) || null;
+  const col = b.mem?.mil?.col;
+  const founding = new Set([col?.a, col?.b].filter(Boolean));
+  const held = b.mem?.wonder?.holdEscort === true ? escortsOf(mine, cap)[0] : null;
+  const eligible = mine.filter(a => !a.isGarrison && a.cityId === cap.id && !RALLY_NEVER.has(a.name) && !founding.has(a.id) && a.id !== held?.id);
+  const home = eligible.filter(a => Armies.atHome(a, cap)).sort((p, q) => powerOf(q.units) - powerOf(p.units));
+  const full = powerOf(eligible.flatMap(a => fighters(a.units))) + powerOf(shareOf(fighters(garrison?.units)));
+  const ready = home[0];
+  if (!ready) return { full };
+  const others = home.slice(1);
+  const pool = mergeRows([garrison?.units, ...others.map(a => a.units)]);
+  const extra = shareOf(pool);
+  const pot = powerOf(ready.units) + powerOf(extra);
+  // une armée vide sans renfort possible : le serveur la refuserait (« Armée vide »)
+  return pot > 0 ? { full, part: { b, cap, army: ready, others, garrison, pool, pot, units: [...fighters(ready.units), ...extra] } } : { full };
+}
 async function membersOf(ctx, allianceId, s) {
   const bots = ctx.bots.filter(b => b.playerId && s.allianceOf.get(b.playerId) === allianceId && b.capital);
   const ids = bots.map(b => b.playerId);
@@ -323,32 +489,32 @@ async function membersOf(ctx, allianceId, s) {
     ctx.prisma.army.findMany({ where: { ownerId: { in: ids } }, select: { id: true, ownerId: true, cityId: true, name: true, x: true, y: true, status: true, isGarrison: true, claimedAt: true, units: { select: { unitKey: true, count: true, tier: true } } } }),
     ctx.prisma.city.findMany({ where: { playerId: { in: ids }, isCapital: true }, select: { id: true, playerId: true, x: true, y: true, isSieged: true, buildings: { where: { key: 'RALLY_POINT' }, select: { key: true, level: true } } } })
   ]);
-  const out = [];
+  const parts = [];
+  let potential = 0;
   for (const b of bots) {
     const cap = caps.find(c => c.playerId === b.playerId);
     if (!cap || cap.isSieged) continue;
-    const mine = armies.filter(a => a.ownerId === b.playerId);
-    const garrison = mine.find(a => a.isGarrison && a.cityId === cap.id) || null;
-    // une armée de campagne au repos chez elle (jamais une garde, la caravane, le convoi, ni les armées d'une fondation en
-    // cours : l'une frappe le camp du site, l'autre escorte le colon)
-    const col = b.mem?.mil?.col;
-    const founding = new Set([col?.a, col?.b].filter(Boolean));
-    const ready = mine.filter(a => !a.isGarrison && a.status === 'IDLE' && !a.claimedAt && a.cityId === cap.id && a.x === cap.x && a.y === cap.y && !RALLY_NEVER.has(a.name) && !founding.has(a.id))
-      .sort((p, q) => powerOf(q.units) - powerOf(p.units))[0];
-    if (!ready) continue;
-    // ce que fillPart y ajoutera : les trois troupes les plus nombreuses de la garnison
-    const extra = fighters(garrison?.units).sort((p, q) => q.count - p.count).slice(0, 3).map(u => ({ ...u, count: Math.floor(u.count * FILL_SHARE) })).filter(u => u.count >= 5);
-    const pot = powerOf(ready.units) + powerOf(extra);
-    if (!(pot > 0)) continue;   // une armée vide sans renfort possible : le serveur la refuserait (« Armée vide »)
-    out.push({ b, cap, army: ready, garrison, pot, units: [...fighters(ready.units), ...extra] });
+    const { full, part } = memberPart(b, cap, armies.filter(a => a.ownerId === b.playerId));
+    potential += full;
+    if (part) parts.push(part);
   }
-  return out;
+  return { parts, potential };
 }
-// remplir l'armée depuis la garnison avant de partir (les trois troupes les plus nombreuses)
+// avant de partir : les autres armées au repos rendent leurs soldats à la garnison (les engins restent à leur place), puis
+// l'armée qui part prend 90 % de chaque troupe de la garnison
 async function fillPart(p, S, k) {
-  for (const u of fighters(p.garrison?.units).sort((a, b) => b.count - a.count).slice(0, 3)) {
+  for (const o of p.others || []) {
+    for (const u of fighters(o.units)) {
+      if (S.left <= 2) return;
+      S.left--;
+      const r = await p.b.post(`/api/army/${o.id}/set-unit`, { unitKey: u.unitKey, count: 0 });
+      if (!r.ok) break;
+      bump(k, 'rallyMerged', u.count);
+    }
+  }
+  for (const u of [...(p.pool || [])].sort((a, b) => b.count - a.count)) {
     if (S.left <= 2) break;
-    const take = Math.floor(u.count * FILL_SHARE);
+    const take = Math.floor(u.count * RALLY_SHARE);
     if (take < 5) continue;
     const cur = (p.army.units || []).find(x => x.unitKey === u.unitKey)?.count || 0;
     S.left--;
@@ -357,14 +523,21 @@ async function fillPart(p, S, k) {
     bump(k, 'rallySoldiersAdded', Math.max(0, (r.data?.newCount ?? cur + take) - cur));
   }
 }
-async function launchRally(ctx, s, as, g, allianceId, node, S) {
+// un conseil sans rassemblement possible ; au troisième de suite, l'annonce s'arrête un moment
+function weak(ctx, as) {
+  as.nx = ctx.step + 4;
+  as.weak = (as.weak || 0) + 1;
+  if (as.weak >= WEAK_PAUSE) { as.weak = 0; as.quiet = ctx.step + QUIET_STEPS; bump(as.k, 'announcePaused'); }
+}
+async function launchRally(ctx, s, as, g, allianceId, node, S, parts) {
   const kind = node.resourceType;
-  const parts = await membersOf(ctx, allianceId, s);
-  if (!parts.length) { as.nx = ctx.step + 4; return; }
+  if (!parts.length) { weak(ctx, as); bump(as.k, `${kind}NobodyHome`); return; }
   const toLeader = (p, l) => (p === l ? 0 : travelSec(p.units, p.cap, l.cap) * 1.3 + 300);
   const reach = (l) => parts.filter(p => p !== l && toLeader(p, l) < MAX_WAIT_S).length;
-  const founder = kind === 'WONDER' ? parts.find(p => p.b.playerId === as.founder) : null;
-  const leader = founder || parts.map(l => ({ l, n: reach(l) })).sort((a, b) => (b.n - a.n) || (lvl(b.l.cap, 'RALLY_POINT') - lvl(a.l.cap, 'RALLY_POINT')) || (dist(a.l.cap, node) - dist(b.l.cap, node)))[0].l;
+  // le fondateur qui garde son colon ne mène pas le rassemblement d'un site : il le rejoint avec une autre armée que son
+  // escorte (membersOf la laisse à la maison)
+  const leaders = kind === 'WONDER' ? parts.filter(p => p.b.playerId !== as.founder) : parts;
+  const leader = (leaders.length ? leaders : parts).map(l => ({ l, n: reach(l) })).sort((a, b) => (b.n - a.n) || (lvl(b.l.cap, 'RALLY_POINT') - lvl(a.l.cap, 'RALLY_POINT')) || (dist(a.l.cap, node) - dist(b.l.cap, node)))[0].l;
   const capacity = fx.rallyMaxArmies(lvl(leader.cap, 'RALLY_POINT'));
   const joiners = parts.filter(p => p !== leader).map(p => ({ p, t: toLeader(p, leader) })).filter(x => x.t < MAX_WAIT_S)
     .sort((a, b) => b.p.pot - a.p.pot).slice(0, Math.max(0, capacity - 1));
@@ -372,7 +545,7 @@ async function launchRally(ctx, s, as, g, allianceId, node, S) {
   const wait = WAITS.find(w => w >= 30 && w * 60 >= needS) || WAITS[WAITS.length - 1];
   const expected = leader.pot + joiners.reduce((t, x) => t + x.p.pot * (online(ctx, x.p.b) ? 1 : NOTIF_ODDS(wait)), 0);
   const need = node.defenderPower * as.margin;
-  if (expected < ATTRITION * need) { as.nx = ctx.step + 4; bump(as.k, `${kind}TooWeak`); return; }
+  if (expected < ATTRITION * need) { weak(ctx, as); bump(as.k, `${kind}TooWeak`); return; }
   const wear = expected < need;
   await fillPart(leader, S, as.k);
   if (S.left < 2) return;
@@ -388,6 +561,7 @@ async function launchRally(ctx, s, as, g, allianceId, node, S) {
     if (!online(ctx, p.b) && ctx.rand() >= NOTIF_ODDS(wait)) { bump(as.k, 'rallyMissed'); continue; }
     if (s.now + t * 1000 > launchAt) continue;   // n'arriverait pas à temps
     await fillPart(p, S, as.k);
+    if (S.left < 1) break;
     S.left--;
     const j = await p.b.post(`/api/rallies/${rally.id}/join`, { armyId: p.army.id });
     if (!j.ok) { bump(as.k, 'joinRefused'); continue; }
@@ -395,8 +569,27 @@ async function launchRally(ctx, s, as, g, allianceId, node, S) {
   }
   as.rallies[rally.id] = { kind, node: node.id, wear, s: ctx.step, armies: joined };
   as.nx = ctx.step + 2;
+  as.weak = 0;
   bump(as.k, `${kind}Rallies`); bump(as.k, `wait${wait}`); if (wear) bump(as.k, `${kind}RalliesToWear`);
   ctx.event('wonder_rally', { alliance: s.tagOf.get(allianceId), kind, x: node.x, y: node.y, leader: leader.b.name, wait, armies: joined, capacity: max, power: Math.round(power), immortals: node.defenderPower, wear });
+}
+// le prochain rassemblement est annoncé : l'armée de campagne la plus forte de chaque membre reste à la maison jusque-là
+// (bot.mem.mil.idle pour le module militaire, bot.mem.wonder.keep pour le marché, les livraisons, le héros et la guerre ;
+// les donjons du week-end la prennent quand même : 60-invasion.cjs)
+function announce(ctx, s, allianceId, until, as) {
+  let n = 0;
+  for (const b of ctx.bots) {
+    if (!b.playerId || s.allianceOf.get(b.playerId) !== allianceId || !b.capital || !Array.isArray(b.armies)) continue;
+    const own = new Set(b.mem?.mil?.own || []);
+    const col = b.mem?.mil?.col;
+    const founding = new Set([col?.a, col?.b].filter(Boolean));
+    const a = b.armies.filter(x => !x.isGarrison && own.has(x.id) && !founding.has(x.id) && x.cityId === b.capital.id).sort((p, q) => powerOf(q.units) - powerOf(p.units))[0];
+    if (!a) continue;
+    wonderMem(b).keep = { [a.id]: until };
+    if (b.mem.mil) { b.mem.mil.idle ||= {}; if ((b.mem.mil.idle[a.id] || 0) < until) b.mem.mil.idle[a.id] = until; }
+    n++;
+  }
+  if (n) bump(as.k, 'announced');
 }
 // issues des rassemblements de l'alliance (lecture de la base : le rapport du rassemblement)
 async function outcomes(ctx, s, as, allianceId) {
@@ -421,37 +614,51 @@ async function outcomes(ctx, s, as, allianceId) {
     }
   }
 }
-async function council(ctx, s, g, S) {
+async function council(ctx, s, g) {
   const allianceId = groupAlliance(ctx, s, g);
   const as = allianceState(ctx, g, s);
   if (!allianceId || !as) return;
+  const S = { left: COUNCIL_CALLS };
   await outcomes(ctx, s, as, allianceId);
   const wc = wonderOf(s, allianceId);
   const mineActive = (kind) => s.rallies.some(r => r.allianceId === allianceId && r.targetKind === kind);
   const ourCaps = ctx.bots.filter(b => b.playerId && s.allianceOf.get(b.playerId) === allianceId && b.capital).map(b => b.capital);
   const nearest = (nodes) => nodes.filter(n => n.hasDefenders && n.defenderPower > 0 && !n.cityId && !s.rallies.some(r => r.targetNodeId === n.id))
     .sort((a, b) => ourCaps.reduce((t, c) => t + dist(a, c), 0) - ourCaps.reduce((t, c) => t + dist(b, c), 0))[0] || null;
-  if (!wc) {
-    const founder = founderOf(ctx, s, g, as, allianceId);
-    if (!s.sitesOpen || !founder) return;
-    // site libéré : le fondateur, prévenu, y envoie son colon (s'il ne joue pas ce pas-ci, une fois sur deux à peu près)
+  // reprise de la simulation : le fondateur n'est pas encore relu (ses villes arrivent à son tour) ; on l'attend plutôt que
+  // de viser un plan à la place du site
+  if (!wc && s.sitesOpen && ctx.bots.some(b => b.playerId && b.playerId === as.founder && !b.me)) return;
+  const founder = !wc && s.sitesOpen ? founderOf(ctx, s, g, as, allianceId) : null;
+  // l'escorte du colon : seul le fondateur la garde, pendant la phase des sites (30-military.cjs la laisse à la maison)
+  for (const b of ctx.byGroup(g)) if (b.mem) wonderMem(b).holdEscort = !!founder && b === founder && escortWanted(s, founder, wc);
+  // la cible du prochain rassemblement : avant la Ville Merveille, un site quand le fondateur a son colon ; sinon un plan
+  // (dès le jour config.world.wonderPlansDay, même avant la Ville Merveille ; il en faut un au-delà du niveau
+  // planNeededAbove), tant que l'alliance n'en détient aucun
+  let target = null;
+  if (founder) {
+    // site libéré : le fondateur, prévenu, y envoie son colon ; s'il ne joue pas ce pas-ci (une fois sur deux à peu près),
+    // il relit d'abord ses villes et ses armées (celles d'il y a 6 h disaient encore « en route » pour une armée rentrée)
     if (freeSite(s, founder.capital)) {
-      if (!online(ctx, founder) && ctx.rand() < 0.6 && Array.isArray(founder.armies)) await foundTurn(founder, ctx, { left: 1 }, memOf(founder, s), s);
+      if (!online(ctx, founder) && ctx.rand() < 0.6 && Array.isArray(founder.armies)) {
+        if (typeof founder.refresh === 'function') { try { await founder.refresh(['cities', 'armies']); } catch (e) { /* lecture ratée : ses armées d'avant */ } }
+        if (founder.capital && await foundTurn(founder, ctx, { left: 1 }, memOf(founder, s), s)) bump(as.k, 'foundByNotification');
+      }
       return;
     }
-    // une fondation en cours sur un site, ou un rassemblement déjà en route : on attend
-    if (mineActive('WONDER') || (as.nx || 0) > ctx.step || S.left < 10) return;
-    if (!((founder.capital?.settlers || 0) > 0)) { bump(as.k, 'waitSettler'); return; }
-    const site = nearest(s.sites);
-    if (site) await launchRally(ctx, s, as, g, allianceId, site, S);
-    return;
+    if (mineActive('WONDER')) return;   // un rassemblement déjà en route vers un site : on attend
+    if ((founder.capital?.settlers || 0) > 0) target = nearest(s.sites);
+    else bump(as.k, 'waitSettler');
   }
-  // la Ville Merveille de l'alliance : un plan dès qu'ils apparaissent (jour config.world.wonderPlansDay ; au-delà du niveau
-  // planNeededAbove, il en faut un), tant que l'alliance n'en détient aucun
-  if (s.plansOpen && !s.planAlliances.has(allianceId) && !mineActive('PLAN') && (as.nx || 0) <= ctx.step && S.left >= 10) {
-    const plan = nearest(s.plans);
-    if (plan) await launchRally(ctx, s, as, g, allianceId, plan, S);
+  if (!target && s.plansOpen && !s.planAlliances.has(allianceId) && !mineActive('PLAN') && !mineActive('WONDER')) target = nearest(s.plans);
+  if (target) {
+    const { parts, potential } = await membersOf(ctx, allianceId, s);
+    if ((as.nx || 0) <= ctx.step && S.left >= 10) await launchRally(ctx, s, as, g, allianceId, target, S, parts);
+    // le prochain rassemblement est annoncé quand l'alliance peut le tenter (ses armées, même dehors, pèsent assez) : chaque
+    // membre garde son armée la plus forte à la maison jusque-là (pas pendant la pause qui suit trois conseils sans
+    // rassemblement possible : weak)
+    if ((as.quiet || 0) <= ctx.step && potential >= ATTRITION * target.defenderPower * as.margin) announce(ctx, s, allianceId, Math.max(as.nx || 0, ctx.step + 1) + 1, as);
   }
+  if (!wc) return;
   // fin de niveau : le propriétaire, prévenu, lance le suivant (s'il ne joue pas ce pas-ci, une fois sur deux à peu près)
   const owner = ctx.bots.find(b => b.playerId === wc.playerId);
   if (owner && !online(ctx, owner) && !wc.wonderBuildEndsAt && ctx.rand() < 0.6) await buildTurn(owner, ctx, { left: 2 }, memOf(owner, s), wc);
@@ -494,27 +701,47 @@ async function summary(ctx, s) {
   ctx.say(`merveille : ${JSON.stringify({ day: s.day, sites, plans, wonders: wonders.map(w => `${w.alliance}:${w.level}`), delivered: k.delivered || 0, waves: ctx.bots[0].mem.wonS || {} })}`);
 }
 
+// début du tour (28-wonder-early.cjs, avant le module militaire qui envoie ses armées au repos en mission) : le fondateur
+// fonde sur le site que l'alliance vient de libérer, avec l'escorte gardée à la maison
+async function early(bot, ctx) {
+  if (!bot.me || !bot.capital || !Array.isArray(bot.armies) || !GROUPS.includes(bot.group)) return;
+  const s = await snapshot(ctx);
+  if (s.ended || !s.sitesOpen) { dropEscort(bot); return; }
+  const m = memOf(bot, s);
+  const allianceId = bot.me.alliance?.allianceId;
+  if (!allianceId || !s.allianceOf || wonderOf(s, allianceId)) { dropEscort(bot); return; }
+  const as = allianceState(ctx, bot.group, s);
+  if (!as || founderOf(ctx, s, bot.group, as, allianceId) !== bot) { dropEscort(bot); return; }
+  wonderMem(bot).holdEscort = escortWanted(s, bot, null);
+  if (await foundTurn(bot, ctx, { left: 1 }, m, s)) bump(m.k, 'foundEarly');
+}
+
 module.exports = {
   name: 'wonder',
-  deliveryLoad, waveNeed, founderOf,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
+  early,
+  heldEscort, keptForWonder,   // pour les autres modules : les armées gardées pour la Merveille
+  deliveryLoad, foodPurchase, wonderLack, memberPart, waveNeed, founderOf, escortWanted,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
   async act(bot, ctx) {
     if (!bot.me || !bot.capital || !Array.isArray(bot.armies) || !GROUPS.includes(bot.group)) return;
     const s = await snapshot(ctx);
-    if (s.ended || !(s.sitesOpen || s.day >= s.sitesDay - 12)) return;
-    const allianceId = bot.me.alliance?.allianceId;
-    if (!allianceId || !s.allianceOf) return;
+    if (s.ended || !(s.sitesOpen || s.day >= s.sitesDay - 12)) { dropEscort(bot); return; }
     const m = memOf(bot, s);
+    const allianceId = bot.me.alliance?.allianceId;
+    if (!allianceId || !s.allianceOf) { dropEscort(bot); return; }
     const B = { left: CALLS };
     const as = allianceState(ctx, bot.group, s);
     const wc = wonderOf(s, allianceId);
     if (!wc) {
       m.wantGuard = false;
-      // le fondateur : un colon prêt avant les sites, puis la fondation sur le site libéré
-      if (as && founderOf(ctx, s, bot.group, as, allianceId) === bot) {
+      // le fondateur : un colon prêt avant les sites, puis la fondation sur le site libéré (son escorte reste à la maison)
+      const founder = as ? founderOf(ctx, s, bot.group, as, allianceId) : null;
+      wonderMem(bot).holdEscort = founder === bot && escortWanted(s, bot, null);
+      if (founder === bot) {
         if (!(await foundTurn(bot, ctx, B, m, s))) await settlerTurn(bot, ctx, B, m);
       }
       return;
     }
+    wonderMem(bot).holdEscort = false;
     if (wc.playerId === bot.playerId) await buildTurn(bot, ctx, B, m, wc);
     if (wc.wonderLevel >= 1 || wc.wonderBuildEndsAt) await defendTurn(bot, ctx, B, m, s, wc);
     await deliverTurn(bot, ctx, B, m, wc);
@@ -523,8 +750,7 @@ module.exports = {
     let s;
     try { s = await snapshot(ctx); } catch (e) { console.error('[SIM] merveille :', e); return; }
     if (s.ended || !s.sitesOpen) return;
-    const S = { left: COUNCIL_CALLS };
-    for (const g of GROUPS) { try { await council(ctx, s, g, S); } catch (e) { console.error(`[SIM] merveille, conseil ${g} :`, e); } }
+    for (const g of GROUPS) { try { await council(ctx, s, g); } catch (e) { console.error(`[SIM] merveille, conseil ${g} :`, e); } }
     try { await track(ctx, s); } catch (e) { console.error('[SIM] merveille, suivi :', e); }
     const total = Math.round(ctx.OPT.days * 24 / ctx.OPT.stepHours);
     if (ctx.step % 28 === 0 || ctx.step === total) { try { await summary(ctx, s); } catch (e) { console.error('[SIM] merveille, point :', e); } }

@@ -3,7 +3,9 @@
 // une armée postée ailleurs (garde d'une colonie, garnison du Bastion, renfort de la Ville Merveille) garde l'emplacement
 // de sa ville. Les emplacements de la capitale se partagent par ordre de priorité : une armée d'un rôle ne se forme que s'il
 // reste une place une fois servis les rôles d'avant qui manquent encore.
-//   field  : armée de campagne du module militaire (récolte, tribus, expéditions du héros ; une seconde pendant une fondation)
+//   field  : armée de campagne du module militaire (récolte, tribus, expéditions du héros ; une seconde pendant une fondation,
+//            ou sur une place qu'aucun autre rôle n'attend ; hors fondation, cette seconde armée rend sa place dès qu'un autre
+//            rôle attend : waitingRoles, 30-military.cjs tidy)
 //   guard  : garde de chaque colonie (décision du 31 octobre 2026, rapport de vérification : une armée postée dans chaque
 //            colonie, les colonies n'ont pas de garnison)
 //   convoy : convoi du Bastion, puis sa garnison (20-alliance.cjs)
@@ -28,13 +30,20 @@ const named = (bot, name) => (bot.armies || []).filter(a => !a.isGarrison && a.n
 // armée chez elle, au repos (ni en mission, ni réservée par une offre du marché)
 const atHome = (a, city) => !!a && !!city && !a.isGarrison && a.status === 'IDLE' && !a.claimedAt && a.x === city.x && a.y === city.y && a.cityId === city.id;
 
+// une colonie se prépare : une colonie reste à fonder et un site est choisi, un colon attend ou se forme dans la capitale
+// (le colon de la Ville Merveille, formé quand toutes les colonies sont fondées, n'en est pas une). La même règle pour
+// l'armée de campagne voulue (militaryNeed) et pour celle que le module militaire forme ou rend (30-military.cjs).
+function founding(bot, city = bot.capital) {
+  const mil = bot.mem?.mil;
+  if (!city?.isCapital || colonies(bot).length >= config.city.maxSecondaryCities) return false;
+  return !!mil?.col || (city.settlers || 0) > 0 || (city.recruitQueue || []).some(q => q.unitKey === 'SETTLER');
+}
 // armées de campagne voulues par le module militaire : une, deux pendant une fondation (colon prêt ou en formation)
 function militaryNeed(bot, city) {
   const mil = bot.mem?.mil;
   if (!mil || !city?.isCapital) return 0;
   const own = fieldArmies(bot, city).filter(a => (mil.own || []).includes(a.id)).length;
-  const founding = colonies(bot).length < config.city.maxSecondaryCities && (!!mil.col || (city.settlers || 0) > 0 || (city.recruitQueue || []).some(q => q.unitKey === 'SETTLER'));
-  return Math.max(0, (founding ? 2 : 1) - own);
+  return Math.max(0, (founding(bot, city) ? 2 : 1) - own);
 }
 // colonies sans garde (l'armée qui y est postée, suivie dans bot.mem.mil.guard)
 function guardsMissing(bot) {
@@ -61,14 +70,18 @@ function missing(bot, role) {
 // armées que les rôles d'avant `role` attendent encore
 const ahead = (bot, role) => ORDER.slice(0, Math.max(0, ORDER.indexOf(role))).reduce((t, r) => t + missing(bot, r), 0);
 
+// places libres de la capitale (emplacements de la Place de rassemblement sans armée)
+const freePlaces = (bot) => (bot.capital ? fx.maxArmies(bot.capital.buildings || []) - fieldArmies(bot, bot.capital).length : 0);
 // une armée de ce rôle rend sa place : un rôle d'avant attend une armée et il ne reste aucune place libre (la caravane se
 // dissout quand l'Ost ou la garde de la Merveille n'a pas de place ; ses soldats rentrent dans la garnison)
 function mustYield(bot, role) {
-  const cap = bot.capital;
-  if (!cap) return false;
-  const free = fx.maxArmies(cap.buildings || []) - fieldArmies(bot, cap).length;
-  return ahead(bot, role) > Math.max(0, free);
+  if (!bot.capital) return false;
+  return ahead(bot, role) > Math.max(0, freePlaces(bot));
 }
+// armées que les autres rôles attendent encore (gardes des colonies, convoi, Ost, garde de la Merveille, caravane ; la chasse
+// du week-end ne prend qu'une place restée libre) : une seconde armée de campagne, hors fondation, leur rend sa place
+const othersWaiting = () => ORDER.filter(r => r !== 'field' && r !== 'hunt');
+const waitingRoles = (bot) => othersWaiting().reduce((t, r) => t + missing(bot, r), 0);
 
 // un emplacement libre de la capitale pour une armée de ce rôle (le plus haut : les premiers vont à l'armée de campagne),
 // ou null quand les rôles d'avant en ont encore besoin
@@ -83,4 +96,4 @@ function freeSlot(bot, role, city = bot.capital) {
   return null;
 }
 
-module.exports = { NAMES, ORDER, atHome, militaryNeed, guardsMissing, missing, freeSlot, mustYield, named, fieldArmies, colonies };
+module.exports = { NAMES, ORDER, atHome, founding, militaryNeed, guardsMissing, missing, freeSlot, mustYield, freePlaces, waitingRoles, named, fieldArmies, colonies };

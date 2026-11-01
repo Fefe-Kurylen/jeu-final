@@ -60,7 +60,8 @@ async function purgeOldRecords(now) {
   const reports = await purgeBattleReports(days(r.reports));
   const spy = await prisma.spyReport.deleteMany({ where: { createdAt: { lt: days(r.reports) } } });
   const expeditions = await prisma.expedition.deleteMany({ where: { status: { in: ['COMPLETED', 'EXPIRED'] }, createdAt: { lt: days(r.expeditions) } } });
-  const offers = await prisma.marketOffer.deleteMany({ where: { status: { in: ['COMPLETED', 'CANCELLED'] }, createdAt: { lt: days(r.offers) } } });
+  // offres closes : prises, annulées ou expirées (marchandises déjà rendues au vendeur par marketService.closeOffer)
+  const offers = await prisma.marketOffer.deleteMany({ where: { status: { in: ['COMPLETED', 'CANCELLED', 'EXPIRED'] }, createdAt: { lt: days(r.offers) } } });
   const analytics = await prisma.analyticsEvent.deleteMany({ where: { createdAt: { lt: days(r.analytics) } } });
   await prisma.rateLimitBucket.deleteMany({ where: { windowStart: { lt: days(1) } } });
   await prisma.authToken.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] } });

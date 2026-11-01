@@ -512,6 +512,29 @@ test('offre expirée : verrou de l\'offre puis de sa ville (même ordre que l\'a
   } finally { Object.assign(prisma, saved); }
 });
 
+test('purge horaire : les offres closes depuis 30 jours partent, expirées comprises (simulation du 1er novembre 2026 : 221 gardées)', async () => {
+  const prisma = require('../../src/config/database');
+  const { purgeOldRecords } = require('../../src/game/processors/worldProcessor');
+  const asked = {};
+  const del = (name) => ({ deleteMany: async ({ where }) => { asked[name] = where; return { count: 0 }; } });
+  const models = ['spyReport', 'expedition', 'marketOffer', 'analyticsEvent', 'rateLimitBucket', 'authToken', 'notification'];
+  const saved = Object.fromEntries([...models, '$executeRaw'].map(k => [k, prisma[k]]));
+  Object.assign(prisma, Object.fromEntries(models.map(m => [m, del(m)])), { $executeRaw: async () => 0 });
+  // purges des autres services : aucune requête
+  const services = [['chatService', 'purgeOldMessages'], ['allianceHelpService', 'purgeOld'], ['questService', 'purgeOld']].map(([file, fn]) => [require(`../../src/services/${file}`), fn]);
+  const savedFns = services.map(([mod, fn]) => mod[fn]);
+  for (const [mod, fn] of services) mod[fn] = async () => 0;
+  try {
+    const now = new Date('2027-06-01T12:00:00Z');
+    await purgeOldRecords(now);
+    assert.deepEqual(asked.marketOffer.status.in.sort(), ['CANCELLED', 'COMPLETED', 'EXPIRED']);
+    assert.equal(asked.marketOffer.createdAt.lt.getTime(), now.getTime() - config.tick.retentionDays.offers * 86400000);
+  } finally {
+    Object.assign(prisma, saved);
+    services.forEach(([mod, fn], i) => { mod[fn] = savedFns[i]; });
+  }
+});
+
 test('migration 0033 : marchands et routes retirés, armée réservée de nouveau sur les offres, marchandises rendues jusqu\'au plafond, rejouable', () => {
   const sql = require('fs').readFileSync(require('path').join(__dirname, '../../prisma/migrations/0033_sans_marchands/migration.sql'), 'utf8');
   assert.match(sql, /ALTER TABLE "MarketOffer" ADD COLUMN IF NOT EXISTS "armyId" TEXT;/);

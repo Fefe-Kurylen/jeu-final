@@ -15,7 +15,7 @@
 // - Issues suivies (étages vaincus, donjons détruits et trésor partagé, rassemblements repoussés ou annulés), événements
 //   invasion_start / invasion_end ; de temps en temps, l'administrateur (bot 0) lance une invasion manuelle en semaine
 //   (POST /api/admin/invasion/start) et parfois la termine plus tôt (/api/admin/invasion/end).
-// Au plus 12 appels par joueur et par tour pour ce module ; les conditions sont vérifiées avant d'appeler.
+// Au plus 30 appels par joueur et par tour pour ce module ; les conditions sont vérifiées avant d'appeler.
 //
 // Rapport de vérification du 31 octobre 2026 (§ 6.6 et § 6.9 : 0 donjon détruit, les joueurs automatiques n'attaquaient
 // qu'avec leurs 2 troupes les plus nombreuses, sans la garnison, et jamais pour user un étage) :
@@ -24,6 +24,23 @@
 //   moitié de l'étage part quand même l'user (sa défaite n'apprend rien à la marge) ;
 // - attente du rassemblement : la plus courte des attentes permises (5 à 180 min) qui laisse arriver les membres attendus ;
 // - l'armée de chasse est le rôle hunt des emplacements partagés de la Place de rassemblement (../armies.cjs), le dernier.
+//
+// Simulation après ces décisions (rapport sim-d, relu : 1 419 donjons, aucun détruit, un seul combat contre un chef) :
+// - cible : un donjon que l'alliance a commencé passe d'abord (×3), l'étage du chef surtout (×5, ×1,5 pour l'étage 2) ; un
+//   donjon neuf seulement quand aucun commencé n'est à sa portée et que l'alliance peut le finir avant la fin de l'invasion ;
+//   au plus 2 rassemblements de l'alliance en attente (ensuite on rejoint), un seul par donjon ; pour le chef, une attente de
+//   120 min au moins et plus de membres comptés (la notification d'un chef est suivie) ;
+// - armée : la plus forte au repos (armée de campagne, convoi, Ost, ou l'armée de chasse), où se fondent les autres armées au
+//   repos de la ville (leurs soldats rentrent dans la garnison, set-unit à 0 comme le client), plus 90 % de la garnison ;
+//   jamais l'escorte du colon de la Ville Merveille (70-wonder.cjs ; l'armée annoncée pour un rassemblement de la Merveille,
+//   elle, part au donjon le week-end) ;
+// - marche : la longueur de la route du serveur (le même A* que la carte du client), sinon la ligne droite × 1,5 ; le temps
+//   que le serveur donne (refus « n'arriverait pas à temps : N min de marche », arrivée d'un envoi) est retenu pour la paire
+//   de villes (avant : ligne droite × 1,25, 123 refus sur 1 212 envois) ;
+// - entre deux pas : subTick (appelé par sim.cjs après chaque tick d'une heure d'un pas qui presse) fait partir les
+//   rassemblements prêts, relève les issues, et les membres qui jouent ce pas-ci dont une armée vient de rentrer d'un
+//   rassemblement de donjon rejoignent ou lancent l'étage suivant sans attendre le pas suivant ; nextDue donne à sim.cjs
+//   l'heure du retour de ces armées (un tick d'une heure à ce moment-là).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -31,17 +48,27 @@ const config = require(path.join(ROOT, 'src/config'));
 const { unitsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 const Armies = require('../armies.cjs');
+const { heldEscort } = require('./70-wonder.cjs');   // l'escorte que le fondateur de la Ville Merveille garde pour son colon
+// l'escorte du colon de la Ville Merveille ne part jamais. L'armée annoncée pour le prochain rassemblement de la Merveille
+// (bot.mem.wonder.keep), elle, va aux donjons le week-end : un rassemblement de donjon ne dure que quelques heures, et sans
+// elle l'armée la plus forte de chaque membre manquait à tous les donjons de la phase des sites à la fin de la partie,
+// quand les armées sont les plus grosses (les chefs des donjons demandent ces armées-là)
+const isEscort = (bot, id) => !!id && heldEscort(bot)?.id === id;
 
 const I = config.invasion;
 const TIER = config.combat.tierCoefficients;
 const UNIT = Object.fromEntries(unitsData.map(u => [u.key, u]));
 const NAME = Armies.NAMES.hunt;
-const MAX_CALLS = 12;
+const MAX_CALLS = 30;        // fondre les autres armées de la ville et remplir l'armée : une quinzaine d'appels
 const KEEP = 0.1;            // part des soldats laissée à la garnison
 const ATTRITION = 0.5;       // un rassemblement qui pèse la moitié de l'étage part l'user (les pertes de l'étage restent)
 const WAITS = config.rally.waitMinutes;
 const MAX_WAIT_S = Math.max(...WAITS) * 60;
-const SLACK = 1.25;          // route réelle (contournements) face à la ligne droite
+const SLACK = 1.5;           // sans la route du serveur : la ligne droite × 1,5 (au-dessus de 90 % des routes entre alliés)
+const MAX_GATHERING = 2;     // rassemblements de l'alliance en attente au plus : au-delà, on rejoint
+const BOSS_WAIT = 120;       // attente minimale contre le chef (les membres éloignés arrivent)
+// armées qui ne se fondent jamais dans celle qui part : celles d'un autre rôle
+const MERGE_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.caravan, Armies.NAMES.convoy]);
 const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
 const isSiege = (k) => UNIT[k]?.class === 'SIEGE';
 const fighters = (units) => (units || []).filter(u => u.count > 0 && UNIT[u.unitKey] && !isSiege(u.unitKey));
@@ -56,12 +83,23 @@ const ms = (d) => (d ? new Date(d).getTime() : 0);
 const treasureOf = (level) => ({ res: Math.round(I.treasure.resources * Math.pow(I.treasure.resourceFactor, level - 1)), gold: Math.round(I.treasure.gold * Math.pow(I.treasure.goldFactor, level - 1)), ap: Math.round(I.treasure.alliancePoints * Math.pow(I.treasure.goldFactor, level - 1)) });
 const PARIS = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', weekday: 'short', hour: '2-digit', hourCycle: 'h23' });
 const parisParts = (t) => { const p = Object.fromEntries(PARIS.formatToParts(new Date(t)).map(x => [x.type, x.value])); return { dow: { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[p.weekday], h: +p.hour }; };
+// mêmes unités réunies (garnison et armées qui se fondent)
+function poolRows(lists) {
+  const by = new Map();
+  for (const u of lists.flatMap(l => fighters(l))) {
+    const row = by.get(u.unitKey);
+    if (row) row.count += u.count; else by.set(u.unitKey, { unitKey: u.unitKey, tier: u.tier || UNIT[u.unitKey].tier, count: u.count });
+  }
+  return [...by.values()];
+}
 
 // ---------- état (mem : identifiants et compteurs) ----------
 function memOf(bot) {
   const m = (bot.mem.inv ||= {});
   m.k ||= {};
   m.p ||= [];          // rassemblements lancés, en attente d'issue
+  m.ra ||= {};         // armées parties avec un rassemblement de donjon -> pas (leur retour : nextDue, chain)
+  delete m.far;        // villes de lanceur évitées 7 jours après un refus (avant le temps de marche du serveur) : plus suivi
   return m;
 }
 const bump = (m, k, n = 1) => { m.k[k] = (m.k[k] || 0) + n; };
@@ -90,20 +128,33 @@ function budget(bot, m, max = MAX_CALLS) {
   };
 }
 
-// ---------- ce que voit le joueur, lu une fois par pas ----------
-let S = { step: -1 };
+// ---------- ce que voit le joueur, lu une fois par pas (et après chaque tick d'une heure, subTick) ----------
+let S = { step: -1, launched: [] };
+// la carte : chaque donjon, son étage et la barre de vie de la garnison en cours ; les donjons que chaque alliance a
+// commencés (dégâts au classement du donjon)
+async function readWorld(ctx) {
+  const inv = await ctx.prisma.invasion.findFirst({ where: { endedAt: null } });
+  const out = { inv, nodes: new Map(), started: new Map() };
+  if (!inv) return out;
+  const hordes = await ctx.prisma.horde.findMany({ where: { invasionId: inv.id, destroyedAt: null }, select: { id: true, nodeId: true, x: true, y: true, level: true, floor: true, floors: true } });
+  const nodes = await ctx.prisma.resourceNode.findMany({ where: { id: { in: hordes.map(h => h.nodeId) } }, select: { id: true, defenderPower: true } });
+  const pw = new Map(nodes.map(n => [n.id, n.defenderPower || 0]));
+  for (const h of hordes) if (pw.has(h.nodeId)) out.nodes.set(h.nodeId, { nodeId: h.nodeId, x: h.x, y: h.y, level: h.level, floor: h.floor, full: h.floors?.[h.floor - 1]?.power || 0, rest: (h.floors || []).slice(h.floor).reduce((t, f) => t + (f.power || 0), 0), power: pw.get(h.nodeId) });
+  const nodeOf = new Map(hordes.map(h => [h.id, h.nodeId]));
+  const dmg = hordes.length ? await ctx.prisma.hordeDamage.findMany({ where: { hordeId: { in: hordes.map(h => h.id) }, points: { gt: 0 } }, select: { hordeId: true, allianceId: true } }) : [];
+  for (const d of dmg) {
+    if (!d.allianceId || !nodeOf.has(d.hordeId)) continue;
+    if (!out.started.has(d.allianceId)) out.started.set(d.allianceId, new Set());
+    out.started.get(d.allianceId).add(nodeOf.get(d.hordeId));
+  }
+  return out;
+}
 async function stepState(ctx, force = false) {
   if (S.step === ctx.step && !force) return S;
-  const keep = S.step === ctx.step ? S.launched : [];
-  const inv = await ctx.prisma.invasion.findFirst({ where: { endedAt: null } });
-  S = { step: ctx.step, inv, nodes: new Map(), leaderCity: new Map(), launched: keep };
-  if (inv) {
-    // la carte : chaque donjon, son étage et la barre de vie de la garnison en cours
-    const hordes = await ctx.prisma.horde.findMany({ where: { invasionId: inv.id, destroyedAt: null }, select: { nodeId: true, x: true, y: true, level: true, floor: true, floors: true } });
-    const nodes = await ctx.prisma.resourceNode.findMany({ where: { id: { in: hordes.map(h => h.nodeId) } }, select: { id: true, defenderPower: true } });
-    const pw = new Map(nodes.map(n => [n.id, n.defenderPower || 0]));
-    for (const h of hordes) if (pw.has(h.nodeId)) S.nodes.set(h.nodeId, { nodeId: h.nodeId, x: h.x, y: h.y, level: h.level, floor: h.floor, full: h.floors?.[h.floor - 1]?.power || 0, rest: (h.floors || []).slice(h.floor).reduce((t, f) => t + (f.power || 0), 0), power: pw.get(h.nodeId) });
-  }
+  // les rassemblements lancés qui attendent encore restent suivis d'un pas à l'autre (lancés entre deux pas : subTick)
+  const now = ctx.clock.now();
+  const keep = (S.launched || []).filter(L => !L.done && L.launchAt > now - 60000);
+  S = { step: ctx.step, ...(await readWorld(ctx)), leaderCity: S.leaderCity instanceof Map ? S.leaderCity : new Map(), launched: keep };
   return S;
 }
 // la ville du lanceur (le point de rassemblement que montre la carte)
@@ -111,6 +162,7 @@ async function leaderCity(ctx, rallyId) {
   if (S.leaderCity.has(rallyId)) return S.leaderCity.get(rallyId);
   const r = await ctx.prisma.rally.findUnique({ where: { id: rallyId }, select: { cityId: true } });
   const c = r ? await ctx.prisma.city.findUnique({ where: { id: r.cityId }, select: { id: true, x: true, y: true } }) : null;
+  if (S.leaderCity.size > 500) S.leaderCity.clear();
   S.leaderCity.set(rallyId, c);
   return c;
 }
@@ -118,18 +170,65 @@ async function leaderCity(ctx, rallyId) {
 const stepMs = (ctx) => ctx.OPT.stepHours * 3600000;
 const tickAfter = (ctx, t) => ctx.OPT.start + Math.ceil((t - ctx.OPT.start) / stepMs(ctx)) * stepMs(ctx);
 const nextTick = (ctx) => ctx.OPT.start + (ctx.step + 1) * stepMs(ctx);
-const actsNow = (ctx, b) => (ctx.step + b.turn) % 2 === 0 || !!b.mem.alwaysOn;
+// le joueur joue ce pas-ci : la règle de la boucle (ctx.plays, si la simulation la donne), sinon un pas sur deux
+const actsNow = (ctx, b) => (typeof ctx.plays === 'function' ? !!ctx.plays(b) : (ctx.step + b.turn) % 2 === 0 || !!b.mem.alwaysOn);
+
+// ---------- durée de marche ----------
+// longueur de la route entre deux cases (src/utils/pathfinding.js routeLength : le même A* que le serveur et la carte du
+// client), gardée par paire de cases ; sans réponse, la ligne droite × 1,5 ; pas de chemin : jamais
+const ROUTES = new Map();
+let routeLength = null;
+async function routeTiles(a, b, faction) {
+  const key = `${a.x},${a.y}>${b.x},${b.y}|${faction || ''}`;
+  if (ROUTES.has(key)) return ROUTES.get(key);
+  let len;
+  try {
+    routeLength ||= require(path.join(ROOT, 'src/utils/pathfinding')).routeLength;
+    len = await routeLength(a.x, a.y, b.x, b.y, faction || null);
+  } catch (e) {
+    if (e?.code !== 'NO_ROUTE') return dist(a, b) * SLACK;   // lecture ratée : l'estimation, sans la garder
+    len = Infinity;
+  }
+  if (ROUTES.size > 20000) ROUTES.clear();
+  ROUTES.set(key, len);
+  return len;
+}
+// le temps que le serveur a donné pour une paire de villes (refus ou envoi), avec la lenteur de l'armée d'alors :
+// { secs, spt } ; une autre armée de la même ville marche en proportion de sa lenteur (s par case)
+const LEARNED = new Map();
+const pairKey = (from, to) => (from?.id && to?.id ? `${from.id}@${from.x},${from.y}>${to.id}@${to.x},${to.y}` : null);   // une capitale tombée change de place
+function learn(from, to, spt, secs) {
+  const k = pairKey(from, to);
+  if (!k || !(secs > 0) || !(spt > 0)) return;
+  if (LEARNED.size > 5000) LEARNED.clear();
+  LEARNED.set(k, { secs, spt });
+}
+// durée de marche (s) de l'armée de l'option jusqu'à une ville (sans les bonus de vitesse : prudent ; le temps appris les
+// compte)
+async function marchSecs(o, to, faction) {
+  if (o.city.x === to.x && o.city.y === to.y) return 0;
+  const l = LEARNED.get(pairKey(o.city, to));
+  if (l) return l.secs * o.spt / l.spt;
+  return (await routeTiles(o.city, to, faction)) * o.spt + 60;
+}
 
 // ---------- armées ----------
-// ce que la garnison peut donner à l'armée : toutes ses troupes, la ville garde 10 % des soldats
-function takeRows(bot, army, city) {
+// les autres armées au repos de la ville, qui se fondent dans celle qui part (un rassemblement ne prend qu'une armée par
+// joueur) : jamais une armée d'un autre rôle, celles d'une fondation en cours, ni l'escorte du colon de la Ville Merveille
+function mergeable(bot, army, city) {
+  const col = bot.mem.mil?.col;
+  const busy = new Set([col?.a, col?.b].filter(Boolean));
+  return bot.armies.filter(a => a.id !== army?.id && !MERGE_NEVER.has(a.name) && !busy.has(a.id) && a.cityId === city.id && atHome(a, city) && countOf(a.units) > 0 && !isEscort(bot, a.id));
+}
+// ce que la garnison (et les armées qui se fondent) donne à l'armée : toutes ses troupes, la ville garde 10 % des soldats
+function takeRows(bot, army, city, merge = []) {
   const g = garrisonOf(bot, city.id);
-  const gRows = fighters(g?.units);
+  const pool = poolRows([g?.units, ...merge.map(a => a.units)]);
   const have = countOf(army?.units);
-  let want = Math.floor((countOf(g?.units) + have) * (1 - KEEP)) - have;
+  let want = Math.floor((countOf(pool) + have) * (1 - KEEP)) - have;
   if (want < 10) return [];
   const out = [];
-  for (const u of gRows.sort((a, b) => b.count - a.count)) {
+  for (const u of pool.sort((a, b) => b.count - a.count)) {
     const take = Math.min(Math.floor(u.count * (1 - KEEP)), want);
     if (take < 5) continue;
     out.push({ unitKey: u.unitKey, tier: u.tier || UNIT[u.unitKey].tier, count: take });
@@ -138,9 +237,11 @@ function takeRows(bot, army, city) {
   return out;
 }
 function option(bot, army, city, create) {
-  const rows = takeRows(bot, army, city);
+  // le convoi d'alliance part tel quel avec la garnison (les autres armées ne se fondent pas dans une armée d'un autre rôle)
+  const merge = army && MERGE_NEVER.has(army.name) ? [] : mergeable(bot, army, city);
+  const rows = takeRows(bot, army, city, merge);
   const units = [...fighters(army?.units), ...rows];
-  return { army, city, create, rows, pot: powerOf(units), spt: secPerTile(units) };
+  return { army, city, create, merge, rows, pot: powerOf(units), spt: secPerTile(units) };
 }
 // les armées que le joueur peut mener ou envoyer maintenant (estimate : sans rien changer à sa mémoire)
 function usableArmies(bot, m, estimate = false) {
@@ -149,7 +250,7 @@ function usableArmies(bot, m, estimate = false) {
   if (m.a && !own && !estimate) delete m.a;
   if (own) {
     const c = cityOf(own.cityId);
-    return c && !c.isSieged && atHome(own, c) ? [option(bot, own, c, false)].filter(o => o.pot > 0) : [];
+    return c && !c.isSieged && atHome(own, c) && !isEscort(bot, own.id) ? [option(bot, own, c, false)].filter(o => o.pot > 0) : [];
   }
   const cap = bot.capital;
   if (!cap || cap.isSieged) return [];
@@ -158,16 +259,17 @@ function usableArmies(bot, m, estimate = false) {
   // un emplacement libre que les autres rôles n'attendent pas (../armies.cjs, la chasse vient en dernier) : l'armée de chasse
   // s'y forme
   if (Armies.freeSlot(bot, 'hunt') && countOf(garrisonOf(bot, cap.id)?.units) >= 40) return [option(bot, null, cap, true)];
-  // pas d'emplacement libre : une armée de campagne au repos ; pendant une fondation, ni l'armée qui frappe le camp ni
-  // celle du colon, et la capitale garde une armée au repos pour l'escorte (comme le module militaire)
+  // pas d'emplacement libre : une armée de campagne au repos, le convoi d'alliance ou l'Ost ; pendant une fondation, ni
+  // l'armée qui frappe le camp ni celle du colon, et la capitale garde une armée au repos pour l'escorte (comme le module
+  // militaire) ; jamais l'escorte du colon de la Ville Merveille
   const reserved = new Set([mil.col?.a, mil.col?.b].filter(Boolean));
   const keepHome = !!mil.col && (mil.col.ph === 'approach' || mil.col.ph === 'ready');
   const idleInCapital = bot.armies.filter(a => milOwn.has(a.id) && !reserved.has(a.id) && a.cityId === cap.id && atHome(a, cap)).length;
   const out = [];
   for (const a of bot.armies) {
-    if (a.isGarrison || reserved.has(a.id) || !(milOwn.has(a.id) || a.name === 'Convoi')) continue;
+    if (a.isGarrison || reserved.has(a.id) || !(milOwn.has(a.id) || a.name === Armies.NAMES.convoy || a.name === Armies.NAMES.ost)) continue;
     const c = cityOf(a.cityId);
-    if (!c || c.isSieged || !atHome(a, c) || !lvl(c, 'RALLY_POINT')) continue;
+    if (!c || c.isSieged || !atHome(a, c) || !lvl(c, 'RALLY_POINT') || isEscort(bot, a.id)) continue;
     if (keepHome && c.id === cap.id && milOwn.has(a.id) && idleInCapital <= 1) continue;
     const o = option(bot, a, c, false);
     o.borrow = true;
@@ -189,6 +291,25 @@ async function ensureArmy(bot, B, m, o) {
   o.army = army;
   return army;
 }
+// les autres armées au repos rendent leurs soldats à la garnison (set-unit à 0, comme le client ; les engins restent à leur
+// place) : l'armée qui part les reprend avec la garnison (fill)
+async function mergeHome(bot, B, m, o) {
+  const g = garrisonOf(bot, o.city.id);
+  if (!g) return;
+  for (const a of o.merge || []) {
+    if (a.id === o.army?.id) continue;
+    for (const u of fighters(a.units)) {
+      if (B.left() <= 3) return;
+      const r = await B.call('POST', `/api/army/${a.id}/set-unit`, { unitKey: u.unitKey, count: 0 });
+      if (!r.ok) break;
+      const n = u.count;
+      u.count = 0;
+      const gr = (g.units ||= []).find(x => x.unitKey === u.unitKey);
+      if (gr) gr.count += n; else g.units.push({ unitKey: u.unitKey, tier: u.tier || UNIT[u.unitKey].tier, count: n });
+      bump(m, 'merged', n);
+    }
+  }
+}
 // garnison -> armée (set-unit, comme le client), en gardant un appel pour la suite
 async function fill(bot, B, m, o) {
   const army = o.army;
@@ -206,11 +327,35 @@ async function fill(bot, B, m, o) {
   }
   o.rows = [];
 }
+// l'armée prête à partir : créée s'il le faut, les autres armées fondues, remplie depuis la garnison
+async function prepare(bot, B, m, o) {
+  const army = await ensureArmy(bot, B, m, o);
+  if (!army) return null;
+  if (o.merge?.length) await mergeHome(bot, B, m, o);
+  if (o.rows.length) await fill(bot, B, m, o);
+  return countOf(army.units) ? army : null;
+}
+// un envoi vers le rassemblement : le temps de marche que donne le serveur est retenu (arrivée, ou refus « N min de marche »)
+async function joinRally(bot, B, m, o, rallyId, lc, ctx) {
+  const j = await B.call('POST', `/api/rallies/${rallyId}/join`, { armyId: o.army.id });
+  if (j.ok) {
+    o.army.status = 'RALLY_JOIN';
+    const secs = (ms(j.data?.arrivalAt) - ctx.clock.now()) / 1000;
+    if (secs > 0) learn(o.city, lc, secPerTile(o.army.units), secs);
+    m.ra[o.army.id] = ctx.step;
+    bump(m, 'joined'); if (o.borrow) bump(m, 'borrowed');
+    return true;
+  }
+  bump(m, 'joinRefused');
+  const mins = String(j.data?.error || '').match(/\((\d+) min de marche/);
+  if (mins) { learn(o.city, lc, secPerTile(o.army.units), +mins[1] * 60); bump(m, 'joinTooFar'); }
+  return false;
+}
 
 // ---------- les membres qui se connectent après lui dans ce pas, assez près pour arriver avant le départ ----------
 // (ceux qui ne jouent pas ce pas-ci répondent parfois à la notification du rassemblement : comptés moins)
 const NOTIF_ODDS = 0.6;
-function expectedJoiners(bot, ctx, city, allianceId) {
+async function expectedJoiners(bot, ctx, city, allianceId) {
   const idx = ctx.bots.indexOf(bot);
   const out = [];
   for (let i = 0; i < ctx.bots.length; i++) {
@@ -218,14 +363,44 @@ function expectedJoiners(bot, ctx, city, allianceId) {
     if (b === bot || b.me?.alliance?.allianceId !== allianceId || !Array.isArray(b.armies)) continue;
     const later = actsNow(ctx, b);
     if (later && i < idx) continue;   // il a déjà joué ce pas-ci
-    let best = 0;
+    let best = null;
     for (const o of usableArmies(b, b.mem.inv || {}, true)) {
-      const secs = dist(o.city, city) * o.spt * SLACK + 60;
-      if (secs < MAX_WAIT_S - 600 && o.pot > best) best = o.pot;   // ils se connectent quelques minutes plus tard
+      const secs = await marchSecs(o, city, b.faction);
+      if (secs < MAX_WAIT_S - 600 && (!best || o.pot > best.pot)) best = { pot: o.pot, secs };   // ils se connectent quelques minutes plus tard
     }
-    if (best > 0) out.push({ pot: best * (later ? 1 : NOTIF_ODDS), secs: dist(b.capital || city, city) * 37.5 * SLACK + 60 });
+    if (best) out.push({ pot: best.pot * (later ? 1 : NOTIF_ODDS), secs: best.secs + 60 });
   }
   return out.sort((a, b) => b.pot - a.pot);
+}
+
+// ---------- la cible d'un nouveau rassemblement ----------
+// joinPot : ce que les membres attendus apportent (certains rejoindront un autre rassemblement : 60 % ; contre un chef, la
+// notification est suivie : 80 %). Score : le trésor au plus près (ce qu'il reste à abattre), le plus haut niveau (objet plus
+// probable au dernier coup), un donjon commencé par l'alliance ×3, l'étage du chef ×5 (×1,5 pour l'étage 2) ; un étage à user
+// compte moitié, sauf celui du chef. Un donjon neuf n'est pris que si aucun donjon commencé n'est à portée et que
+// l'alliance peut le finir avant la fin de l'invasion (reachCap : ce qu'elle abat en un rassemblement, fois les
+// rassemblements qui restent)
+const joinShare = (n) => (n.floor === 3 ? 0.8 : 0.6);
+function targetScore(n, p, mine) {
+  return treasureOf(n.level).res * 1000 / Math.max(1, n.power + n.rest) * (1 + 0.2 * (n.level - 1)) * (mine ? 3 : 1)
+    * (n.floor === 3 ? 5 : n.floor === 2 ? 1.5 : 1) * (p.wear && n.floor < 3 ? 0.5 : 1) - p.march / 600000;
+}
+function pickTarget(nodes, { started, margin, plan, reachCap }) {
+  const ok = [];
+  for (const n of nodes) {
+    if (!(n.power > 0)) continue;
+    const p = plan(n, n.power * margin);
+    if (p.solo || p.group || p.wear) ok.push({ n, p });
+  }
+  const startedOk = ok.some(x => started.has(x.n.nodeId));
+  let best = null;
+  for (const { n, p } of ok) {
+    const fresh = n.floor === 1 && !started.has(n.nodeId);
+    if (fresh && (startedOk || (n.power + n.rest) * margin > reachCap)) continue;
+    const score = targetScore(n, p, started.has(n.nodeId));
+    if (!best || score > best.score) best = { n, p, score };
+  }
+  return best;
 }
 
 // ---------- tour d'un membre pendant une invasion ----------
@@ -239,7 +414,7 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
     if (m.rc !== st.inv.id && !m.a) {
       const mil = bot.mem.mil || {};
       const reserved = new Set([mil.col?.a, mil.col?.b].filter(Boolean));
-      const away = bot.armies.filter(a => (mil.own || []).includes(a.id) && !reserved.has(a.id) && a.status === 'HARVESTING' && countOf(a.units) >= 20).sort((x, y) => powerOf(y.units) - powerOf(x.units))[0];
+      const away = bot.armies.filter(a => (mil.own || []).includes(a.id) && !reserved.has(a.id) && a.status === 'HARVESTING' && countOf(a.units) >= 20 && !isEscort(bot, a.id)).sort((x, y) => powerOf(y.units) - powerOf(x.units))[0];
       if (away && !mil.col) {
         m.rc = st.inv.id;
         const r = await budget(bot, m, 1).call('POST', `/api/army/${away.id}/return`);
@@ -255,70 +430,56 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
   const rallies = (list.data?.rallies || []).filter(r => r.kind === 'HORDE');
   const targeted = new Set(rallies.filter(r => r.status === 'GATHERING' || r.status === 'MARCHING').map(r => r.targetNodeId));
   const now = ctx.clock.now();
-  for (const [id, until] of Object.entries(m.far || {})) if (until <= ctx.step) delete m.far[id];
 
-  // 1. rejoindre : le rassemblement à qui il manque le plus de puissance, que l'armée atteint avant le départ
+  // 1. rejoindre : le rassemblement à qui il manque le plus de puissance (le chef d'abord), que l'armée atteint avant le départ
   let best = null;
   for (const r of rallies) {
     if (r.status !== 'GATHERING' || r.joined || r.mine || (r.armies || []).length >= r.maxArmies) continue;
     const node = st.nodes.get(r.targetNodeId);
     if (!node) continue;
     const lc = await leaderCity(ctx, r.id);
-    if (!lc || (m.far?.[lc.id] || 0) > ctx.step) continue;
+    if (!lc) continue;
     const need = node.power * g.margin;
     if (r.power >= need * 2.5) continue;   // assez fort sans lui : il garde son armée pour un autre donjon
     const left = (ms(r.launchAt) - now) / 1000;
     for (const o of usable) {
-      const secs = dist(o.city, lc) * o.spt * SLACK + 60;
+      const secs = await marchSecs(o, lc, bot.faction);
       if (secs > left - 30) continue;
-      const score = Math.min(need - r.power, o.pot) * 2 - secs;
-      if (!best || score > best.score) best = { r, o, lc, score };
+      const score = Math.min(need - r.power, o.pot) * 2 - secs + (node.floor === 3 ? 2e6 : node.floor === 2 ? 5e5 : 0);
+      if (!best || score > best.score) best = { r, o, lc, score, node };
     }
   }
   if (best) {
-    const army = await ensureArmy(bot, B, m, best.o);
-    if (!army) return;
-    if (best.o.rows.length) await fill(bot, B, m, best.o);
-    if (B.left() < 1 || !countOf(army.units)) return;
-    const j = await B.call('POST', `/api/rallies/${best.r.id}/join`, { armyId: army.id });
-    if (j.ok) {
-      army.status = 'RALLY_JOIN';
-      bump(m, 'joined'); if (best.o.borrow) bump(m, 'borrowed');
-    } else {
-      bump(m, 'joinRefused');
-      if (/temps/.test(String(j.data?.error || ''))) { (m.far ||= {})[best.lc.id] = ctx.step + 28; const keys = Object.keys(m.far); if (keys.length > 8) delete m.far[keys[0]]; }
-    }
+    const army = await prepare(bot, B, m, best.o);
+    if (!army || B.left() < 1) return;
+    if (await joinRally(bot, B, m, best.o, best.r.id, best.lc, ctx) && best.node.floor === 3) bump(m, 'joinedBoss');
     return;
   }
 
-  // 2. lancer : le donjon que l'alliance peut battre (le plus haut niveau, le plus avancé, le plus proche)
+  // 2. lancer : au plus 2 rassemblements de l'alliance en attente (au-delà, les membres rejoignent), un seul par donjon
+  if (rallies.filter(r => r.status === 'GATHERING').length >= MAX_GATHERING) { bump(m, 'onlyJoin'); return; }
   const endsAt = ms(st.inv.endsAt);
   const o = usable.find(x => x.city.isCapital) || usable[0];
   const rp = lvl(bot.capital, 'RALLY_POINT');   // celle de la capitale vaut pour toutes les villes (capitale seulement)
   if (!rp || B.left() < 3) return;
   // taille d'un rassemblement (décision du 31 octobre 2026) : la Place de rassemblement de la capitale du lanceur
   const capacity = fx.rallyMaxArmies(rp);
-  const joiners = expectedJoiners(bot, ctx, o.city, allianceId).slice(0, capacity - 1);
-  const joinPot = joiners.reduce((t, x) => t + x.pot, 0) * 0.6;   // certains rejoindront un autre rassemblement
+  const joiners = (await expectedJoiners(bot, ctx, o.city, allianceId)).slice(0, capacity - 1);
+  const joinSum = joiners.reduce((t, x) => t + x.pot, 0);
   const nt = nextTick(ctx);
   const plan = (n, need) => {
     const march = dist(o.city, n) * o.spt * SLACK * 1000;
+    const joinPot = joinSum * joinShare(n);
     const solo = o.pot >= need && tickAfter(ctx, now + 120000 + march) < endsAt;
     const group = o.pot + joinPot >= need && tickAfter(ctx, nt + march) < endsAt;   // au pire, départ au prochain tick
     // usure : le groupe pèse au moins la moitié de l'étage, l'étage gardera ses pertes
     const wear = !group && o.pot + joinPot >= ATTRITION * need && tickAfter(ctx, nt + march) < endsAt;
-    return { solo, group, wear, march };
+    return { solo, group, wear, march, joinPot };
   };
-  let target = null;
-  for (const n of st.nodes.values()) {
-    if (targeted.has(n.nodeId) || !(n.power > 0)) continue;
-    const p = plan(n, n.power * g.margin);
-    if (!p.solo && !p.group && !p.wear) continue;
-    // le trésor au plus près : ce qu'il reste à abattre (étage en cours et suivants), un donjon presque fini d'abord, le
-    // plus haut niveau que l'alliance peut battre (objet plus probable au dernier coup) ; un étage à user vient après
-    const score = treasureOf(n.level).res * 1000 / Math.max(1, n.power + n.rest) * (n.floor === 3 ? 1.3 : 1) * (1 + 0.2 * (n.level - 1)) * (p.wear ? 0.5 : 1) - p.march / 600000;
-    if (!target || score > target.score) target = { n, score };
-  }
+  // ce que l'alliance abat d'ici la fin : un rassemblement tous les deux pas
+  const reachCap = (o.pot + joinSum * 0.6) * Math.max(1, Math.floor((endsAt - nt) / stepMs(ctx) / 2));
+  const started = st.started?.get(allianceId) || new Set();
+  const target = pickTarget([...st.nodes.values()].filter(n => !targeted.has(n.nodeId)), { started, margin: g.margin, plan, reachCap });
   if (!target) { bump(m, 'noTarget'); return; }
   // ce que voit le joueur avant de lancer : l'invasion en cours, puis le panneau du donjon
   const inv = await B.call('GET', '/api/invasion');
@@ -329,26 +490,29 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
   const need = Math.max(1, left) * g.margin;
   const p = plan(target.n, need);
   if (!p.solo && !p.group && !p.wear) { bump(m, 'noTarget'); return; }
-  const army = await ensureArmy(bot, B, m, o);
-  if (!army) return;
-  if (o.rows.length) await fill(bot, B, m, o);
-  if (B.left() < 1 || !countOf(army.units)) return;
+  const army = await prepare(bot, B, m, o);
+  if (!army || B.left() < 1) return;
   const power = powerOf(army.units);
   // assez fort seul : il part seul s'il n'attend personne, sinon une fois sur quatre (l'alliance se rassemble d'habitude)
-  const solo = power >= need && p.solo && (joinPot < need * 0.25 || ctx.rand() < 0.25);
-  const wear = !solo && power + joinPot < need;
-  if (wear && power + joinPot < ATTRITION * need) { bump(m, 'tooWeak'); return; }
-  // l'attente : la plus courte qui laisse arriver les membres attendus (30 min au moins pour un groupe, 180 au plus)
+  const solo = power >= need && p.solo && (p.joinPot < need * 0.25 || ctx.rand() < 0.25);
+  const wear = !solo && power + p.joinPot < need;
+  if (wear && power + p.joinPot < ATTRITION * need) { bump(m, 'tooWeak'); return; }
+  // l'attente : la plus courte qui laisse arriver les membres attendus (30 min au moins pour un groupe, 120 contre le chef,
+  // 180 au plus)
   const reach = joiners.length ? Math.max(...joiners.map(x => x.secs)) + 600 : 0;
-  const wait = solo ? WAITS[0] : (WAITS.find(w => w >= 30 && w * 60 >= reach) || WAITS[WAITS.length - 1]);
+  const floorWait = target.n.floor === 3 ? BOSS_WAIT : 30;
+  const wait = solo ? WAITS[0] : (WAITS.find(w => w >= floorWait && w * 60 >= reach) || WAITS[WAITS.length - 1]);
   const r = await B.call('POST', '/api/rallies', { armyId: army.id, nodeId: target.n.nodeId, waitMinutes: wait });
   if (!r.ok || !r.data?.rally) { bump(m, 'launchRefused'); return; }
   army.status = 'RALLY_WAIT';
+  m.ra[army.id] = ctx.step;
   const id = r.data.rally.id;
   m.p.push(id); if (m.p.length > 8) m.p.shift();
   (m.f ||= {})[id] = target.n.floor;   // l'étage visé (un autre rassemblement peut l'abattre avant)
   if (wear) (m.w ||= {})[id] = 1;      // rassemblement d'usure : sa défaite n'apprend rien à la marge
-  bump(m, 'launched'); bump(m, `launchedL${target.n.level}`); bump(m, `wait${wait}`); if (wear) bump(m, 'launchedToWear'); if (o.borrow) bump(m, 'borrowed');
+  bump(m, 'launched'); bump(m, `launchedL${target.n.level}`); bump(m, `launchedF${target.n.floor}`); bump(m, `wait${wait}`);
+  if (started.has(target.n.nodeId)) bump(m, 'launchedStarted');
+  if (wear) bump(m, 'launchedToWear'); if (o.borrow) bump(m, 'borrowed');
   S.launched.push({ leader: bot.name, alliance: allianceId, id, nodeId: target.n.nodeId, need, march: p.march, solo, wear, capacity: r.data.maxArmies || capacity, launchAt: ms(r.data.rally.launchAt) });
   if (solo && B.left() > 0) {
     // assez fort seul : il part sans attendre
@@ -359,7 +523,7 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
 
 // ---------- notification « Rassemblement d'alliance » : des membres qui ne jouent pas ce pas-ci y répondent ----------
 async function responders(ctx) {
-  if (S.step !== ctx.step || !S.inv) return;
+  if (!S.inv) return;
   const now = ctx.clock.now();
   for (const L of S.launched) {
     if (L.done || L.launchAt - now < 10 * 60000) continue;
@@ -369,14 +533,16 @@ async function responders(ctx) {
     for (const b of ctx.bots) {
       if (b.name === L.leader || actsNow(ctx, b) || b.me?.alliance?.allianceId !== L.alliance || !Array.isArray(b.armies) || b.mem.inv?.rs === ctx.step) continue;
       let best = 0;
-      for (const o of usableArmies(b, b.mem.inv || {}, true)) if (dist(o.city, lc) * o.spt * SLACK + 60 < (L.launchAt - now) / 1000 - 120 && o.pot > best) best = o.pot;
+      for (const o of usableArmies(b, b.mem.inv || {}, true)) if (await marchSecs(o, lc, b.faction) < (L.launchAt - now) / 1000 - 120 && o.pot > best) best = o.pot;
       if (best > 0) cands.push({ b, pot: best });
     }
+    // contre le chef, la notification est mieux suivie
+    const odds = (S.nodes.get(L.nodeId)?.floor === 3) ? 0.8 : NOTIF_ODDS;
     for (const { b } of cands.sort((x, y) => y.pot - x.pot).slice(0, Math.max(0, L.capacity - 1))) {
-      if (ctx.rand() >= NOTIF_ODDS) continue;   // n'a pas vu la notification à temps
+      if (ctx.rand() >= odds) continue;   // n'a pas vu la notification à temps
       const m = memOf(b);
       m.rs = ctx.step;
-      const B = budget(b, m, 6);
+      const B = budget(b, m, 20);
       const ar = await B.call('GET', '/api/army');
       if (!ar.ok || !Array.isArray(ar.data)) continue;
       b.armies = ar.data;
@@ -386,23 +552,19 @@ async function responders(ctx) {
       const r = (lr.data?.rallies || []).find(x => x.id === L.id);
       if (!r || r.status !== 'GATHERING' || r.joined || (r.armies || []).length >= r.maxArmies || r.power >= L.need * 2.5) continue;
       const left = (ms(r.launchAt) - ctx.clock.now()) / 1000;
-      const o = usable.filter(x => dist(x.city, lc) * x.spt * SLACK + 60 <= left - 30).sort((x, y) => y.pot - x.pot)[0];
+      let o = null;
+      for (const x of usable.sort((p, q) => q.pot - p.pot)) if (await marchSecs(x, lc, b.faction) <= left - 30) { o = x; break; }
       if (!o) continue;
-      const army = await ensureArmy(b, B, m, o);
-      if (!army) continue;
-      if (o.rows.length) await fill(b, B, m, o);
-      if (B.left() < 1 || !countOf(army.units)) continue;
-      const j = await B.call('POST', `/api/rallies/${L.id}/join`, { armyId: army.id });
-      if (j.ok) { army.status = 'RALLY_JOIN'; bump(m, 'joined'); bump(m, 'joinedFromNotification'); if (o.borrow) bump(m, 'borrowed'); }
-      else { bump(m, 'joinRefused'); if (/temps/.test(String(j.data?.error || ''))) (m.far ||= {})[lc.id] = ctx.step + 28; }
+      const army = await prepare(b, B, m, o);
+      if (!army || B.left() < 1) continue;
+      if (await joinRally(b, B, m, o, L.id, lc, ctx)) bump(m, 'joinedFromNotification');
     }
   }
 }
 
 // ---------- fin du pas : départ anticipé, départ au tick ou annulation ----------
-async function settleLaunched(ctx) {
-  if (S.step !== ctx.step) return;
-  const g = stats(ctx);
+// earlyOnly (après un tick d'une heure, subTick) : seulement le départ anticipé des rassemblements prêts
+async function settleLaunched(ctx, { earlyOnly = false } = {}) {
   const now = ctx.clock.now();
   const endsAt = ms(S.inv?.endsAt);
   for (const L of S.launched) {
@@ -413,11 +575,19 @@ async function settleLaunched(ctx) {
     const B = budget(b, m, 3);
     const r = await B.call('GET', `/api/rallies?nodeId=${L.nodeId}`);
     const rally = (r.data?.rallies || []).find(x => x.id === L.id);
-    if (!rally || rally.status !== 'GATHERING') continue;
+    if (!rally || rally.status !== 'GATHERING') { if (r.ok) L.done = true; continue; }
     let armies = rally.armies || [];
     const arrivedOf = (list) => list.filter(a => a.status === 'RALLY_WAIT' || (a.status === 'RALLY_JOIN' && ms(a.arrivalAt) <= ctx.clock.now()));
     let arrived = arrivedOf(armies).reduce((t, a) => t + (a.power || 0), 0);
     let total = armies.reduce((t, a) => t + (a.power || 0), 0);
+    if (earlyOnly) {
+      // toutes les armées sont là et le groupe suffit : il part tout de suite (l'attente ne servirait à rien)
+      if (arrived >= L.need && arrivedOf(armies).length === armies.length) {
+        const l = await B.call('POST', `/api/rallies/${L.id}/launch`);
+        if (l.ok) { L.done = true; bump(m, 'launchedEarly'); bump(m, 'launchedBetweenSteps'); }
+      }
+      continue;
+    }
     // de loin en loin : un membre d'un rassemblement bien trop fort retire son armée (pour la garder chez lui)
     const extra = armies.filter(a => !a.mine && a.owner !== b.name);
     if (extra.length >= 2 && arrived - (extra[extra.length - 1].power || 0) >= L.need * 2.5 && ctx.rand() < 0.3) {
@@ -431,16 +601,16 @@ async function settleLaunched(ctx) {
     }
     if (arrived >= L.need) {
       const l = await B.call('POST', `/api/rallies/${L.id}/launch`);
-      if (l.ok) { bump(m, 'launchedEarly'); if (armies.length > arrivedOf(armies).length) bump(m, 'leftBehind', armies.length - arrivedOf(armies).length); }
+      if (l.ok) { L.done = true; bump(m, 'launchedEarly'); if (armies.length > arrivedOf(armies).length) bump(m, 'leftBehind', armies.length - arrivedOf(armies).length); }
     } else if (total >= L.need && tickAfter(ctx, nextTick(ctx) + L.march) < endsAt) {
       bump(m, 'departAtTick');   // les retardataires sont nécessaires : départ au prochain tick
     } else if (L.wear && total >= ATTRITION * L.need && tickAfter(ctx, nextTick(ctx) + L.march) < endsAt) {
       bump(m, 'departToWear');   // usure : il part user l'étage au prochain tick
     } else {
       const c = await B.call('POST', `/api/rallies/${L.id}/cancel`);
-      if (c.ok) { bump(m, 'cancelled'); m.p = m.p.filter(x => x !== L.id); if (m.f) delete m.f[L.id]; gbump(ctx, 'cancelledWeak'); }
+      if (c.ok) { L.done = true; bump(m, 'cancelled'); m.p = m.p.filter(x => x !== L.id); if (m.f) delete m.f[L.id]; gbump(ctx, 'cancelledWeak'); }
     }
-    void now; void g;
+    void now;
   }
 }
 
@@ -478,6 +648,7 @@ async function trackOutcomes(ctx) {
     const tag = await tagOf(ctx, r.allianceId);
     if (res.gone) { gbump(ctx, 'gone'); gbump(ctx, res.reason === 'aucune armée' ? 'goneArmiesLostOnTheWay' : 'goneDungeonLeft'); continue; }
     const base = { tag, leader: b.name, level: horde?.level || null, floor: res.floor, x: r.targetX, y: r.targetY, armies: res.armies, points: res.points };
+    if (res.floor === 3) gbump(ctx, res.won ? 'bossBeaten' : 'bossRepelled');   // combats contre le chef
     if (!res.won) {
       gbump(ctx, 'repelled');
       // usure voulue : l'étage garde ses pertes, la marge ne change pas ; l'étage visé : la puissance demandée monte ;
@@ -610,8 +781,56 @@ async function turn(bot, ctx) {
   const m = memOf(bot);
   let st = await stepState(ctx);
   if (bot.admin && await adminTurn(bot, ctx, st)) st = await stepState(ctx, true);
-  if (!st.inv) { await release(bot, m); return; }
+  if (!st.inv) { m.ra = {}; await release(bot, m); return; }
   await participate(bot, ctx, st);
+}
+
+// ---------- entre deux pas : après chaque tick d'une heure d'un pas qui presse (sim.cjs appelle subTick) ----------
+// Les combats et les départs se jouent aux ticks. Le lanceur fait partir un rassemblement dont toutes les armées sont là et
+// qui suffit ; les issues sont relevées ; un membre qui joue ce pas-ci et dont une armée vient de rentrer d'un rassemblement
+// de donjon enchaîne (il rejoint le rassemblement en cours ou lance l'étage suivant) sans attendre le pas suivant. Seuls ces
+// membres relisent leurs armées (GET /api/army) : les autres jouent à leur tour.
+const RA_STEPS = 8;   // une armée partie avec un rassemblement n'est plus suivie après deux jours
+async function chain(ctx) {
+  const now = ctx.clock.now();
+  if (!S.inv || ms(S.inv.endsAt) <= now + 30 * 60000) return;
+  for (const b of ctx.bots) {
+    const allianceId = b.me?.alliance?.allianceId;
+    const m = b.mem.inv;
+    if (!m?.ra || !allianceId || !b.capital || !Array.isArray(b.armies) || !actsNow(ctx, b)) continue;
+    for (const [id, step] of Object.entries(m.ra)) if (ctx.step - step > RA_STEPS) delete m.ra[id];
+    // une de ses armées partie avec un rassemblement, encore dehors d'après ce qu'il a vu : elle est peut-être rentrée
+    const away = Object.keys(m.ra).filter(id => { const a = b.armies.find(x => x.id === id); return a && !atHome(a, b.cities.find(c => c.id === a.cityId)); });
+    if (!away.length) continue;
+    const ar = await budget(b, memOf(b), 1).call('GET', '/api/army');
+    if (!ar.ok || !Array.isArray(ar.data)) continue;
+    b.armies = ar.data;
+    const back = away.filter(id => { const a = b.armies.find(x => x.id === id); return !a || atHome(a, b.cities.find(c => c.id === a.cityId)); });
+    for (const id of back) delete m.ra[id];
+    if (!back.some(id => b.armies.some(a => a.id === id)) || !usableArmies(b, m, true).length) continue;
+    bump(m, 'chainTurns');
+    await invasionTurn(b, ctx, m, S, allianceId);
+  }
+}
+// l'heure du prochain retour d'une armée partie avec un rassemblement de donjon, avant `to` (crochet nextDue de sim.cjs :
+// un tick d'une heure à ce moment-là, puis chain) ; null : rien à attendre, ou pas d'invasion en cours
+async function nextDue(ctx, to) {
+  if (!S.inv || ms(S.inv.endsAt) <= ctx.clock.now() + 30 * 60000) return null;
+  const ids = ctx.bots.flatMap(b => Object.keys(b.mem.inv?.ra || {}));
+  if (!ids.length) return null;
+  const r = await ctx.prisma.army.aggregate({ where: { id: { in: ids }, status: 'RETURNING', arrivalAt: { lte: new Date(to) } }, _min: { arrivalAt: true } });
+  return r._min.arrivalAt ? new Date(r._min.arrivalAt).getTime() : null;
+}
+async function subTick(ctx) {
+  try {
+    if (!(S.leaderCity instanceof Map)) await stepState(ctx);
+    // l'invasion et les étages ont changé : relus, sans oublier les rassemblements lancés
+    Object.assign(S, await readWorld(ctx));
+    if (!S.inv) return;
+    await settleLaunched(ctx, { earlyOnly: true });
+    await trackOutcomes(ctx);
+    await chain(ctx);
+  } catch (e) { const g = stats(ctx); g.errors = (g.errors || 0) + 1; g.lastError = String(e?.stack || e).slice(0, 400); }
 }
 
 function summary(ctx, final = false) {
@@ -620,11 +839,13 @@ function summary(ctx, final = false) {
   for (const b of ctx.bots) for (const [key, v] of Object.entries(b.mem.inv?.k || {})) k[key] = (k[key] || 0) + v;
   const refusals = ctx.bots.map(b => b.mem.inv?.lastRefusal).filter(Boolean).slice(0, 4);
   ctx.event('invasion_summary', { step: ctx.step, final, margin: g.margin, world: g.k, bots: k, lastRefusals: refusals, errors: g.errors || 0, lastError: g.lastError || null });
-  ctx.say(`invasion : ${JSON.stringify({ invasions: (g.k.invasionsWeekend || 0) + (g.k.invasionsManual || 0), launched: k.launched || 0, joined: k.joined || 0, early: (k.launchedEarly || 0) + (k.launchedSolo || 0), cancelled: k.cancelled || 0, floors: g.k.floorsCleared || 0, destroyed: g.k.destroyed || 0, repelled: g.k.repelled || 0, calls: k.calls || 0, refused: k.refused || 0, errors: g.errors || 0 })}`);
+  ctx.say(`invasion : ${JSON.stringify({ invasions: (g.k.invasionsWeekend || 0) + (g.k.invasionsManual || 0), launched: k.launched || 0, boss: k.launchedF3 || 0, joined: k.joined || 0, early: (k.launchedEarly || 0) + (k.launchedSolo || 0), cancelled: k.cancelled || 0, floors: g.k.floorsCleared || 0, bossBeaten: g.k.bossBeaten || 0, destroyed: g.k.destroyed || 0, repelled: g.k.repelled || 0, tooFar: k.joinTooFar || 0, calls: k.calls || 0, refused: k.refused || 0, errors: g.errors || 0 })}`);
 }
 
 module.exports = {
   name: 'invasion',
+  subTick, nextDue,
+  pickTarget, targetScore, takeRows, option, mergeable, usableArmies, marchSecs, learn,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
   // début du tour (29-invasion-early.cjs, avant le module militaire) : rejoindre ou lancer un rassemblement
   async early(bot, ctx) {
     try { await participate(bot, ctx, await stepState(ctx)); } catch (e) { const g = stats(ctx); g.errors = (g.errors || 0) + 1; g.lastError = String(e?.stack || e).slice(0, 400); }

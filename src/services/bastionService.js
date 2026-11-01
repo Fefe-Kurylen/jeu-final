@@ -74,9 +74,12 @@ const publicBastion = (b, extra = {}) => b && ({
 // règles que le client affiche (onglet Alliance › Bastion, panneau d'un Bastion sur la carte), même sans alliance
 const RULES = { cost: B.cost, buildDays: B.buildDays, cooldownDays: B.cooldownDays, bonuses: B.bonuses, assaults: B.assaults, regenHours: B.regenHours, maxDistance: B.maxDistanceFromMember, wallMultiplier: B.wallMultiplier, wallReferenceLevel: B.wallReferenceLevel, maxGarrisonArmies: B.maxGarrisonArmies };
 
+// Une armée qui a encore des soldats, ou plus aucun (filtres Prisma sur ses lignes d'unités)
+const HAS_UNITS = { units: { some: { count: { gt: 0 } } } };
+const NO_UNITS = { units: { none: { count: { gt: 0 } } } };
 // Armées de la garnison d'un Bastion : celles qui y sont, celles en route pour y entrer et une sortie en cours (elle y
-// revient victorieuse)
-const garrisonWhere = (bastionId) => ({ targetBastionId: bastionId, OR: [{ status: 'STATIONED' }, { status: { in: ['SUPPORTING', 'ATTACKING'] }, missionType: { in: ['BASTION_GARRISON', 'BASTION_SORTIE'] } }] });
+// revient victorieuse). Une armée postée sans soldats (anéantie dans un assaut) ne compte plus : elle rentre.
+const garrisonWhere = (bastionId) => ({ targetBastionId: bastionId, OR: [{ status: 'STATIONED', ...HAS_UNITS }, { status: { in: ['SUPPORTING', 'ATTACKING'] }, missionType: { in: ['BASTION_GARRISON', 'BASTION_SORTIE'] } }] });
 const GARRISON_FULL = `Garnison du Bastion complète : ${B.maxGarrisonArmies} armées au plus, celles en route comprises`;
 
 async function bastionFor(playerId) {
@@ -343,7 +346,7 @@ async function handleGarrisonArrival(army, sendArmyHome) {
       const now = await tx.bastion.findUnique({ where: { id: b.id }, select: { status: true, isSieged: true } });
       if (!now || now.status === 'DESTROYED' || now.status === 'FUNDING') return 'gone';
       if (now.isSieged) return 'sieged';
-      const inside = await tx.army.count({ where: { targetBastionId: b.id, id: { not: army.id }, OR: [{ status: 'STATIONED' }, { status: 'ATTACKING', missionType: 'BASTION_SORTIE' }] } });
+      const inside = await tx.army.count({ where: { targetBastionId: b.id, id: { not: army.id }, OR: [{ status: 'STATIONED', ...HAS_UNITS }, { status: 'ATTACKING', missionType: 'BASTION_SORTIE' }] } });
       if (inside >= B.maxGarrisonArmies) return 'full';
       await tx.army.update({ where: { id: army.id }, data: { status: 'STATIONED', x: b.x, y: b.y, arrivalAt: null, claimedAt: null } });
       return null;
@@ -427,7 +430,10 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     const { group, rally } = await assaultGroup(tx, army, b.id, now);
     const rowsOf = new Map();
     for (const g of group) rowsOf.set(g.id, await tx.armyUnit.findMany({ where: { armyId: g.id } }));
-    const defenders = await tx.army.findMany({ where: { status: 'STATIONED', targetBastionId: b.id }, include: { units: true, owner: true, hero: { include: { items: true } } } });
+    // la garnison : seules les armées qui ont des soldats combattent (une armée déjà vide rentre avec les anéanties)
+    const stationed = await tx.army.findMany({ where: { status: 'STATIONED', targetBastionId: b.id }, include: { units: true, owner: true, hero: { include: { items: true } } } });
+    const alive = (a) => a.units.some(u => u.count > 0);
+    const defenders = stationed.filter(alive);
     const structure = structureNow(b, now.getTime());
     const maxHp = wallMaxHp();
     const attackerName = [...new Set(group.map(g => g.owner?.name).filter(Boolean))].join(', ');
@@ -451,6 +457,10 @@ async function handleBastionBattle(army, now, sendArmyHome) {
       { attacker: atkBonus, defender: { atk: forge.atk, def: garrison.def * forge.def } }, { hp: maxHp * structure, maxHp });
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const d of defenders) await applyLosses(tx, d.units, result.defenderFinalUnits);
+    // armées de la garnison sans soldats après l'assaut (et celles déjà vides) : elles rentrent après la transaction et
+    // libèrent leur place dans la garnison
+    const wiped = stationed.filter(d => !alive(d));
+    for (const d of defenders) if (!(await tx.armyUnit.count({ where: { armyId: d.id, count: { gt: 0 } } }))) wiped.push(d);
     const HS = require('./heroService');
     await HS.fallIfWiped(tx, HS.fought([...group.map(g => ({ ...g, units: rowsOf.get(g.id) })), ...defenders]), now);   // une armée anéantie perd son héros
     const RK = require('./rankingService');
@@ -475,16 +485,17 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     const reportIds = {};
     for (const id of new Set(group.map(g => g.ownerId))) reportIds[id] = (await tx.battleReport.create({ data: { ...base, result: result.attackerWon ? 'WIN' : 'LOSE', playerId: id, attackerId: id } })).id;
     for (const id of new Set(defenders.map(d => d.ownerId))) if (!reportIds[id]) reportIds[id] = (await tx.battleReport.create({ data: { ...base, result: result.attackerWon ? 'LOSE' : 'WIN', playerId: id, attackerId: army.ownerId, defenderId: id } })).id;
-    return { b, group, result, destroyed, lives, reportIds };
+    return { b, group, result, destroyed, lives, reportIds, wiped };
   }, { timeout: 15000 });
   if (outcome.gone) { await sendHome(army, sendArmyHome, { rallyId: null }); return; }
   if (outcome.broken) return;
-  const { b, group, result, destroyed, lives, reportIds } = outcome;
+  const { b, group, result, destroyed, lives, reportIds, wiped } = outcome;
   const tag = `[${b.alliance.tag}]`;
   for (const id of new Set(group.map(g => g.ownerId))) notify(id, 'battle', result.attackerWon ? '⚔️ Assaut réussi' : '⚔️ Assaut repoussé', destroyed ? `Le Bastion ${tag} est rasé !` : result.attackerWon ? `Le Bastion ${tag} perd une vie : il lui en reste ${lives.after} sur ${lives.total}.` : `La garnison du Bastion ${tag} a repoussé votre assaut.`, { to: 'report', reportId: reportIds[id], x: b.x, y: b.y });
   const members = await prisma.allianceMember.findMany({ where: { allianceId: b.allianceId }, select: { playerId: true } });
   for (const mm of members) notify(mm.playerId, destroyed ? 'city_fall' : 'battle', destroyed ? '🏰 Bastion rasé' : '🏰 Bastion attaqué', destroyed ? `Le Bastion de l'alliance est tombé : plus de bonus. Un nouveau sera possible dans ${B.cooldownDays} jours.` : result.attackerWon ? `Le Bastion a perdu une vie (${lives.after}/${lives.total}).` : 'La garnison du Bastion a tenu.', reportIds[mm.playerId] ? { to: 'report', reportId: reportIds[mm.playerId], x: b.x, y: b.y } : { to: 'map', x: b.x, y: b.y });
   for (const g of group) await sendArmyHome(g, b.x, b.y);
+  for (const d of wiped) await releaseWiped(d, sendArmyHome, `${d.name} a été anéantie au Bastion ${tag} : sa place en garnison est libérée.`);
   if (destroyed) {
     forgetActive();
     const { sendArmyHomeTx } = require('./armyService');
@@ -515,15 +526,37 @@ async function processBastions(now = new Date()) {
   }
 }
 
-// Garnisons qui n'ont plus lieu d'être (Bastion disparu ou rasé, joueur qui n'est plus membre ni allié) : elles rentrent.
-// Tri sur une lecture légère (relation lue une fois par paire d'alliances), armée complète chargée pour celles qui partent.
+// Une armée de la garnison sans soldats rentre (armyProcessor.sendArmyHome : sans troupes, elle est posée aussitôt dans sa
+// ville avec ce qu'elle porte, blessés compris) : sa place dans la garnison est libre et elle redevient utilisable chez elle.
+// Une erreur n'arrête pas la suite (Bastion rasé, autres armées) : le tick la renverra (releaseOrphanGarrisons).
+async function releaseWiped(army, sendArmyHome, message) {
+  try {
+    await sendArmyHome(army, army.x, army.y);
+  } catch (e) { console.error(`[BASTION] garnison vide ${army.id} :`, e.message); return false; }
+  notify(army.ownerId, 'battle', '💀 Garnison anéantie', message, { to: 'army', armyId: army.id });
+  return true;
+}
+
+// Garnisons qui n'ont plus lieu d'être : armée sans soldats (anéantie avant ce correctif), Bastion disparu ou rasé,
+// joueur qui n'est plus membre ni allié. Elles rentrent. Tri sur une lecture légère (relation lue une fois par paire
+// d'alliances), armée complète chargée pour celles qui partent.
 async function releaseOrphanGarrisons() {
-  const armies = await prisma.army.findMany({ where: { status: 'STATIONED', targetBastionId: { not: null } }, select: { id: true, targetBastionId: true, owner: { select: { alliance: { select: { allianceId: true } } } } } });
+  const armies = await prisma.army.findMany({ where: { status: 'STATIONED', targetBastionId: { not: null } }, select: { id: true, targetBastionId: true, owner: { select: { alliance: { select: { allianceId: true } } } }, units: { where: { count: { gt: 0 } }, select: { id: true }, take: 1 } } });
   if (!armies.length) return 0;
+  // sans soldats : elles rentrent quoi qu'il arrive (relues sous ce même filtre : un assaut a pu les renvoyer entre-temps)
+  const emptyIds = armies.filter(a => !a.units.length).map(a => a.id);
+  let released = 0;
+  if (emptyIds.length) {
+    const { sendArmyHome } = require('../game/processors/armyProcessor');
+    for (const a of await prisma.army.findMany({ where: { id: { in: emptyIds }, status: 'STATIONED', targetBastionId: { not: null }, ...NO_UNITS } })) {
+      if (await releaseWiped(a, sendArmyHome, `${a.name} n'a plus de soldats : elle quitte le Bastion et sa place en garnison est libérée.`)) released++;
+    }
+  }
   const bastions = new Map((await prisma.bastion.findMany({ where: { id: { in: [...new Set(armies.map(a => a.targetBastionId))] } }, select: { id: true, status: true, allianceId: true } })).map(b => [b.id, b]));
   const rels = new Map();
   const leaving = new Map();   // id de l'armée -> Bastion encore là ?
   for (const a of armies) {
+    if (!a.units.length) continue;   // déjà rentrée plus haut
     const b = bastions.get(a.targetBastionId);
     if (b && b.status !== 'DESTROYED') {
       const mine = a.owner?.alliance?.allianceId || null, k = `${mine}|${b.allianceId}`;
@@ -532,14 +565,14 @@ async function releaseOrphanGarrisons() {
     }
     leaving.set(a.id, !!b);
   }
-  if (!leaving.size) return 0;
+  if (!leaving.size) return released;
   const full = await prisma.army.findMany({ where: { id: { in: [...leaving.keys()] }, status: 'STATIONED', targetBastionId: { not: null } }, include: { units: true, city: true, hero: { include: { items: true } }, owner: { include: { technologies: true } } } });
   const { sendArmyHomeTx } = require('./armyService');
   for (const a of full) {
     await prisma.$transaction((tx) => sendArmyHomeTx(tx, a));
     notify(a.ownerId, 'alliance', '↩️ Garnison libérée', `${a.name} quitte le Bastion (${leaving.get(a.id) ? 'vous n\'êtes plus membre ni allié de son alliance' : 'il n\'existe plus'}) et rentre.`, { to: 'army', armyId: a.id });
   }
-  return full.length;
+  return released + full.length;
 }
 
 // Bastions visibles sur la carte dans un rectangle
@@ -549,4 +582,4 @@ async function bastionsIn(x0, x1, y0, y1) {
   return rows.map(r => ({ id: r.id, x: r.x, y: r.y, status: r.status, allianceId: r.allianceId, allianceTag: r.alliance.tag, allianceName: r.alliance.name, faction: leaders.find(l => l.id === r.alliance.leaderId)?.faction || 'ROME', structurePct: Math.round(structureNow(r) * 100), lives: livesOf(structureNow(r)), isSieged: r.isSieged, buildEndsAt: r.buildEndsAt }));
 }
 
-module.exports = { relationTo, breakSiege, handleBreakArrival, livesOf, refreshSieged, campingRally, assaultGroup, garrisonWhere, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };
+module.exports = { relationTo, breakSiege, handleBreakArrival, livesOf, refreshSieged, campingRally, assaultGroup, garrisonWhere, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, releaseOrphanGarrisons, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };
