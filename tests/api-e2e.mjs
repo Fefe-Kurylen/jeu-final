@@ -2109,7 +2109,10 @@ if (MAIL_LOG) {
     sql(`UPDATE "Rally" SET "arrivalAt"=now()-interval '1 second' WHERE id='${r2?.rally?.id}'`);
     await waitTick('second bastion rally camps', () => sql(`SELECT status FROM "Army" WHERE id='${agmen2}'`) === 'BESIEGING');
     const reports1 = bastionReports();
+    // la garnison de 10 a péri dans l'assaut repoussé juste avant (le mur a tenu) : libérée, elle a quitté le Bastion
+    // (releaseWiped) ; on la reforme et on la replace dedans pour que la sortie parte bien de la garnison
     refill(gar, 3000);
+    sql(`UPDATE "Army" SET status='STATIONED', x=${spot?.x}, y=${spot?.y}, "targetX"=${spot?.x}, "targetY"=${spot?.y}, "targetBastionId"='${bId}', "missionType"='BASTION_GARRISON', "arrivalAt"=NULL, "claimedAt"=NULL WHERE id='${gar}'`);
     const so2 = await call('bastion: the garrison makes a sortie against the rally camp', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: gar, mission: 'BREAK' });
     sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${gar}'`);
     await waitTick('sortie against the rally camp', () => sql(`SELECT status FROM "Army" WHERE id='${gar}'`) !== 'ATTACKING');
