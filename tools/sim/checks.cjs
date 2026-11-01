@@ -79,7 +79,7 @@ async function snapshot(prisma, clock, bots) {
   const since = new Date(clock.now() - 7 * 86400000);
   const q = (sql, ...a) => prisma.$queryRawUnsafe(sql, ...a);
   const players = await prisma.player.findMany({ select: { id: true, name: true, faction: true, population: true, gold: true, alliancePoints: true, alliance: { select: { allianceId: true } }, hero: { select: { level: true, diedAt: true } } } });
-  const cities = await prisma.city.findMany({ select: { id: true, playerId: true, isCapital: true, isWonder: true, wonderLevel: true, wood: true, stone: true, iron: true, food: true, buildings: { select: { key: true, level: true } } } });
+  const cities = await prisma.city.findMany({ select: { id: true, playerId: true, isCapital: true, isWonder: true, x: true, y: true, wonderLevel: true, wood: true, stone: true, iron: true, food: true, buildings: { select: { key: true, level: true } } } });
   // le palier de chaque ligne compte dans la puissance (calculateArmyPower : élites et engins à leur vraie valeur)
   const armies = await prisma.army.findMany({ select: { ownerId: true, status: true, units: { select: { unitKey: true, count: true, tier: true } } } });
   const techs = await q(`SELECT "playerId", sum(level)::int AS lv FROM "PlayerTechnology" GROUP BY 1`);
