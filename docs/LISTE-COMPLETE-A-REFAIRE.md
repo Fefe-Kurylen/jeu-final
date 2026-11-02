@@ -1,0 +1,1916 @@
+# Liste complète des images du jeu (tout à refaire)
+
+Le 2 novembre 2026. Toutes les images que le jeu affiche, bâtiments et villes compris : **1845 fichiers à livrer**. Chacun est marqué ✅ s'il est déjà peint et dans le jeu (tu peux le refaire quand même : la nouvelle version remplacera l'ancienne), ⬜ sinon.
+
+Règles : nom exact avec ses dossiers, PNG, fond transparent (sauf textures de sol), aucun texte. Le prompt de chaque image est dans `docs/GENERATION-COMPLETE.md` (une ligne par image, avec son image guide), `docs/PROMPTS-CARTE.md` pour la carte, ou `docs/GUIDE-CARTE-INTERFACE.md` pour les familles nouvelles. Les bandes d'animation : toutes les poses dans une seule image, je découpe. Envoi : un zip partagé sur Drive par lien.
+
+## Résumé
+
+| Groupe | Fichiers | Déjà dans le jeu |
+|---|---|---|
+| Bâtiments, palier courant | 198 | 90 |
+| Bâtiments, paliers 1 et 3 | 396 | 0 |
+| Chantiers des bâtiments | 168 | 0 |
+| Villes de la carte | 39 | 30 |
+| Villes assiégées (carte) | 30 | 30 |
+| Carte du monde | 287 | 186 |
+| Enceinte de la ville | 114 | 5 |
+| Champs et parcelles | 54 | 6 |
+| Sols, textures et décalques | 59 | 4 |
+| Décors et animations de la ville | 106 | 7 |
+| Unités et héros | 226 | 0 |
+| Scènes et bandeaux | 30 | 0 |
+| Interface | 132 | 75 |
+| Effets | 3 | 0 |
+| Boutique et application | 3 | 0 |
+| **Total** | **1845** | **433** |
+
+## Bâtiments, palier courant — 198
+
+- ✅ `buildings/EGYPT/ACADEMY.png` — 1024×1024 — Bâtiment « Académie » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/BAKERY.png` — 1024×1024 — Bâtiment « Boulangerie » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/BARRACKS.png` — 1024×1024 — Bâtiment « Caserne » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/EGYPTIAN_IRRIGATION.png` — 1024×1024 — Bâtiment « Poste d'Irrigation » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/EMBASSY.png` — 1024×1024 — Bâtiment « Ambassade » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/FARM.png` — 1024×1024 — Bâtiment « Ferme » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/FORGE.png` — 1024×1024 — Bâtiment « Forge » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/FOUNDRY.png` — 1024×1024 — Bâtiment « Fonderie » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/GREAT_BARRACKS.png` — 1024×1024 — Bâtiment « Grande Caserne » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/GREAT_SILO.png` — 1024×1024 — Bâtiment « Grand Silo » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/GREAT_STABLE.png` — 1024×1024 — Bâtiment « Grande Écurie » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/GREAT_WAREHOUSE.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/HEALING_TENT.png` — 1024×1024 — Bâtiment « Tente de soins » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/HERO_MANSION.png` — 1024×1024 — Bâtiment « Domus du Héros » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/HIDEOUT.png` — 1024×1024 — Bâtiment « Cachette » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/IRON_MINE.png` — 1024×1024 — Bâtiment « Mine de fer » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/LUMBER.png` — 1024×1024 — Bâtiment « Bûcheron » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/MAIN_HALL.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/MARKET.png` — 1024×1024 — Bâtiment « Place du marché » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/MILL.png` — 1024×1024 — Bâtiment « Moulin » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/QUARRY.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/RALLY_POINT.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/RESIDENCE.png` — 1024×1024 — Bâtiment « Résidence » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/SAWMILL.png` — 1024×1024 — Bâtiment « Scierie » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/SILO.png` — 1024×1024 — Bâtiment « Silo à céréales » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/STABLE.png` — 1024×1024 — Bâtiment « Écurie » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/STONEMASON.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/TRADE_OFFICE.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/TREASURE_CHAMBER.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/WALL.png` — 1024×1024 — Bâtiment « Mur » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/WAREHOUSE.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/WATCHTOWER.png` — 1024×1024 — Bâtiment « Tour de Guet » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/EGYPT/WORKSHOP.png` — 1024×1024 — Bâtiment « Atelier » de Égypte, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/ACADEMY.png` — 1024×1024 — Bâtiment « Académie » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/BAKERY.png` — 1024×1024 — Bâtiment « Boulangerie » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/BARRACKS.png` — 1024×1024 — Bâtiment « Caserne » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/EMBASSY.png` — 1024×1024 — Bâtiment « Ambassade » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/FARM.png` — 1024×1024 — Bâtiment « Ferme » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/FORGE.png` — 1024×1024 — Bâtiment « Forge » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/FOUNDRY.png` — 1024×1024 — Bâtiment « Fonderie » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/GALLIC_BREWERY.png` — 1024×1024 — Bâtiment « Brasserie » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/GREAT_BARRACKS.png` — 1024×1024 — Bâtiment « Grande Caserne » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/GREAT_SILO.png` — 1024×1024 — Bâtiment « Grand Silo » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/GREAT_STABLE.png` — 1024×1024 — Bâtiment « Grande Écurie » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/GREAT_WAREHOUSE.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/HEALING_TENT.png` — 1024×1024 — Bâtiment « Tente de soins » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/HERO_MANSION.png` — 1024×1024 — Bâtiment « Domus du Héros » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/HIDEOUT.png` — 1024×1024 — Bâtiment « Cachette » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/IRON_MINE.png` — 1024×1024 — Bâtiment « Mine de fer » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/LUMBER.png` — 1024×1024 — Bâtiment « Bûcheron » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/MAIN_HALL.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/MARKET.png` — 1024×1024 — Bâtiment « Place du marché » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/MILL.png` — 1024×1024 — Bâtiment « Moulin » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/QUARRY.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/RALLY_POINT.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/RESIDENCE.png` — 1024×1024 — Bâtiment « Résidence » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/SAWMILL.png` — 1024×1024 — Bâtiment « Scierie » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/SILO.png` — 1024×1024 — Bâtiment « Silo à céréales » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/STABLE.png` — 1024×1024 — Bâtiment « Écurie » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/STONEMASON.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/TRADE_OFFICE.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/TREASURE_CHAMBER.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/WALL.png` — 1024×1024 — Bâtiment « Mur » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/WAREHOUSE.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/WATCHTOWER.png` — 1024×1024 — Bâtiment « Tour de Guet » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GAUL/WORKSHOP.png` — 1024×1024 — Bâtiment « Atelier » de Gaule, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GREEK/ACADEMY.png` — 1024×1024 — Bâtiment « Académie » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GREEK/BAKERY.png` — 1024×1024 — Bâtiment « Boulangerie » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GREEK/BARRACKS.png` — 1024×1024 — Bâtiment « Caserne » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/GREEK/EMBASSY.png` — 1024×1024 — Bâtiment « Ambassade » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/FARM.png` — 1024×1024 — Bâtiment « Ferme » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/FORGE.png` — 1024×1024 — Bâtiment « Forge » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/FOUNDRY.png` — 1024×1024 — Bâtiment « Fonderie » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_BARRACKS.png` — 1024×1024 — Bâtiment « Grande Caserne » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_SILO.png` — 1024×1024 — Bâtiment « Grand Silo » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_STABLE.png` — 1024×1024 — Bâtiment « Grande Écurie » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_WAREHOUSE.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREEK_TEMPLE.png` — 1024×1024 — Bâtiment « Temple » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/HEALING_TENT.png` — 1024×1024 — Bâtiment « Tente de soins » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/HERO_MANSION.png` — 1024×1024 — Bâtiment « Domus du Héros » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/HIDEOUT.png` — 1024×1024 — Bâtiment « Cachette » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/IRON_MINE.png` — 1024×1024 — Bâtiment « Mine de fer » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/LUMBER.png` — 1024×1024 — Bâtiment « Bûcheron » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/MAIN_HALL.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/MARKET.png` — 1024×1024 — Bâtiment « Place du marché » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/MILL.png` — 1024×1024 — Bâtiment « Moulin » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/QUARRY.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/RALLY_POINT.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/RESIDENCE.png` — 1024×1024 — Bâtiment « Résidence » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/SAWMILL.png` — 1024×1024 — Bâtiment « Scierie » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/SILO.png` — 1024×1024 — Bâtiment « Silo à céréales » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/STABLE.png` — 1024×1024 — Bâtiment « Écurie » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/STONEMASON.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/TRADE_OFFICE.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/TREASURE_CHAMBER.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WALL.png` — 1024×1024 — Bâtiment « Mur » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WAREHOUSE.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WATCHTOWER.png` — 1024×1024 — Bâtiment « Tour de Guet » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WORKSHOP.png` — 1024×1024 — Bâtiment « Atelier » de Grèce, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/ACADEMY.png` — 1024×1024 — Bâtiment « Académie » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/BAKERY.png` — 1024×1024 — Bâtiment « Boulangerie » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/BARRACKS.png` — 1024×1024 — Bâtiment « Caserne » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/EMBASSY.png` — 1024×1024 — Bâtiment « Ambassade » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/FARM.png` — 1024×1024 — Bâtiment « Ferme » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/FORGE.png` — 1024×1024 — Bâtiment « Forge » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/FOUNDRY.png` — 1024×1024 — Bâtiment « Fonderie » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_BARRACKS.png` — 1024×1024 — Bâtiment « Grande Caserne » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_SILO.png` — 1024×1024 — Bâtiment « Grand Silo » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_STABLE.png` — 1024×1024 — Bâtiment « Grande Écurie » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_WAREHOUSE.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HEALING_TENT.png` — 1024×1024 — Bâtiment « Tente de soins » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HERO_MANSION.png` — 1024×1024 — Bâtiment « Domus du Héros » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HIDEOUT.png` — 1024×1024 — Bâtiment « Cachette » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HUN_WAR_TENT.png` — 1024×1024 — Bâtiment « Tente de Guerre » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/IRON_MINE.png` — 1024×1024 — Bâtiment « Mine de fer » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/LUMBER.png` — 1024×1024 — Bâtiment « Bûcheron » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/MAIN_HALL.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/MARKET.png` — 1024×1024 — Bâtiment « Place du marché » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/MILL.png` — 1024×1024 — Bâtiment « Moulin » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/QUARRY.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/RALLY_POINT.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/RESIDENCE.png` — 1024×1024 — Bâtiment « Résidence » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/SAWMILL.png` — 1024×1024 — Bâtiment « Scierie » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/SILO.png` — 1024×1024 — Bâtiment « Silo à céréales » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/STABLE.png` — 1024×1024 — Bâtiment « Écurie » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/STONEMASON.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/TRADE_OFFICE.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/TREASURE_CHAMBER.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WALL.png` — 1024×1024 — Bâtiment « Mur » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WAREHOUSE.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WATCHTOWER.png` — 1024×1024 — Bâtiment « Tour de Guet » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WORKSHOP.png` — 1024×1024 — Bâtiment « Atelier » de Huns, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/ACADEMY.png` — 1024×1024 — Bâtiment « Académie » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/BAKERY.png` — 1024×1024 — Bâtiment « Boulangerie » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/BARRACKS.png` — 1024×1024 — Bâtiment « Caserne » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/EMBASSY.png` — 1024×1024 — Bâtiment « Ambassade » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/FARM.png` — 1024×1024 — Bâtiment « Ferme » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/FORGE.png` — 1024×1024 — Bâtiment « Forge » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/FOUNDRY.png` — 1024×1024 — Bâtiment « Fonderie » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_BARRACKS.png` — 1024×1024 — Bâtiment « Grande Caserne » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_SILO.png` — 1024×1024 — Bâtiment « Grand Silo » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_STABLE.png` — 1024×1024 — Bâtiment « Grande Écurie » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_WAREHOUSE.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/HEALING_TENT.png` — 1024×1024 — Bâtiment « Tente de soins » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/HERO_MANSION.png` — 1024×1024 — Bâtiment « Domus du Héros » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/HIDEOUT.png` — 1024×1024 — Bâtiment « Cachette » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/IRON_MINE.png` — 1024×1024 — Bâtiment « Mine de fer » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/LUMBER.png` — 1024×1024 — Bâtiment « Bûcheron » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/MAIN_HALL.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/MARKET.png` — 1024×1024 — Bâtiment « Place du marché » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/MILL.png` — 1024×1024 — Bâtiment « Moulin » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/QUARRY.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/RALLY_POINT.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/RESIDENCE.png` — 1024×1024 — Bâtiment « Résidence » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/ROMAN_THERMAE.png` — 1024×1024 — Bâtiment « Thermes » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/SAWMILL.png` — 1024×1024 — Bâtiment « Scierie » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/SILO.png` — 1024×1024 — Bâtiment « Silo à céréales » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/STABLE.png` — 1024×1024 — Bâtiment « Écurie » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/STONEMASON.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/TRADE_OFFICE.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/TREASURE_CHAMBER.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/WALL.png` — 1024×1024 — Bâtiment « Mur » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/WAREHOUSE.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/WATCHTOWER.png` — 1024×1024 — Bâtiment « Tour de Guet » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ✅ `buildings/ROME/WORKSHOP.png` — 1024×1024 — Bâtiment « Atelier » de Rome, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/ACADEMY.png` — 1024×1024 — Bâtiment « Académie » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/BAKERY.png` — 1024×1024 — Bâtiment « Boulangerie » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/BARRACKS.png` — 1024×1024 — Bâtiment « Caserne » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/EMBASSY.png` — 1024×1024 — Bâtiment « Ambassade » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/FARM.png` — 1024×1024 — Bâtiment « Ferme » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/FORGE.png` — 1024×1024 — Bâtiment « Forge » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/FOUNDRY.png` — 1024×1024 — Bâtiment « Fonderie » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_BARRACKS.png` — 1024×1024 — Bâtiment « Grande Caserne » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_SILO.png` — 1024×1024 — Bâtiment « Grand Silo » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_STABLE.png` — 1024×1024 — Bâtiment « Grande Écurie » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_WAREHOUSE.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/HEALING_TENT.png` — 1024×1024 — Bâtiment « Tente de soins » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/HERO_MANSION.png` — 1024×1024 — Bâtiment « Domus du Héros » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/HIDEOUT.png` — 1024×1024 — Bâtiment « Cachette » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/IRON_MINE.png` — 1024×1024 — Bâtiment « Mine de fer » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/LUMBER.png` — 1024×1024 — Bâtiment « Bûcheron » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/MAIN_HALL.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/MARKET.png` — 1024×1024 — Bâtiment « Place du marché » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/MILL.png` — 1024×1024 — Bâtiment « Moulin » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/QUARRY.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/RALLY_POINT.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/RESIDENCE.png` — 1024×1024 — Bâtiment « Résidence » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/SAWMILL.png` — 1024×1024 — Bâtiment « Scierie » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/SILO.png` — 1024×1024 — Bâtiment « Silo à céréales » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/STABLE.png` — 1024×1024 — Bâtiment « Écurie » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/STONEMASON.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/SULTAN_DESERT_OUTPOST.png` — 1024×1024 — Bâtiment « Poste du Désert » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/TRADE_OFFICE.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/TREASURE_CHAMBER.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WALL.png` — 1024×1024 — Bâtiment « Mur » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WAREHOUSE.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WATCHTOWER.png` — 1024×1024 — Bâtiment « Tour de Guet » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WORKSHOP.png` — 1024×1024 — Bâtiment « Atelier » de Sultanat, niveaux 7-13 : vue ville, vignettes des panneaux et fiches
+
+## Bâtiments, paliers 1 et 3 — 396
+
+- ⬜ `buildings/EGYPT/ACADEMY_t1.png` — 1024×1024 — Bâtiment « Académie » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/ACADEMY_t3.png` — 1024×1024 — Bâtiment « Académie » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/BAKERY_t1.png` — 1024×1024 — Bâtiment « Boulangerie » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/BAKERY_t3.png` — 1024×1024 — Bâtiment « Boulangerie » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/BARRACKS_t1.png` — 1024×1024 — Bâtiment « Caserne » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/BARRACKS_t3.png` — 1024×1024 — Bâtiment « Caserne » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/EGYPTIAN_IRRIGATION_t1.png` — 1024×1024 — Bâtiment « Poste d'Irrigation » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/EGYPTIAN_IRRIGATION_t3.png` — 1024×1024 — Bâtiment « Poste d'Irrigation » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/EMBASSY_t1.png` — 1024×1024 — Bâtiment « Ambassade » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/EMBASSY_t3.png` — 1024×1024 — Bâtiment « Ambassade » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/FARM_t1.png` — 1024×1024 — Bâtiment « Ferme » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/FARM_t3.png` — 1024×1024 — Bâtiment « Ferme » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/FORGE_t1.png` — 1024×1024 — Bâtiment « Forge » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/FORGE_t3.png` — 1024×1024 — Bâtiment « Forge » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/FOUNDRY_t1.png` — 1024×1024 — Bâtiment « Fonderie » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/FOUNDRY_t3.png` — 1024×1024 — Bâtiment « Fonderie » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/GREAT_BARRACKS_t1.png` — 1024×1024 — Bâtiment « Grande Caserne » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/GREAT_BARRACKS_t3.png` — 1024×1024 — Bâtiment « Grande Caserne » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/GREAT_SILO_t1.png` — 1024×1024 — Bâtiment « Grand Silo » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/GREAT_SILO_t3.png` — 1024×1024 — Bâtiment « Grand Silo » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/GREAT_STABLE_t1.png` — 1024×1024 — Bâtiment « Grande Écurie » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/GREAT_STABLE_t3.png` — 1024×1024 — Bâtiment « Grande Écurie » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/GREAT_WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/GREAT_WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/HEALING_TENT_t1.png` — 1024×1024 — Bâtiment « Tente de soins » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/HEALING_TENT_t3.png` — 1024×1024 — Bâtiment « Tente de soins » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/HERO_MANSION_t1.png` — 1024×1024 — Bâtiment « Domus du Héros » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/HERO_MANSION_t3.png` — 1024×1024 — Bâtiment « Domus du Héros » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/HIDEOUT_t1.png` — 1024×1024 — Bâtiment « Cachette » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/HIDEOUT_t3.png` — 1024×1024 — Bâtiment « Cachette » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/IRON_MINE_t1.png` — 1024×1024 — Bâtiment « Mine de fer » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/IRON_MINE_t3.png` — 1024×1024 — Bâtiment « Mine de fer » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/LUMBER_t1.png` — 1024×1024 — Bâtiment « Bûcheron » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/LUMBER_t3.png` — 1024×1024 — Bâtiment « Bûcheron » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/MAIN_HALL_t1.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/MAIN_HALL_t3.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/MARKET_t1.png` — 1024×1024 — Bâtiment « Place du marché » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/MARKET_t3.png` — 1024×1024 — Bâtiment « Place du marché » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/MILL_t1.png` — 1024×1024 — Bâtiment « Moulin » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/MILL_t3.png` — 1024×1024 — Bâtiment « Moulin » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/QUARRY_t1.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/QUARRY_t3.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/RALLY_POINT_t1.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/RALLY_POINT_t3.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/RESIDENCE_t1.png` — 1024×1024 — Bâtiment « Résidence » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/RESIDENCE_t3.png` — 1024×1024 — Bâtiment « Résidence » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/SAWMILL_t1.png` — 1024×1024 — Bâtiment « Scierie » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/SAWMILL_t3.png` — 1024×1024 — Bâtiment « Scierie » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/SILO_t1.png` — 1024×1024 — Bâtiment « Silo à céréales » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/SILO_t3.png` — 1024×1024 — Bâtiment « Silo à céréales » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/STABLE_t1.png` — 1024×1024 — Bâtiment « Écurie » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/STABLE_t3.png` — 1024×1024 — Bâtiment « Écurie » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/STONEMASON_t1.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/STONEMASON_t3.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/TRADE_OFFICE_t1.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/TRADE_OFFICE_t3.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/TREASURE_CHAMBER_t1.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/TREASURE_CHAMBER_t3.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/WALL_t1.png` — 1024×1024 — Bâtiment « Mur » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/WALL_t3.png` — 1024×1024 — Bâtiment « Mur » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/WATCHTOWER_t1.png` — 1024×1024 — Bâtiment « Tour de Guet » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/WATCHTOWER_t3.png` — 1024×1024 — Bâtiment « Tour de Guet » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/WORKSHOP_t1.png` — 1024×1024 — Bâtiment « Atelier » de Égypte, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/EGYPT/WORKSHOP_t3.png` — 1024×1024 — Bâtiment « Atelier » de Égypte, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/ACADEMY_t1.png` — 1024×1024 — Bâtiment « Académie » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/ACADEMY_t3.png` — 1024×1024 — Bâtiment « Académie » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/BAKERY_t1.png` — 1024×1024 — Bâtiment « Boulangerie » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/BAKERY_t3.png` — 1024×1024 — Bâtiment « Boulangerie » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/BARRACKS_t1.png` — 1024×1024 — Bâtiment « Caserne » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/BARRACKS_t3.png` — 1024×1024 — Bâtiment « Caserne » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/EMBASSY_t1.png` — 1024×1024 — Bâtiment « Ambassade » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/EMBASSY_t3.png` — 1024×1024 — Bâtiment « Ambassade » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/FARM_t1.png` — 1024×1024 — Bâtiment « Ferme » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/FARM_t3.png` — 1024×1024 — Bâtiment « Ferme » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/FORGE_t1.png` — 1024×1024 — Bâtiment « Forge » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/FORGE_t3.png` — 1024×1024 — Bâtiment « Forge » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/FOUNDRY_t1.png` — 1024×1024 — Bâtiment « Fonderie » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/FOUNDRY_t3.png` — 1024×1024 — Bâtiment « Fonderie » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GALLIC_BREWERY_t1.png` — 1024×1024 — Bâtiment « Brasserie » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GALLIC_BREWERY_t3.png` — 1024×1024 — Bâtiment « Brasserie » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GREAT_BARRACKS_t1.png` — 1024×1024 — Bâtiment « Grande Caserne » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GREAT_BARRACKS_t3.png` — 1024×1024 — Bâtiment « Grande Caserne » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GREAT_SILO_t1.png` — 1024×1024 — Bâtiment « Grand Silo » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GREAT_SILO_t3.png` — 1024×1024 — Bâtiment « Grand Silo » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GREAT_STABLE_t1.png` — 1024×1024 — Bâtiment « Grande Écurie » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GREAT_STABLE_t3.png` — 1024×1024 — Bâtiment « Grande Écurie » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GREAT_WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/GREAT_WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/HEALING_TENT_t1.png` — 1024×1024 — Bâtiment « Tente de soins » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/HEALING_TENT_t3.png` — 1024×1024 — Bâtiment « Tente de soins » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/HERO_MANSION_t1.png` — 1024×1024 — Bâtiment « Domus du Héros » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/HERO_MANSION_t3.png` — 1024×1024 — Bâtiment « Domus du Héros » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/HIDEOUT_t1.png` — 1024×1024 — Bâtiment « Cachette » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/HIDEOUT_t3.png` — 1024×1024 — Bâtiment « Cachette » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/IRON_MINE_t1.png` — 1024×1024 — Bâtiment « Mine de fer » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/IRON_MINE_t3.png` — 1024×1024 — Bâtiment « Mine de fer » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/LUMBER_t1.png` — 1024×1024 — Bâtiment « Bûcheron » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/LUMBER_t3.png` — 1024×1024 — Bâtiment « Bûcheron » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/MAIN_HALL_t1.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/MAIN_HALL_t3.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/MARKET_t1.png` — 1024×1024 — Bâtiment « Place du marché » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/MARKET_t3.png` — 1024×1024 — Bâtiment « Place du marché » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/MILL_t1.png` — 1024×1024 — Bâtiment « Moulin » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/MILL_t3.png` — 1024×1024 — Bâtiment « Moulin » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/QUARRY_t1.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/QUARRY_t3.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/RALLY_POINT_t1.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/RALLY_POINT_t3.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/RESIDENCE_t1.png` — 1024×1024 — Bâtiment « Résidence » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/RESIDENCE_t3.png` — 1024×1024 — Bâtiment « Résidence » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/SAWMILL_t1.png` — 1024×1024 — Bâtiment « Scierie » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/SAWMILL_t3.png` — 1024×1024 — Bâtiment « Scierie » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/SILO_t1.png` — 1024×1024 — Bâtiment « Silo à céréales » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/SILO_t3.png` — 1024×1024 — Bâtiment « Silo à céréales » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/STABLE_t1.png` — 1024×1024 — Bâtiment « Écurie » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/STABLE_t3.png` — 1024×1024 — Bâtiment « Écurie » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/STONEMASON_t1.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/STONEMASON_t3.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/TRADE_OFFICE_t1.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/TRADE_OFFICE_t3.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/TREASURE_CHAMBER_t1.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/TREASURE_CHAMBER_t3.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/WALL_t1.png` — 1024×1024 — Bâtiment « Mur » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/WALL_t3.png` — 1024×1024 — Bâtiment « Mur » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/WATCHTOWER_t1.png` — 1024×1024 — Bâtiment « Tour de Guet » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/WATCHTOWER_t3.png` — 1024×1024 — Bâtiment « Tour de Guet » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/WORKSHOP_t1.png` — 1024×1024 — Bâtiment « Atelier » de Gaule, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GAUL/WORKSHOP_t3.png` — 1024×1024 — Bâtiment « Atelier » de Gaule, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/ACADEMY_t1.png` — 1024×1024 — Bâtiment « Académie » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/ACADEMY_t3.png` — 1024×1024 — Bâtiment « Académie » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/BAKERY_t1.png` — 1024×1024 — Bâtiment « Boulangerie » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/BAKERY_t3.png` — 1024×1024 — Bâtiment « Boulangerie » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/BARRACKS_t1.png` — 1024×1024 — Bâtiment « Caserne » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/BARRACKS_t3.png` — 1024×1024 — Bâtiment « Caserne » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/EMBASSY_t1.png` — 1024×1024 — Bâtiment « Ambassade » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/EMBASSY_t3.png` — 1024×1024 — Bâtiment « Ambassade » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/FARM_t1.png` — 1024×1024 — Bâtiment « Ferme » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/FARM_t3.png` — 1024×1024 — Bâtiment « Ferme » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/FORGE_t1.png` — 1024×1024 — Bâtiment « Forge » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/FORGE_t3.png` — 1024×1024 — Bâtiment « Forge » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/FOUNDRY_t1.png` — 1024×1024 — Bâtiment « Fonderie » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/FOUNDRY_t3.png` — 1024×1024 — Bâtiment « Fonderie » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_BARRACKS_t1.png` — 1024×1024 — Bâtiment « Grande Caserne » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_BARRACKS_t3.png` — 1024×1024 — Bâtiment « Grande Caserne » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_SILO_t1.png` — 1024×1024 — Bâtiment « Grand Silo » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_SILO_t3.png` — 1024×1024 — Bâtiment « Grand Silo » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_STABLE_t1.png` — 1024×1024 — Bâtiment « Grande Écurie » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_STABLE_t3.png` — 1024×1024 — Bâtiment « Grande Écurie » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREAT_WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREEK_TEMPLE_t1.png` — 1024×1024 — Bâtiment « Temple » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/GREEK_TEMPLE_t3.png` — 1024×1024 — Bâtiment « Temple » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/HEALING_TENT_t1.png` — 1024×1024 — Bâtiment « Tente de soins » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/HEALING_TENT_t3.png` — 1024×1024 — Bâtiment « Tente de soins » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/HERO_MANSION_t1.png` — 1024×1024 — Bâtiment « Domus du Héros » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/HERO_MANSION_t3.png` — 1024×1024 — Bâtiment « Domus du Héros » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/HIDEOUT_t1.png` — 1024×1024 — Bâtiment « Cachette » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/HIDEOUT_t3.png` — 1024×1024 — Bâtiment « Cachette » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/IRON_MINE_t1.png` — 1024×1024 — Bâtiment « Mine de fer » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/IRON_MINE_t3.png` — 1024×1024 — Bâtiment « Mine de fer » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/LUMBER_t1.png` — 1024×1024 — Bâtiment « Bûcheron » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/LUMBER_t3.png` — 1024×1024 — Bâtiment « Bûcheron » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/MAIN_HALL_t1.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/MAIN_HALL_t3.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/MARKET_t1.png` — 1024×1024 — Bâtiment « Place du marché » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/MARKET_t3.png` — 1024×1024 — Bâtiment « Place du marché » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/MILL_t1.png` — 1024×1024 — Bâtiment « Moulin » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/MILL_t3.png` — 1024×1024 — Bâtiment « Moulin » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/QUARRY_t1.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/QUARRY_t3.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/RALLY_POINT_t1.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/RALLY_POINT_t3.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/RESIDENCE_t1.png` — 1024×1024 — Bâtiment « Résidence » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/RESIDENCE_t3.png` — 1024×1024 — Bâtiment « Résidence » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/SAWMILL_t1.png` — 1024×1024 — Bâtiment « Scierie » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/SAWMILL_t3.png` — 1024×1024 — Bâtiment « Scierie » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/SILO_t1.png` — 1024×1024 — Bâtiment « Silo à céréales » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/SILO_t3.png` — 1024×1024 — Bâtiment « Silo à céréales » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/STABLE_t1.png` — 1024×1024 — Bâtiment « Écurie » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/STABLE_t3.png` — 1024×1024 — Bâtiment « Écurie » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/STONEMASON_t1.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/STONEMASON_t3.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/TRADE_OFFICE_t1.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/TRADE_OFFICE_t3.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/TREASURE_CHAMBER_t1.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/TREASURE_CHAMBER_t3.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WALL_t1.png` — 1024×1024 — Bâtiment « Mur » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WALL_t3.png` — 1024×1024 — Bâtiment « Mur » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WATCHTOWER_t1.png` — 1024×1024 — Bâtiment « Tour de Guet » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WATCHTOWER_t3.png` — 1024×1024 — Bâtiment « Tour de Guet » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WORKSHOP_t1.png` — 1024×1024 — Bâtiment « Atelier » de Grèce, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/GREEK/WORKSHOP_t3.png` — 1024×1024 — Bâtiment « Atelier » de Grèce, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/ACADEMY_t1.png` — 1024×1024 — Bâtiment « Académie » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/ACADEMY_t3.png` — 1024×1024 — Bâtiment « Académie » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/BAKERY_t1.png` — 1024×1024 — Bâtiment « Boulangerie » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/BAKERY_t3.png` — 1024×1024 — Bâtiment « Boulangerie » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/BARRACKS_t1.png` — 1024×1024 — Bâtiment « Caserne » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/BARRACKS_t3.png` — 1024×1024 — Bâtiment « Caserne » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/EMBASSY_t1.png` — 1024×1024 — Bâtiment « Ambassade » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/EMBASSY_t3.png` — 1024×1024 — Bâtiment « Ambassade » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/FARM_t1.png` — 1024×1024 — Bâtiment « Ferme » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/FARM_t3.png` — 1024×1024 — Bâtiment « Ferme » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/FORGE_t1.png` — 1024×1024 — Bâtiment « Forge » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/FORGE_t3.png` — 1024×1024 — Bâtiment « Forge » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/FOUNDRY_t1.png` — 1024×1024 — Bâtiment « Fonderie » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/FOUNDRY_t3.png` — 1024×1024 — Bâtiment « Fonderie » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_BARRACKS_t1.png` — 1024×1024 — Bâtiment « Grande Caserne » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_BARRACKS_t3.png` — 1024×1024 — Bâtiment « Grande Caserne » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_SILO_t1.png` — 1024×1024 — Bâtiment « Grand Silo » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_SILO_t3.png` — 1024×1024 — Bâtiment « Grand Silo » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_STABLE_t1.png` — 1024×1024 — Bâtiment « Grande Écurie » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_STABLE_t3.png` — 1024×1024 — Bâtiment « Grande Écurie » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/GREAT_WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HEALING_TENT_t1.png` — 1024×1024 — Bâtiment « Tente de soins » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HEALING_TENT_t3.png` — 1024×1024 — Bâtiment « Tente de soins » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HERO_MANSION_t1.png` — 1024×1024 — Bâtiment « Domus du Héros » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HERO_MANSION_t3.png` — 1024×1024 — Bâtiment « Domus du Héros » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HIDEOUT_t1.png` — 1024×1024 — Bâtiment « Cachette » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HIDEOUT_t3.png` — 1024×1024 — Bâtiment « Cachette » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HUN_WAR_TENT_t1.png` — 1024×1024 — Bâtiment « Tente de Guerre » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/HUN_WAR_TENT_t3.png` — 1024×1024 — Bâtiment « Tente de Guerre » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/IRON_MINE_t1.png` — 1024×1024 — Bâtiment « Mine de fer » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/IRON_MINE_t3.png` — 1024×1024 — Bâtiment « Mine de fer » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/LUMBER_t1.png` — 1024×1024 — Bâtiment « Bûcheron » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/LUMBER_t3.png` — 1024×1024 — Bâtiment « Bûcheron » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/MAIN_HALL_t1.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/MAIN_HALL_t3.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/MARKET_t1.png` — 1024×1024 — Bâtiment « Place du marché » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/MARKET_t3.png` — 1024×1024 — Bâtiment « Place du marché » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/MILL_t1.png` — 1024×1024 — Bâtiment « Moulin » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/MILL_t3.png` — 1024×1024 — Bâtiment « Moulin » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/QUARRY_t1.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/QUARRY_t3.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/RALLY_POINT_t1.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/RALLY_POINT_t3.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/RESIDENCE_t1.png` — 1024×1024 — Bâtiment « Résidence » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/RESIDENCE_t3.png` — 1024×1024 — Bâtiment « Résidence » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/SAWMILL_t1.png` — 1024×1024 — Bâtiment « Scierie » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/SAWMILL_t3.png` — 1024×1024 — Bâtiment « Scierie » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/SILO_t1.png` — 1024×1024 — Bâtiment « Silo à céréales » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/SILO_t3.png` — 1024×1024 — Bâtiment « Silo à céréales » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/STABLE_t1.png` — 1024×1024 — Bâtiment « Écurie » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/STABLE_t3.png` — 1024×1024 — Bâtiment « Écurie » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/STONEMASON_t1.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/STONEMASON_t3.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/TRADE_OFFICE_t1.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/TRADE_OFFICE_t3.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/TREASURE_CHAMBER_t1.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/TREASURE_CHAMBER_t3.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WALL_t1.png` — 1024×1024 — Bâtiment « Mur » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WALL_t3.png` — 1024×1024 — Bâtiment « Mur » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WATCHTOWER_t1.png` — 1024×1024 — Bâtiment « Tour de Guet » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WATCHTOWER_t3.png` — 1024×1024 — Bâtiment « Tour de Guet » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WORKSHOP_t1.png` — 1024×1024 — Bâtiment « Atelier » de Huns, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/HUN/WORKSHOP_t3.png` — 1024×1024 — Bâtiment « Atelier » de Huns, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/ACADEMY_t1.png` — 1024×1024 — Bâtiment « Académie » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/ACADEMY_t3.png` — 1024×1024 — Bâtiment « Académie » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/BAKERY_t1.png` — 1024×1024 — Bâtiment « Boulangerie » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/BAKERY_t3.png` — 1024×1024 — Bâtiment « Boulangerie » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/BARRACKS_t1.png` — 1024×1024 — Bâtiment « Caserne » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/BARRACKS_t3.png` — 1024×1024 — Bâtiment « Caserne » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/EMBASSY_t1.png` — 1024×1024 — Bâtiment « Ambassade » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/EMBASSY_t3.png` — 1024×1024 — Bâtiment « Ambassade » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/FARM_t1.png` — 1024×1024 — Bâtiment « Ferme » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/FARM_t3.png` — 1024×1024 — Bâtiment « Ferme » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/FORGE_t1.png` — 1024×1024 — Bâtiment « Forge » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/FORGE_t3.png` — 1024×1024 — Bâtiment « Forge » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/FOUNDRY_t1.png` — 1024×1024 — Bâtiment « Fonderie » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/FOUNDRY_t3.png` — 1024×1024 — Bâtiment « Fonderie » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_BARRACKS_t1.png` — 1024×1024 — Bâtiment « Grande Caserne » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_BARRACKS_t3.png` — 1024×1024 — Bâtiment « Grande Caserne » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_SILO_t1.png` — 1024×1024 — Bâtiment « Grand Silo » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_SILO_t3.png` — 1024×1024 — Bâtiment « Grand Silo » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_STABLE_t1.png` — 1024×1024 — Bâtiment « Grande Écurie » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_STABLE_t3.png` — 1024×1024 — Bâtiment « Grande Écurie » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/GREAT_WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/HEALING_TENT_t1.png` — 1024×1024 — Bâtiment « Tente de soins » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/HEALING_TENT_t3.png` — 1024×1024 — Bâtiment « Tente de soins » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/HERO_MANSION_t1.png` — 1024×1024 — Bâtiment « Domus du Héros » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/HERO_MANSION_t3.png` — 1024×1024 — Bâtiment « Domus du Héros » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/HIDEOUT_t1.png` — 1024×1024 — Bâtiment « Cachette » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/HIDEOUT_t3.png` — 1024×1024 — Bâtiment « Cachette » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/IRON_MINE_t1.png` — 1024×1024 — Bâtiment « Mine de fer » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/IRON_MINE_t3.png` — 1024×1024 — Bâtiment « Mine de fer » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/LUMBER_t1.png` — 1024×1024 — Bâtiment « Bûcheron » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/LUMBER_t3.png` — 1024×1024 — Bâtiment « Bûcheron » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/MAIN_HALL_t1.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/MAIN_HALL_t3.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/MARKET_t1.png` — 1024×1024 — Bâtiment « Place du marché » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/MARKET_t3.png` — 1024×1024 — Bâtiment « Place du marché » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/MILL_t1.png` — 1024×1024 — Bâtiment « Moulin » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/MILL_t3.png` — 1024×1024 — Bâtiment « Moulin » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/QUARRY_t1.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/QUARRY_t3.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/RALLY_POINT_t1.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/RALLY_POINT_t3.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/RESIDENCE_t1.png` — 1024×1024 — Bâtiment « Résidence » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/RESIDENCE_t3.png` — 1024×1024 — Bâtiment « Résidence » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/ROMAN_THERMAE_t1.png` — 1024×1024 — Bâtiment « Thermes » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/ROMAN_THERMAE_t3.png` — 1024×1024 — Bâtiment « Thermes » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/SAWMILL_t1.png` — 1024×1024 — Bâtiment « Scierie » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/SAWMILL_t3.png` — 1024×1024 — Bâtiment « Scierie » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/SILO_t1.png` — 1024×1024 — Bâtiment « Silo à céréales » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/SILO_t3.png` — 1024×1024 — Bâtiment « Silo à céréales » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/STABLE_t1.png` — 1024×1024 — Bâtiment « Écurie » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/STABLE_t3.png` — 1024×1024 — Bâtiment « Écurie » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/STONEMASON_t1.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/STONEMASON_t3.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/TRADE_OFFICE_t1.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/TRADE_OFFICE_t3.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/TREASURE_CHAMBER_t1.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/TREASURE_CHAMBER_t3.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/WALL_t1.png` — 1024×1024 — Bâtiment « Mur » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/WALL_t3.png` — 1024×1024 — Bâtiment « Mur » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/WATCHTOWER_t1.png` — 1024×1024 — Bâtiment « Tour de Guet » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/WATCHTOWER_t3.png` — 1024×1024 — Bâtiment « Tour de Guet » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/WORKSHOP_t1.png` — 1024×1024 — Bâtiment « Atelier » de Rome, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/ROME/WORKSHOP_t3.png` — 1024×1024 — Bâtiment « Atelier » de Rome, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/ACADEMY_t1.png` — 1024×1024 — Bâtiment « Académie » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/ACADEMY_t3.png` — 1024×1024 — Bâtiment « Académie » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/BAKERY_t1.png` — 1024×1024 — Bâtiment « Boulangerie » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/BAKERY_t3.png` — 1024×1024 — Bâtiment « Boulangerie » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/BARRACKS_t1.png` — 1024×1024 — Bâtiment « Caserne » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/BARRACKS_t3.png` — 1024×1024 — Bâtiment « Caserne » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/EMBASSY_t1.png` — 1024×1024 — Bâtiment « Ambassade » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/EMBASSY_t3.png` — 1024×1024 — Bâtiment « Ambassade » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/FARM_t1.png` — 1024×1024 — Bâtiment « Ferme » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/FARM_t3.png` — 1024×1024 — Bâtiment « Ferme » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/FORGE_t1.png` — 1024×1024 — Bâtiment « Forge » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/FORGE_t3.png` — 1024×1024 — Bâtiment « Forge » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/FOUNDRY_t1.png` — 1024×1024 — Bâtiment « Fonderie » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/FOUNDRY_t3.png` — 1024×1024 — Bâtiment « Fonderie » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_BARRACKS_t1.png` — 1024×1024 — Bâtiment « Grande Caserne » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_BARRACKS_t3.png` — 1024×1024 — Bâtiment « Grande Caserne » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_SILO_t1.png` — 1024×1024 — Bâtiment « Grand Silo » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_SILO_t3.png` — 1024×1024 — Bâtiment « Grand Silo » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_STABLE_t1.png` — 1024×1024 — Bâtiment « Grande Écurie » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_STABLE_t3.png` — 1024×1024 — Bâtiment « Grande Écurie » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/GREAT_WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Grand Dépôt » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/HEALING_TENT_t1.png` — 1024×1024 — Bâtiment « Tente de soins » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/HEALING_TENT_t3.png` — 1024×1024 — Bâtiment « Tente de soins » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/HERO_MANSION_t1.png` — 1024×1024 — Bâtiment « Domus du Héros » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/HERO_MANSION_t3.png` — 1024×1024 — Bâtiment « Domus du Héros » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/HIDEOUT_t1.png` — 1024×1024 — Bâtiment « Cachette » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/HIDEOUT_t3.png` — 1024×1024 — Bâtiment « Cachette » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/IRON_MINE_t1.png` — 1024×1024 — Bâtiment « Mine de fer » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/IRON_MINE_t3.png` — 1024×1024 — Bâtiment « Mine de fer » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/LUMBER_t1.png` — 1024×1024 — Bâtiment « Bûcheron » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/LUMBER_t3.png` — 1024×1024 — Bâtiment « Bûcheron » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/MAIN_HALL_t1.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/MAIN_HALL_t3.png` — 1024×1024 — Bâtiment « Bâtiment principal » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/MARKET_t1.png` — 1024×1024 — Bâtiment « Place du marché » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/MARKET_t3.png` — 1024×1024 — Bâtiment « Place du marché » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/MILL_t1.png` — 1024×1024 — Bâtiment « Moulin » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/MILL_t3.png` — 1024×1024 — Bâtiment « Moulin » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/QUARRY_t1.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/QUARRY_t3.png` — 1024×1024 — Bâtiment « Carrière de pierre » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/RALLY_POINT_t1.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/RALLY_POINT_t3.png` — 1024×1024 — Bâtiment « Place de rassemblement » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/RESIDENCE_t1.png` — 1024×1024 — Bâtiment « Résidence » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/RESIDENCE_t3.png` — 1024×1024 — Bâtiment « Résidence » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/SAWMILL_t1.png` — 1024×1024 — Bâtiment « Scierie » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/SAWMILL_t3.png` — 1024×1024 — Bâtiment « Scierie » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/SILO_t1.png` — 1024×1024 — Bâtiment « Silo à céréales » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/SILO_t3.png` — 1024×1024 — Bâtiment « Silo à céréales » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/STABLE_t1.png` — 1024×1024 — Bâtiment « Écurie » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/STABLE_t3.png` — 1024×1024 — Bâtiment « Écurie » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/STONEMASON_t1.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/STONEMASON_t3.png` — 1024×1024 — Bâtiment « Tailleur de Pierre » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/SULTAN_DESERT_OUTPOST_t1.png` — 1024×1024 — Bâtiment « Poste du Désert » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/SULTAN_DESERT_OUTPOST_t3.png` — 1024×1024 — Bâtiment « Poste du Désert » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/TRADE_OFFICE_t1.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/TRADE_OFFICE_t3.png` — 1024×1024 — Bâtiment « Comptoir de Commerce » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/TREASURE_CHAMBER_t1.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/TREASURE_CHAMBER_t3.png` — 1024×1024 — Bâtiment « Chambre au Trésor » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WALL_t1.png` — 1024×1024 — Bâtiment « Mur » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WALL_t3.png` — 1024×1024 — Bâtiment « Mur » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WAREHOUSE_t1.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WAREHOUSE_t3.png` — 1024×1024 — Bâtiment « Dépôt de ressources » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WATCHTOWER_t1.png` — 1024×1024 — Bâtiment « Tour de Guet » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WATCHTOWER_t3.png` — 1024×1024 — Bâtiment « Tour de Guet » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WORKSHOP_t1.png` — 1024×1024 — Bâtiment « Atelier » de Sultanat, niveaux 1-6 : vue ville, vignettes des panneaux et fiches
+- ⬜ `buildings/SULTAN/WORKSHOP_t3.png` — 1024×1024 — Bâtiment « Atelier » de Sultanat, niveaux 14-20 : vue ville, vignettes des panneaux et fiches
+
+## Chantiers des bâtiments — 168
+
+- ⬜ `buildings/EGYPT/ACADEMY_site.png` — 1024×1024 — Chantier « Académie » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/BAKERY_site.png` — 1024×1024 — Chantier « Boulangerie » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/BARRACKS_site.png` — 1024×1024 — Chantier « Caserne » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/EGYPTIAN_IRRIGATION_site.png` — 1024×1024 — Chantier « Poste d'Irrigation » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/EMBASSY_site.png` — 1024×1024 — Chantier « Ambassade » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/FORGE_site.png` — 1024×1024 — Chantier « Forge » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/FOUNDRY_site.png` — 1024×1024 — Chantier « Fonderie » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/GREAT_BARRACKS_site.png` — 1024×1024 — Chantier « Grande Caserne » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/GREAT_SILO_site.png` — 1024×1024 — Chantier « Grand Silo » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/GREAT_STABLE_site.png` — 1024×1024 — Chantier « Grande Écurie » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/GREAT_WAREHOUSE_site.png` — 1024×1024 — Chantier « Grand Dépôt » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/HEALING_TENT_site.png` — 1024×1024 — Chantier « Tente de soins » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/HERO_MANSION_site.png` — 1024×1024 — Chantier « Domus du Héros » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/HIDEOUT_site.png` — 1024×1024 — Chantier « Cachette » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/MAIN_HALL_site.png` — 1024×1024 — Chantier « Bâtiment principal » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/MARKET_site.png` — 1024×1024 — Chantier « Place du marché » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/MILL_site.png` — 1024×1024 — Chantier « Moulin » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/RALLY_POINT_site.png` — 1024×1024 — Chantier « Place de rassemblement » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/RESIDENCE_site.png` — 1024×1024 — Chantier « Résidence » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/SAWMILL_site.png` — 1024×1024 — Chantier « Scierie » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/SILO_site.png` — 1024×1024 — Chantier « Silo à céréales » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/STABLE_site.png` — 1024×1024 — Chantier « Écurie » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/STONEMASON_site.png` — 1024×1024 — Chantier « Tailleur de Pierre » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/TRADE_OFFICE_site.png` — 1024×1024 — Chantier « Comptoir de Commerce » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/TREASURE_CHAMBER_site.png` — 1024×1024 — Chantier « Chambre au Trésor » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/WAREHOUSE_site.png` — 1024×1024 — Chantier « Dépôt de ressources » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/WATCHTOWER_site.png` — 1024×1024 — Chantier « Tour de Guet » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/EGYPT/WORKSHOP_site.png` — 1024×1024 — Chantier « Atelier » de Égypte : à la place du bâtiment pendant sa première construction (techniques de chantier de Égypte)
+- ⬜ `buildings/GAUL/ACADEMY_site.png` — 1024×1024 — Chantier « Académie » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/BAKERY_site.png` — 1024×1024 — Chantier « Boulangerie » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/BARRACKS_site.png` — 1024×1024 — Chantier « Caserne » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/EMBASSY_site.png` — 1024×1024 — Chantier « Ambassade » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/FORGE_site.png` — 1024×1024 — Chantier « Forge » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/FOUNDRY_site.png` — 1024×1024 — Chantier « Fonderie » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/GALLIC_BREWERY_site.png` — 1024×1024 — Chantier « Brasserie » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/GREAT_BARRACKS_site.png` — 1024×1024 — Chantier « Grande Caserne » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/GREAT_SILO_site.png` — 1024×1024 — Chantier « Grand Silo » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/GREAT_STABLE_site.png` — 1024×1024 — Chantier « Grande Écurie » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/GREAT_WAREHOUSE_site.png` — 1024×1024 — Chantier « Grand Dépôt » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/HEALING_TENT_site.png` — 1024×1024 — Chantier « Tente de soins » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/HERO_MANSION_site.png` — 1024×1024 — Chantier « Domus du Héros » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/HIDEOUT_site.png` — 1024×1024 — Chantier « Cachette » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/MAIN_HALL_site.png` — 1024×1024 — Chantier « Bâtiment principal » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/MARKET_site.png` — 1024×1024 — Chantier « Place du marché » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/MILL_site.png` — 1024×1024 — Chantier « Moulin » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/RALLY_POINT_site.png` — 1024×1024 — Chantier « Place de rassemblement » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/RESIDENCE_site.png` — 1024×1024 — Chantier « Résidence » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/SAWMILL_site.png` — 1024×1024 — Chantier « Scierie » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/SILO_site.png` — 1024×1024 — Chantier « Silo à céréales » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/STABLE_site.png` — 1024×1024 — Chantier « Écurie » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/STONEMASON_site.png` — 1024×1024 — Chantier « Tailleur de Pierre » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/TRADE_OFFICE_site.png` — 1024×1024 — Chantier « Comptoir de Commerce » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/TREASURE_CHAMBER_site.png` — 1024×1024 — Chantier « Chambre au Trésor » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/WAREHOUSE_site.png` — 1024×1024 — Chantier « Dépôt de ressources » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/WATCHTOWER_site.png` — 1024×1024 — Chantier « Tour de Guet » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GAUL/WORKSHOP_site.png` — 1024×1024 — Chantier « Atelier » de Gaule : à la place du bâtiment pendant sa première construction (techniques de chantier de Gaule)
+- ⬜ `buildings/GREEK/ACADEMY_site.png` — 1024×1024 — Chantier « Académie » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/BAKERY_site.png` — 1024×1024 — Chantier « Boulangerie » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/BARRACKS_site.png` — 1024×1024 — Chantier « Caserne » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/EMBASSY_site.png` — 1024×1024 — Chantier « Ambassade » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/FORGE_site.png` — 1024×1024 — Chantier « Forge » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/FOUNDRY_site.png` — 1024×1024 — Chantier « Fonderie » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/GREAT_BARRACKS_site.png` — 1024×1024 — Chantier « Grande Caserne » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/GREAT_SILO_site.png` — 1024×1024 — Chantier « Grand Silo » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/GREAT_STABLE_site.png` — 1024×1024 — Chantier « Grande Écurie » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/GREAT_WAREHOUSE_site.png` — 1024×1024 — Chantier « Grand Dépôt » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/GREEK_TEMPLE_site.png` — 1024×1024 — Chantier « Temple » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/HEALING_TENT_site.png` — 1024×1024 — Chantier « Tente de soins » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/HERO_MANSION_site.png` — 1024×1024 — Chantier « Domus du Héros » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/HIDEOUT_site.png` — 1024×1024 — Chantier « Cachette » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/MAIN_HALL_site.png` — 1024×1024 — Chantier « Bâtiment principal » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/MARKET_site.png` — 1024×1024 — Chantier « Place du marché » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/MILL_site.png` — 1024×1024 — Chantier « Moulin » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/RALLY_POINT_site.png` — 1024×1024 — Chantier « Place de rassemblement » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/RESIDENCE_site.png` — 1024×1024 — Chantier « Résidence » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/SAWMILL_site.png` — 1024×1024 — Chantier « Scierie » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/SILO_site.png` — 1024×1024 — Chantier « Silo à céréales » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/STABLE_site.png` — 1024×1024 — Chantier « Écurie » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/STONEMASON_site.png` — 1024×1024 — Chantier « Tailleur de Pierre » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/TRADE_OFFICE_site.png` — 1024×1024 — Chantier « Comptoir de Commerce » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/TREASURE_CHAMBER_site.png` — 1024×1024 — Chantier « Chambre au Trésor » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/WAREHOUSE_site.png` — 1024×1024 — Chantier « Dépôt de ressources » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/WATCHTOWER_site.png` — 1024×1024 — Chantier « Tour de Guet » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/GREEK/WORKSHOP_site.png` — 1024×1024 — Chantier « Atelier » de Grèce : à la place du bâtiment pendant sa première construction (techniques de chantier de Grèce)
+- ⬜ `buildings/HUN/ACADEMY_site.png` — 1024×1024 — Chantier « Académie » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/BAKERY_site.png` — 1024×1024 — Chantier « Boulangerie » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/BARRACKS_site.png` — 1024×1024 — Chantier « Caserne » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/EMBASSY_site.png` — 1024×1024 — Chantier « Ambassade » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/FORGE_site.png` — 1024×1024 — Chantier « Forge » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/FOUNDRY_site.png` — 1024×1024 — Chantier « Fonderie » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/GREAT_BARRACKS_site.png` — 1024×1024 — Chantier « Grande Caserne » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/GREAT_SILO_site.png` — 1024×1024 — Chantier « Grand Silo » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/GREAT_STABLE_site.png` — 1024×1024 — Chantier « Grande Écurie » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/GREAT_WAREHOUSE_site.png` — 1024×1024 — Chantier « Grand Dépôt » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/HEALING_TENT_site.png` — 1024×1024 — Chantier « Tente de soins » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/HERO_MANSION_site.png` — 1024×1024 — Chantier « Domus du Héros » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/HIDEOUT_site.png` — 1024×1024 — Chantier « Cachette » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/HUN_WAR_TENT_site.png` — 1024×1024 — Chantier « Tente de Guerre » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/MAIN_HALL_site.png` — 1024×1024 — Chantier « Bâtiment principal » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/MARKET_site.png` — 1024×1024 — Chantier « Place du marché » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/MILL_site.png` — 1024×1024 — Chantier « Moulin » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/RALLY_POINT_site.png` — 1024×1024 — Chantier « Place de rassemblement » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/RESIDENCE_site.png` — 1024×1024 — Chantier « Résidence » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/SAWMILL_site.png` — 1024×1024 — Chantier « Scierie » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/SILO_site.png` — 1024×1024 — Chantier « Silo à céréales » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/STABLE_site.png` — 1024×1024 — Chantier « Écurie » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/STONEMASON_site.png` — 1024×1024 — Chantier « Tailleur de Pierre » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/TRADE_OFFICE_site.png` — 1024×1024 — Chantier « Comptoir de Commerce » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/TREASURE_CHAMBER_site.png` — 1024×1024 — Chantier « Chambre au Trésor » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/WAREHOUSE_site.png` — 1024×1024 — Chantier « Dépôt de ressources » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/WATCHTOWER_site.png` — 1024×1024 — Chantier « Tour de Guet » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/HUN/WORKSHOP_site.png` — 1024×1024 — Chantier « Atelier » de Huns : à la place du bâtiment pendant sa première construction (techniques de chantier de Huns)
+- ⬜ `buildings/ROME/ACADEMY_site.png` — 1024×1024 — Chantier « Académie » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/BAKERY_site.png` — 1024×1024 — Chantier « Boulangerie » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/BARRACKS_site.png` — 1024×1024 — Chantier « Caserne » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/EMBASSY_site.png` — 1024×1024 — Chantier « Ambassade » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/FORGE_site.png` — 1024×1024 — Chantier « Forge » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/FOUNDRY_site.png` — 1024×1024 — Chantier « Fonderie » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/GREAT_BARRACKS_site.png` — 1024×1024 — Chantier « Grande Caserne » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/GREAT_SILO_site.png` — 1024×1024 — Chantier « Grand Silo » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/GREAT_STABLE_site.png` — 1024×1024 — Chantier « Grande Écurie » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/GREAT_WAREHOUSE_site.png` — 1024×1024 — Chantier « Grand Dépôt » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/HEALING_TENT_site.png` — 1024×1024 — Chantier « Tente de soins » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/HERO_MANSION_site.png` — 1024×1024 — Chantier « Domus du Héros » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/HIDEOUT_site.png` — 1024×1024 — Chantier « Cachette » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/MAIN_HALL_site.png` — 1024×1024 — Chantier « Bâtiment principal » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/MARKET_site.png` — 1024×1024 — Chantier « Place du marché » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/MILL_site.png` — 1024×1024 — Chantier « Moulin » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/RALLY_POINT_site.png` — 1024×1024 — Chantier « Place de rassemblement » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/RESIDENCE_site.png` — 1024×1024 — Chantier « Résidence » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/ROMAN_THERMAE_site.png` — 1024×1024 — Chantier « Thermes » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/SAWMILL_site.png` — 1024×1024 — Chantier « Scierie » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/SILO_site.png` — 1024×1024 — Chantier « Silo à céréales » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/STABLE_site.png` — 1024×1024 — Chantier « Écurie » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/STONEMASON_site.png` — 1024×1024 — Chantier « Tailleur de Pierre » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/TRADE_OFFICE_site.png` — 1024×1024 — Chantier « Comptoir de Commerce » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/TREASURE_CHAMBER_site.png` — 1024×1024 — Chantier « Chambre au Trésor » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/WAREHOUSE_site.png` — 1024×1024 — Chantier « Dépôt de ressources » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/WATCHTOWER_site.png` — 1024×1024 — Chantier « Tour de Guet » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/ROME/WORKSHOP_site.png` — 1024×1024 — Chantier « Atelier » de Rome : à la place du bâtiment pendant sa première construction (techniques de chantier de Rome)
+- ⬜ `buildings/SULTAN/ACADEMY_site.png` — 1024×1024 — Chantier « Académie » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/BAKERY_site.png` — 1024×1024 — Chantier « Boulangerie » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/BARRACKS_site.png` — 1024×1024 — Chantier « Caserne » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/EMBASSY_site.png` — 1024×1024 — Chantier « Ambassade » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/FORGE_site.png` — 1024×1024 — Chantier « Forge » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/FOUNDRY_site.png` — 1024×1024 — Chantier « Fonderie » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/GREAT_BARRACKS_site.png` — 1024×1024 — Chantier « Grande Caserne » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/GREAT_SILO_site.png` — 1024×1024 — Chantier « Grand Silo » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/GREAT_STABLE_site.png` — 1024×1024 — Chantier « Grande Écurie » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/GREAT_WAREHOUSE_site.png` — 1024×1024 — Chantier « Grand Dépôt » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/HEALING_TENT_site.png` — 1024×1024 — Chantier « Tente de soins » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/HERO_MANSION_site.png` — 1024×1024 — Chantier « Domus du Héros » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/HIDEOUT_site.png` — 1024×1024 — Chantier « Cachette » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/MAIN_HALL_site.png` — 1024×1024 — Chantier « Bâtiment principal » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/MARKET_site.png` — 1024×1024 — Chantier « Place du marché » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/MILL_site.png` — 1024×1024 — Chantier « Moulin » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/RALLY_POINT_site.png` — 1024×1024 — Chantier « Place de rassemblement » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/RESIDENCE_site.png` — 1024×1024 — Chantier « Résidence » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/SAWMILL_site.png` — 1024×1024 — Chantier « Scierie » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/SILO_site.png` — 1024×1024 — Chantier « Silo à céréales » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/STABLE_site.png` — 1024×1024 — Chantier « Écurie » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/STONEMASON_site.png` — 1024×1024 — Chantier « Tailleur de Pierre » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/SULTAN_DESERT_OUTPOST_site.png` — 1024×1024 — Chantier « Poste du Désert » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/TRADE_OFFICE_site.png` — 1024×1024 — Chantier « Comptoir de Commerce » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/TREASURE_CHAMBER_site.png` — 1024×1024 — Chantier « Chambre au Trésor » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/WAREHOUSE_site.png` — 1024×1024 — Chantier « Dépôt de ressources » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/WATCHTOWER_site.png` — 1024×1024 — Chantier « Tour de Guet » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+- ⬜ `buildings/SULTAN/WORKSHOP_site.png` — 1024×1024 — Chantier « Atelier » de Sultanat : à la place du bâtiment pendant sa première construction (techniques de chantier de Sultanat)
+
+## Villes de la carte — 39
+
+- ⬜ `map/cities/bastion_site.png` — 1024×1024 — chantier du Bastion : même emprise, fondations, échafaudages, grue de bois, tas de pierres
+- ⬜ `map/cities/bastion.png` — 1024×1024 — Bastion d'alliance debout : forteresse commune de pierre massive, tours carrées, donjon central, bannières sans emblème
+- ✅ `map/cities/capital_egypt.png` — 1024×1024 — Carte du monde : ville « capital_egypt » (…)
+- ✅ `map/cities/capital_gaul.png` — 1024×1024 — Carte du monde : ville « capital_gaul » (…)
+- ✅ `map/cities/capital_greek.png` — 1024×1024 — Carte du monde : ville « capital_greek » (…)
+- ✅ `map/cities/capital_hun.png` — 1024×1024 — Carte du monde : ville « capital_hun » (…)
+- ✅ `map/cities/capital_rome.png` — 1024×1024 — Carte du monde : ville « capital_rome » (…)
+- ✅ `map/cities/capital_sultan.png` — 1024×1024 — Carte du monde : ville « capital_sultan » (…)
+- ⬜ `map/cities/capital.png` — 1024×1024 — Carte du monde : ville « capital » (…)
+- ✅ `map/cities/colony_egypt_fortified.png` — 1024×1024 — Carte du monde : ville secondaire fortifiée de Égypte (Bâtiment principal 20 et plus), état normal, plus modeste que la capitale fortifiée
+- ✅ `map/cities/colony_egypt.png` — 1024×1024 — Carte du monde : ville secondaire (colonie) de Égypte, plus petite que la ville de départ
+- ✅ `map/cities/colony_gaul_fortified.png` — 1024×1024 — Carte du monde : ville secondaire fortifiée de Gaule (Bâtiment principal 20 et plus), état normal, plus modeste que la capitale fortifiée
+- ✅ `map/cities/colony_gaul.png` — 1024×1024 — Carte du monde : ville secondaire (colonie) de Gaule, plus petite que la ville de départ
+- ✅ `map/cities/colony_greek_fortified.png` — 1024×1024 — Carte du monde : ville secondaire fortifiée de Grèce (Bâtiment principal 20 et plus), état normal, plus modeste que la capitale fortifiée
+- ✅ `map/cities/colony_greek.png` — 1024×1024 — Carte du monde : ville secondaire (colonie) de Grèce, plus petite que la ville de départ
+- ✅ `map/cities/colony_hun_fortified.png` — 1024×1024 — Carte du monde : ville secondaire fortifiée de Huns (Bâtiment principal 20 et plus), état normal, plus modeste que la capitale fortifiée
+- ✅ `map/cities/colony_hun.png` — 1024×1024 — Carte du monde : ville secondaire (colonie) de Huns, plus petite que la ville de départ
+- ✅ `map/cities/colony_rome_fortified.png` — 1024×1024 — Carte du monde : ville secondaire fortifiée de Rome (Bâtiment principal 20 et plus), état normal, plus modeste que la capitale fortifiée
+- ✅ `map/cities/colony_rome.png` — 1024×1024 — Carte du monde : ville secondaire (colonie) de Rome, plus petite que la ville de départ
+- ✅ `map/cities/colony_sultan_fortified.png` — 1024×1024 — Carte du monde : ville secondaire fortifiée de Sultanat (Bâtiment principal 20 et plus), état normal, plus modeste que la capitale fortifiée
+- ✅ `map/cities/colony_sultan.png` — 1024×1024 — Carte du monde : ville secondaire (colonie) de Sultanat, plus petite que la ville de départ
+- ⬜ `map/cities/default.png` — 1024×1024 — Carte du monde : ville « default » (…)
+- ✅ `map/cities/egypt_t2.png` — 1024×1024 — Carte du monde : ville de Égypte au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal
+- ✅ `map/cities/egypt.png` — 1024×1024 — Carte du monde : ville « egypt » (…)
+- ✅ `map/cities/gaul_t2.png` — 1024×1024 — Carte du monde : ville de Gaule au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal
+- ✅ `map/cities/gaul.png` — 1024×1024 — Carte du monde : ville « gaul » (…)
+- ✅ `map/cities/greek_t2.png` — 1024×1024 — Carte du monde : ville de Grèce au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal
+- ✅ `map/cities/greek.png` — 1024×1024 — Carte du monde : ville « greek » (…)
+- ✅ `map/cities/hun_t2.png` — 1024×1024 — Carte du monde : ville de Huns au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal
+- ✅ `map/cities/hun.png` — 1024×1024 — Carte du monde : ville « hun » (…)
+- ✅ `map/cities/rome_t2.png` — 1024×1024 — Carte du monde : ville de Rome au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal
+- ✅ `map/cities/rome.png` — 1024×1024 — Carte du monde : ville « rome » (…)
+- ✅ `map/cities/sultan_t2.png` — 1024×1024 — Carte du monde : ville de Sultanat au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal
+- ✅ `map/cities/sultan.png` — 1024×1024 — Carte du monde : ville « sultan » (…)
+- ⬜ `map/cities/wonder_0.png` — 1024×1024 — Ville Merveille, étape 1/5 : fondations tracées au centre d'une ville fortifiée
+- ⬜ `map/cities/wonder_100.png` — 1024×1024 — étape 5/5 : monument achevé et doré, bannières
+- ⬜ `map/cities/wonder_25.png` — 1024×1024 — étape 2/5 : échafaudages, premiers étages
+- ⬜ `map/cities/wonder_50.png` — 1024×1024 — étape 3/5 : monument à moitié construit
+- ⬜ `map/cities/wonder_75.png` — 1024×1024 — étape 4/5 : presque achevé, dernier échafaudage au sommet
+
+## Villes assiégées (carte) — 30
+
+- ✅ `map/cities/siege_colony_EGYPT_fortified.png` — bande de 4 cases — Carte du monde : ville secondaire fortifiée de Égypte assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_EGYPT_normal.png` — bande de 4 cases — Carte du monde : ville secondaire de Égypte assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_GAUL_fortified.png` — bande de 4 cases — Carte du monde : ville secondaire fortifiée de Gaule assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_GAUL_normal.png` — bande de 4 cases — Carte du monde : ville secondaire de Gaule assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_GREEK_fortified.png` — bande de 4 cases — Carte du monde : ville secondaire fortifiée de Grèce assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_GREEK_normal.png` — bande de 4 cases — Carte du monde : ville secondaire de Grèce assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_HUN_fortified.png` — bande de 4 cases — Carte du monde : ville secondaire fortifiée de Huns assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_HUN_normal.png` — bande de 4 cases — Carte du monde : ville secondaire de Huns assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_ROME_fortified.png` — bande de 4 cases — Carte du monde : ville secondaire fortifiée de Rome assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_ROME_normal.png` — bande de 4 cases — Carte du monde : ville secondaire de Rome assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_SULTAN_fortified.png` — bande de 4 cases — Carte du monde : ville secondaire fortifiée de Sultanat assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_colony_SULTAN_normal.png` — bande de 4 cases — Carte du monde : ville secondaire de Sultanat assiégée, même cadrage que son sprite normal
+- ✅ `map/cities/siege_EGYPT_t1.png` — bande de 4 cases — Carte du monde : village de Égypte assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_EGYPT_t2.png` — bande de 4 cases — Carte du monde : ville de Égypte assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_EGYPT_t3.png` — bande de 4 cases — Carte du monde : ville fortifiée de Égypte assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_GAUL_t1.png` — bande de 4 cases — Carte du monde : village de Gaule assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_GAUL_t2.png` — bande de 4 cases — Carte du monde : ville de Gaule assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_GAUL_t3.png` — bande de 4 cases — Carte du monde : ville fortifiée de Gaule assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_GREEK_t1.png` — bande de 4 cases — Carte du monde : village de Grèce assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_GREEK_t2.png` — bande de 4 cases — Carte du monde : ville de Grèce assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_GREEK_t3.png` — bande de 4 cases — Carte du monde : ville fortifiée de Grèce assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_HUN_t1.png` — bande de 4 cases — Carte du monde : village de Huns assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_HUN_t2.png` — bande de 4 cases — Carte du monde : ville de Huns assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_HUN_t3.png` — bande de 4 cases — Carte du monde : ville fortifiée de Huns assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_ROME_t1.png` — bande de 4 cases — Carte du monde : village de Rome assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_ROME_t2.png` — bande de 4 cases — Carte du monde : ville de Rome assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_ROME_t3.png` — bande de 4 cases — Carte du monde : ville fortifiée de Rome assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_SULTAN_t1.png` — bande de 4 cases — Carte du monde : village de Sultanat assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_SULTAN_t2.png` — bande de 4 cases — Carte du monde : ville de Sultanat assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+- ✅ `map/cities/siege_SULTAN_t3.png` — bande de 4 cases — Carte du monde : ville fortifiée de Sultanat assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège
+
+## Carte du monde — 287
+
+- ✅ `map/camps/camp1_desert.png` — 1024×1024 — Camp barbare de niveau 1 sur la carte (desert) : remplace l'icône de ressource tant que la tribu tient le point
+- ✅ `map/camps/camp1_snow.png` — 1024×1024 — Camp barbare de niveau 1 sur la carte (snow) : remplace l'icône de ressource tant que la tribu tient le point
+- ✅ `map/camps/camp1.png` — 1024×1024 — Camp barbare de niveau 1 sur la carte : remplace l'icône de ressource tant que la tribu tient le point
+- ✅ `map/camps/camp2_desert.png` — 1024×1024 — Camp barbare de niveau 2 sur la carte (desert) : remplace l'icône de ressource tant que la tribu tient le point
+- ✅ `map/camps/camp2_snow.png` — 1024×1024 — Camp barbare de niveau 2 sur la carte (snow) : remplace l'icône de ressource tant que la tribu tient le point
+- ✅ `map/camps/camp2.png` — 1024×1024 — Camp barbare de niveau 2 sur la carte : remplace l'icône de ressource tant que la tribu tient le point
+- ✅ `map/camps/camp3_desert.png` — 1024×1024 — Camp barbare de niveau 3 sur la carte (desert) : remplace l'icône de ressource tant que la tribu tient le point
+- ✅ `map/camps/camp3_snow.png` — 1024×1024 — Camp barbare de niveau 3 sur la carte (snow) : remplace l'icône de ressource tant que la tribu tient le point
+- ✅ `map/camps/camp3.png` — 1024×1024 — Camp barbare de niveau 3 sur la carte : remplace l'icône de ressource tant que la tribu tient le point
+- ✅ `map/camps/foundation_desert.png` — 1024×1024 — Carte du monde : campement de fondation (desert) pendant les 24 h de fondation d'une ville (remplace l'icône du point)
+- ✅ `map/camps/foundation_snow.png` — 1024×1024 — Carte du monde : campement de fondation (snow) pendant les 24 h de fondation d'une ville (remplace l'icône du point)
+- ✅ `map/camps/foundation.png` — 1024×1024 — Carte du monde : campement de fondation pendant les 24 h de fondation d'une ville (remplace l'icône du point)
+- ⬜ `map/camps/horde_1.png` — 1024×1024 — niveau 1 : palissade de pieux, trois yourtes, totem à crâne de cheval, feu
+- ⬜ `map/camps/horde_2.png` — 1024×1024 — niveau 2 : palissade plus haute avec porte et tour de guet, cinq yourtes, enclos
+- ⬜ `map/camps/horde_3.png` — 1024×1024 — niveau 3 : fort de rondins à deux tours, grande yourte du chef sur une butte
+- ⬜ `map/camps/horde_4.png` — 1024×1024 — niveau 4 : place forte de pierre et de bois sur une butte, remparts, tour du chef
+- ⬜ `map/camps/horde_5.png` — 1024×1024 — niveau 5 : grande forteresse sur une colline, trois étages visibles (avant-poste, remparts, tour du chef)
+- ⬜ `map/camps/immortals_plan.png` — 1024×1024 — plan de la Merveille : petit camp fortifié des Immortels autour d'un coffre et de rouleaux
+- ✅ `map/camps/ruins_desert.png` — 1024×1024 — Camp barbare détruit (desert) : affiché jusqu'à la réapparition de la tribu
+- ✅ `map/camps/ruins_snow.png` — 1024×1024 — Camp barbare détruit (snow) : affiché jusqu'à la réapparition de la tribu
+- ✅ `map/camps/ruins.png` — 1024×1024 — Camp barbare détruit : affiché jusqu'à la réapparition de la tribu
+- ⬜ `map/camps/wonder_site_immortals.png` — 1024×1024 — site de Merveille gardé : camp des Immortels (tentes pourpres et or, soleil ailé) autour de ruines monumentales
+- ⬜ `map/camps/wonder_site.png` — 1024×1024 — site de Merveille libre : ruines monumentales seules
+- ✅ `map/fx/battle.png` — bande de 4 cases — Carte : combat en cours
+- ✅ `map/fx/campfire.png` — bande de 4 cases — Carte : feu de camp des tribus
+- ✅ `map/fx/fire.png` — bande de 4 cases — Carte : ville en feu
+- ✅ `map/fx/rain.png` — bande de 4 cases — Carte du monde : pluie (nappe translucide)
+- ✅ `map/fx/snowfall.png` — bande de 4 cases — Carte du monde : chute de neige sur les régions enneigées
+- ✅ `map/resources/food_desert_1.png` — 1024×1024 — Point de ressource nourriture (désert), niveau 1 : petit
+- ✅ `map/resources/food_desert_2.png` — 1024×1024 — Point de ressource nourriture (désert), niveau 2 : moyen
+- ✅ `map/resources/food_desert_3.png` — 1024×1024 — Point de ressource nourriture (désert), niveau 3 : riche
+- ✅ `map/resources/food_forest_1.png` — 1024×1024 — Point de ressource nourriture (tempéré), niveau 1 : petit
+- ✅ `map/resources/food_forest_2.png` — 1024×1024 — Point de ressource nourriture (tempéré), niveau 2 : moyen
+- ✅ `map/resources/food_forest_3.png` — 1024×1024 — Point de ressource nourriture (tempéré), niveau 3 : riche
+- ✅ `map/resources/food_snow_1.png` — 1024×1024 — Point de ressource nourriture (neige), niveau 1 : petit
+- ✅ `map/resources/food_snow_2.png` — 1024×1024 — Point de ressource nourriture (neige), niveau 2 : moyen
+- ✅ `map/resources/food_snow_3.png` — 1024×1024 — Point de ressource nourriture (neige), niveau 3 : riche
+- ✅ `map/resources/gold_desert_1.png` — 1024×1024 — Point de ressource or (désert), niveau 1 : petit
+- ✅ `map/resources/gold_desert_2.png` — 1024×1024 — Point de ressource or (désert), niveau 2 : moyen
+- ✅ `map/resources/gold_desert_3.png` — 1024×1024 — Point de ressource or (désert), niveau 3 : riche
+- ✅ `map/resources/gold_forest_1.png` — 1024×1024 — Point de ressource or (tempéré), niveau 1 : petit
+- ✅ `map/resources/gold_forest_2.png` — 1024×1024 — Point de ressource or (tempéré), niveau 2 : moyen
+- ✅ `map/resources/gold_forest_3.png` — 1024×1024 — Point de ressource or (tempéré), niveau 3 : riche
+- ✅ `map/resources/gold_snow_1.png` — 1024×1024 — Point de ressource or (neige), niveau 1 : petit
+- ✅ `map/resources/gold_snow_2.png` — 1024×1024 — Point de ressource or (neige), niveau 2 : moyen
+- ✅ `map/resources/gold_snow_3.png` — 1024×1024 — Point de ressource or (neige), niveau 3 : riche
+- ✅ `map/resources/iron_desert_1.png` — 1024×1024 — Point de ressource fer (désert), niveau 1 : petit
+- ✅ `map/resources/iron_desert_2.png` — 1024×1024 — Point de ressource fer (désert), niveau 2 : moyen
+- ✅ `map/resources/iron_desert_3.png` — 1024×1024 — Point de ressource fer (désert), niveau 3 : riche
+- ✅ `map/resources/iron_forest_1.png` — 1024×1024 — Point de ressource fer (tempéré), niveau 1 : petit
+- ✅ `map/resources/iron_forest_2.png` — 1024×1024 — Point de ressource fer (tempéré), niveau 2 : moyen
+- ✅ `map/resources/iron_forest_3.png` — 1024×1024 — Point de ressource fer (tempéré), niveau 3 : riche
+- ✅ `map/resources/iron_snow_1.png` — 1024×1024 — Point de ressource fer (neige), niveau 1 : petit
+- ✅ `map/resources/iron_snow_2.png` — 1024×1024 — Point de ressource fer (neige), niveau 2 : moyen
+- ✅ `map/resources/iron_snow_3.png` — 1024×1024 — Point de ressource fer (neige), niveau 3 : riche
+- ✅ `map/resources/stone_desert_1.png` — 1024×1024 — Point de ressource pierre (désert), niveau 1 : petit
+- ✅ `map/resources/stone_desert_2.png` — 1024×1024 — Point de ressource pierre (désert), niveau 2 : moyen
+- ✅ `map/resources/stone_desert_3.png` — 1024×1024 — Point de ressource pierre (désert), niveau 3 : riche
+- ✅ `map/resources/stone_forest_1.png` — 1024×1024 — Point de ressource pierre (tempéré), niveau 1 : petit
+- ✅ `map/resources/stone_forest_2.png` — 1024×1024 — Point de ressource pierre (tempéré), niveau 2 : moyen
+- ✅ `map/resources/stone_forest_3.png` — 1024×1024 — Point de ressource pierre (tempéré), niveau 3 : riche
+- ✅ `map/resources/stone_snow_1.png` — 1024×1024 — Point de ressource pierre (neige), niveau 1 : petit
+- ✅ `map/resources/stone_snow_2.png` — 1024×1024 — Point de ressource pierre (neige), niveau 2 : moyen
+- ✅ `map/resources/stone_snow_3.png` — 1024×1024 — Point de ressource pierre (neige), niveau 3 : riche
+- ✅ `map/resources/wood_desert_1.png` — 1024×1024 — Point de ressource bois (désert), niveau 1 : petit
+- ✅ `map/resources/wood_desert_2.png` — 1024×1024 — Point de ressource bois (désert), niveau 2 : moyen
+- ✅ `map/resources/wood_desert_3.png` — 1024×1024 — Point de ressource bois (désert), niveau 3 : riche
+- ✅ `map/resources/wood_forest_1.png` — 1024×1024 — Point de ressource bois (tempéré), niveau 1 : petit
+- ✅ `map/resources/wood_forest_2.png` — 1024×1024 — Point de ressource bois (tempéré), niveau 2 : moyen
+- ✅ `map/resources/wood_forest_3.png` — 1024×1024 — Point de ressource bois (tempéré), niveau 3 : riche
+- ✅ `map/resources/wood_snow_1.png` — 1024×1024 — Point de ressource bois (neige), niveau 1 : petit
+- ✅ `map/resources/wood_snow_2.png` — 1024×1024 — Point de ressource bois (neige), niveau 2 : moyen
+- ✅ `map/resources/wood_snow_3.png` — 1024×1024 — Point de ressource bois (neige), niveau 3 : riche
+- ⬜ `map/units/archer_attack.png` — bande de 3 cases — Replay : archer attaque
+- ⬜ `map/units/archer_EGYPT_walk.png` — bande de 6 cases — Carte : marche des archers de Égypte
+- ⬜ `map/units/archer_EGYPT.png` — 1024×1024 — Carte du monde : armée en marche « archer » de Égypte (aussi dans le replay de bataille)
+- ⬜ `map/units/archer_GAUL_walk.png` — bande de 6 cases — Carte : marche des archers de Gaule
+- ⬜ `map/units/archer_GAUL.png` — 1024×1024 — Carte du monde : armée en marche « archer » de Gaule (aussi dans le replay de bataille)
+- ⬜ `map/units/archer_GREEK_walk.png` — bande de 6 cases — Carte : marche des archers de Grèce
+- ⬜ `map/units/archer_GREEK.png` — 1024×1024 — Carte du monde : armée en marche « archer » de Grèce (aussi dans le replay de bataille)
+- ⬜ `map/units/archer_hit.png` — bande de 2 cases — Replay : archer touché
+- ⬜ `map/units/archer_HUN_walk.png` — bande de 6 cases — Carte : marche des archers de Huns
+- ⬜ `map/units/archer_HUN.png` — 1024×1024 — Carte du monde : armée en marche « archer » de Huns (aussi dans le replay de bataille)
+- ⬜ `map/units/archer_ROME_walk.png` — bande de 6 cases — Carte : marche des archers de Rome
+- ⬜ `map/units/archer_ROME.png` — 1024×1024 — Carte du monde : armée en marche « archer » de Rome (aussi dans le replay de bataille)
+- ⬜ `map/units/archer_SULTAN_walk.png` — bande de 6 cases — Carte : marche des archers de Sultanat
+- ⬜ `map/units/archer_SULTAN.png` — 1024×1024 — Carte du monde : armée en marche « archer » de Sultanat (aussi dans le replay de bataille)
+- ⬜ `map/units/archer.png` — 1024×1024 — Carte du monde : armée en marche « archer » (aussi dans le replay de bataille)
+- ⬜ `map/units/catapult_attack.png` — bande de 3 cases — Replay : catapult attaque
+- ⬜ `map/units/catapult_EGYPT_walk.png` — bande de 6 cases — Carte : marche des engins de siège de Égypte
+- ⬜ `map/units/catapult_EGYPT.png` — 1024×1024 — Carte du monde : armée en marche « catapult » de Égypte (aussi dans le replay de bataille)
+- ⬜ `map/units/catapult_GAUL_walk.png` — bande de 6 cases — Carte : marche des engins de siège de Gaule
+- ⬜ `map/units/catapult_GAUL.png` — 1024×1024 — Carte du monde : armée en marche « catapult » de Gaule (aussi dans le replay de bataille)
+- ⬜ `map/units/catapult_GREEK_walk.png` — bande de 6 cases — Carte : marche des engins de siège de Grèce
+- ⬜ `map/units/catapult_GREEK.png` — 1024×1024 — Carte du monde : armée en marche « catapult » de Grèce (aussi dans le replay de bataille)
+- ⬜ `map/units/catapult_hit.png` — bande de 2 cases — Replay : catapult touché
+- ⬜ `map/units/catapult_HUN_walk.png` — bande de 6 cases — Carte : marche des engins de siège de Huns
+- ⬜ `map/units/catapult_HUN.png` — 1024×1024 — Carte du monde : armée en marche « catapult » de Huns (aussi dans le replay de bataille)
+- ⬜ `map/units/catapult_ROME_walk.png` — bande de 6 cases — Carte : marche des engins de siège de Rome
+- ⬜ `map/units/catapult_ROME.png` — 1024×1024 — Carte du monde : armée en marche « catapult » de Rome (aussi dans le replay de bataille)
+- ⬜ `map/units/catapult_SULTAN_walk.png` — bande de 6 cases — Carte : marche des engins de siège de Sultanat
+- ⬜ `map/units/catapult_SULTAN.png` — 1024×1024 — Carte du monde : armée en marche « catapult » de Sultanat (aussi dans le replay de bataille)
+- ⬜ `map/units/catapult.png` — 1024×1024 — Carte du monde : armée en marche « catapult » (aussi dans le replay de bataille)
+- ⬜ `map/units/cavalry_attack.png` — bande de 3 cases — Replay : cavalry attaque
+- ⬜ `map/units/cavalry_EGYPT_walk.png` — bande de 6 cases — Carte : marche de la cavalerie de Égypte
+- ⬜ `map/units/cavalry_EGYPT.png` — 1024×1024 — Carte du monde : armée en marche « cavalry » de Égypte (aussi dans le replay de bataille)
+- ⬜ `map/units/cavalry_GAUL_walk.png` — bande de 6 cases — Carte : marche de la cavalerie de Gaule
+- ⬜ `map/units/cavalry_GAUL.png` — 1024×1024 — Carte du monde : armée en marche « cavalry » de Gaule (aussi dans le replay de bataille)
+- ⬜ `map/units/cavalry_GREEK_walk.png` — bande de 6 cases — Carte : marche de la cavalerie de Grèce
+- ⬜ `map/units/cavalry_GREEK.png` — 1024×1024 — Carte du monde : armée en marche « cavalry » de Grèce (aussi dans le replay de bataille)
+- ⬜ `map/units/cavalry_hit.png` — bande de 2 cases — Replay : cavalry touché
+- ⬜ `map/units/cavalry_HUN_walk.png` — bande de 6 cases — Carte : marche de la cavalerie de Huns
+- ⬜ `map/units/cavalry_HUN.png` — 1024×1024 — Carte du monde : armée en marche « cavalry » de Huns (aussi dans le replay de bataille)
+- ⬜ `map/units/cavalry_ROME_walk.png` — bande de 6 cases — Carte : marche de la cavalerie de Rome
+- ⬜ `map/units/cavalry_ROME.png` — 1024×1024 — Carte du monde : armée en marche « cavalry » de Rome (aussi dans le replay de bataille)
+- ⬜ `map/units/cavalry_SULTAN_walk.png` — bande de 6 cases — Carte : marche de la cavalerie de Sultanat
+- ⬜ `map/units/cavalry_SULTAN.png` — 1024×1024 — Carte du monde : armée en marche « cavalry » de Sultanat (aussi dans le replay de bataille)
+- ⬜ `map/units/cavalry.png` — 1024×1024 — Carte du monde : armée en marche « cavalry » (aussi dans le replay de bataille)
+- ⬜ `map/units/hero_EGYPT_attack.png` — bande de 3 cases — Replay : le héros de Égypte attaque
+- ⬜ `map/units/hero_EGYPT_walk.png` — bande de 6 cases — Carte : marche d'une armée menée par le héros de Égypte
+- ⬜ `map/units/hero_EGYPT.png` — 1024×1024 — Carte du monde : armée menée par le héros de Égypte (marqueur avec le héros devant la troupe)
+- ⬜ `map/units/hero_GAUL_attack.png` — bande de 3 cases — Replay : le héros de Gaule attaque
+- ⬜ `map/units/hero_GAUL_walk.png` — bande de 6 cases — Carte : marche d'une armée menée par le héros de Gaule
+- ⬜ `map/units/hero_GAUL.png` — 1024×1024 — Carte du monde : armée menée par le héros de Gaule (marqueur avec le héros devant la troupe)
+- ⬜ `map/units/hero_GREEK_attack.png` — bande de 3 cases — Replay : le héros de Grèce attaque
+- ⬜ `map/units/hero_GREEK_walk.png` — bande de 6 cases — Carte : marche d'une armée menée par le héros de Grèce
+- ⬜ `map/units/hero_GREEK.png` — 1024×1024 — Carte du monde : armée menée par le héros de Grèce (marqueur avec le héros devant la troupe)
+- ⬜ `map/units/hero_HUN_attack.png` — bande de 3 cases — Replay : le héros de Huns attaque
+- ⬜ `map/units/hero_HUN_walk.png` — bande de 6 cases — Carte : marche d'une armée menée par le héros de Huns
+- ⬜ `map/units/hero_HUN.png` — 1024×1024 — Carte du monde : armée menée par le héros de Huns (marqueur avec le héros devant la troupe)
+- ⬜ `map/units/hero_ROME_attack.png` — bande de 3 cases — Replay : le héros de Rome attaque
+- ⬜ `map/units/hero_ROME_walk.png` — bande de 6 cases — Carte : marche d'une armée menée par le héros de Rome
+- ⬜ `map/units/hero_ROME.png` — 1024×1024 — Carte du monde : armée menée par le héros de Rome (marqueur avec le héros devant la troupe)
+- ⬜ `map/units/hero_SULTAN_attack.png` — bande de 3 cases — Replay : le héros de Sultanat attaque
+- ⬜ `map/units/hero_SULTAN_walk.png` — bande de 6 cases — Carte : marche d'une armée menée par le héros de Sultanat
+- ⬜ `map/units/hero_SULTAN.png` — 1024×1024 — Carte du monde : armée menée par le héros de Sultanat (marqueur avec le héros devant la troupe)
+- ⬜ `map/units/hoplite_attack.png` — bande de 3 cases — Replay : hoplite attaque
+- ⬜ `map/units/hoplite_EGYPT_walk.png` — bande de 6 cases — Carte : marche de l'infanterie de Égypte
+- ⬜ `map/units/hoplite_EGYPT.png` — 1024×1024 — Carte du monde : armée en marche « hoplite » de Égypte (aussi dans le replay de bataille)
+- ⬜ `map/units/hoplite_GAUL_walk.png` — bande de 6 cases — Carte : marche de l'infanterie de Gaule
+- ⬜ `map/units/hoplite_GAUL.png` — 1024×1024 — Carte du monde : armée en marche « hoplite » de Gaule (aussi dans le replay de bataille)
+- ⬜ `map/units/hoplite_GREEK_walk.png` — bande de 6 cases — Carte : marche de l'infanterie de Grèce
+- ⬜ `map/units/hoplite_GREEK.png` — 1024×1024 — Carte du monde : armée en marche « hoplite » de Grèce (aussi dans le replay de bataille)
+- ⬜ `map/units/hoplite_hit.png` — bande de 2 cases — Replay : hoplite touché
+- ⬜ `map/units/hoplite_HUN_walk.png` — bande de 6 cases — Carte : marche de l'infanterie de Huns
+- ⬜ `map/units/hoplite_HUN.png` — 1024×1024 — Carte du monde : armée en marche « hoplite » de Huns (aussi dans le replay de bataille)
+- ⬜ `map/units/hoplite_ROME_walk.png` — bande de 6 cases — Carte : marche de l'infanterie de Rome
+- ⬜ `map/units/hoplite_ROME.png` — 1024×1024 — Carte du monde : armée en marche « hoplite » de Rome (aussi dans le replay de bataille)
+- ⬜ `map/units/hoplite_SULTAN_walk.png` — bande de 6 cases — Carte : marche de l'infanterie de Sultanat
+- ⬜ `map/units/hoplite_SULTAN.png` — 1024×1024 — Carte du monde : armée en marche « hoplite » de Sultanat (aussi dans le replay de bataille)
+- ⬜ `map/units/hoplite.png` — 1024×1024 — Carte du monde : armée en marche « hoplite » (aussi dans le replay de bataille)
+- ⬜ `map/units/merchant_walk.png` — bande de 6 cases — Carte : marche du convoi du marchand
+- ⬜ `map/units/merchant.png` — 1024×1024 — Carte du monde : armée en marche « merchant » (aussi dans le replay de bataille)
+- ⬜ `map/units/settler_EGYPT.png` — 1024×1024 — Carte du monde : cortège de colons de Égypte
+- ⬜ `map/units/settler_GAUL.png` — 1024×1024 — Carte du monde : cortège de colons de Gaule
+- ⬜ `map/units/settler_GREEK.png` — 1024×1024 — Carte du monde : cortège de colons de Grèce
+- ⬜ `map/units/settler_HUN.png` — 1024×1024 — Carte du monde : cortège de colons de Huns
+- ⬜ `map/units/settler_ROME.png` — 1024×1024 — Carte du monde : cortège de colons de Rome
+- ⬜ `map/units/settler_SULTAN.png` — 1024×1024 — Carte du monde : cortège de colons de Sultanat
+- ⬜ `map/units/settler_walk.png` — bande de 6 cases — Cycle de marche sur la carte : cortège de colons
+- ⬜ `map/units/settler.png` — 1024×1024 — Carte du monde : cortège de colons en marche (armée partie fonder une ville ; charrette du marchand tant que ce sprite manque)
+- ⬜ `map/units/spy_walk.png` — bande de 6 cases — Carte : marche de l'espion en mission (cavalier encapuchonné)
+- ⬜ `map/units/spy.png` — 1024×1024 — Carte du monde : espion en mission (silhouette encapuchonnée à cheval)
+- ✅ `map/world/decor/agave_1.png` — 1024×1024 — Agave (variante 1) : herbe sèche et terre
+- ✅ `map/world/decor/agave_2.png` — 1024×1024 — Agave (variante 2) : herbe sèche et terre
+- ✅ `map/world/decor/agave_3.png` — 1024×1024 — Agave (variante 3) : herbe sèche et terre
+- ✅ `map/world/decor/bush_1.png` — 1024×1024 — Buisson (variante 1) : au bord de l'eau
+- ✅ `map/world/decor/bush_2.png` — 1024×1024 — Buisson (variante 2) : au bord de l'eau
+- ✅ `map/world/decor/bush_3.png` — 1024×1024 — Buisson (variante 3) : au bord de l'eau
+- ✅ `map/world/decor/cactus_1.png` — 1024×1024 — Cactus du désert (variante 1)
+- ✅ `map/world/decor/cactus_2.png` — 1024×1024 — Cactus du désert (variante 2)
+- ⬜ `map/world/decor/desert_stones_1.png` — 1024×1024 — Cailloux du désert (variante 1)
+- ⬜ `map/world/decor/desert_stones_2.png` — 1024×1024 — Cailloux du désert (variante 2)
+- ⬜ `map/world/decor/desert_stones_3.png` — 1024×1024 — Cailloux du désert (variante 3)
+- ✅ `map/world/decor/haystack_1.png` — 1024×1024 — Meule de foin (variante 1) : à côté d'un champ
+- ✅ `map/world/decor/haystack_2.png` — 1024×1024 — Meule de foin (variante 2) : à côté d'un champ
+- ✅ `map/world/decor/snow_bush_1.png` — 1024×1024 — Buisson givré (variante 1) : zone enneigée
+- ✅ `map/world/decor/snow_bush_2.png` — 1024×1024 — Buisson givré (variante 2) : zone enneigée
+- ✅ `map/world/decor/snow_stones_1.png` — 1024×1024 — Cailloux enneigés (variante 1) : zone enneigée
+- ✅ `map/world/decor/snow_stones_2.png` — 1024×1024 — Cailloux enneigés (variante 2) : zone enneigée
+- ✅ `map/world/decor/stones_1.png` — 1024×1024 — Cailloux épars (variante 1)
+- ✅ `map/world/decor/stones_2.png` — 1024×1024 — Cailloux épars (variante 2)
+- ✅ `map/world/decor/stones_3.png` — 1024×1024 — Cailloux épars (variante 3)
+- ✅ `map/world/decor/tree_1.png` — 1024×1024 — Arbre isolé (variante 1) : au bord de l'eau et dans les prairies
+- ✅ `map/world/decor/tree_2.png` — 1024×1024 — Arbre isolé (variante 2) : au bord de l'eau et dans les prairies
+- ✅ `map/world/decor/tree_3.png` — 1024×1024 — Arbre isolé (variante 3) : au bord de l'eau et dans les prairies
+- ✅ `map/world/desert/dunes_1.png` — 1024×1024 — Dunes (variante 1)
+- ✅ `map/world/desert/dunes_2.png` — 1024×1024 — Dunes (variante 2)
+- ✅ `map/world/desert/dunes_3.png` — 1024×1024 — Dunes (variante 3)
+- ✅ `map/world/desert/palms_1.png` — 1024×1024 — Palmiers au bord d'une oasis (variante 1)
+- ✅ `map/world/desert/palms_2.png` — 1024×1024 — Palmiers au bord d'une oasis (variante 2)
+- ✅ `map/world/desert/palms_3.png` — 1024×1024 — Palmiers au bord d'une oasis (variante 3)
+- ✅ `map/world/desert/ruins_1.png` — 1024×1024 — Ruines du désert (variante 1)
+- ✅ `map/world/desert/ruins_2.png` — 1024×1024 — Ruines du désert (variante 2)
+- ✅ `map/world/desert/ruins_3.png` — 1024×1024 — Ruines du désert (variante 3)
+- ✅ `map/world/fields/wheat_1.png` — 1024×1024 — Champ de blé (variante 1) : autour des villes et sur la terre labourée, par groupes de cases
+- ✅ `map/world/fields/wheat_2.png` — 1024×1024 — Champ de blé (variante 2) : autour des villes et sur la terre labourée, par groupes de cases
+- ✅ `map/world/fields/wheat_3.png` — 1024×1024 — Champ de blé (variante 3) : autour des villes et sur la terre labourée, par groupes de cases
+- ✅ `map/world/forest/snow_1.png` — 1024×1024 — Forêt enneigée dense (variante 1 : pins enneigés)
+- ✅ `map/world/forest/snow_2.png` — 1024×1024 — Forêt enneigée dense (variante 2 : grands sapins sous la neige)
+- ✅ `map/world/forest/snow_3.png` — 1024×1024 — Forêt enneigée dense (variante 3 : pins et bouleaux givrés)
+- ✅ `map/world/forest/snow_4.png` — 1024×1024 — Forêt enneigée dense (variante 4 : jeunes épicéas)
+- ✅ `map/world/forest/snow_edge_1.png` — 1024×1024 — Lisière de forêt enneigée (variante 1 : quelques pins enneigés)
+- ✅ `map/world/forest/snow_edge_2.png` — 1024×1024 — Lisière de forêt enneigée (variante 2 : deux grands sapins)
+- ✅ `map/world/forest/snow_edge_3.png` — 1024×1024 — Lisière de forêt enneigée (variante 3 : bouleaux givrés et un pin)
+- ✅ `map/world/forest/temperate_1.png` — 1024×1024 — Forêt dense en zone tempérée (variante 1 : mixte, pins et feuillus)
+- ✅ `map/world/forest/temperate_2.png` — 1024×1024 — Forêt dense en zone tempérée (variante 2 : pins et sapins)
+- ✅ `map/world/forest/temperate_3.png` — 1024×1024 — Forêt dense en zone tempérée (variante 3 : chênes et hêtres)
+- ✅ `map/world/forest/temperate_4.png` — 1024×1024 — Forêt dense en zone tempérée (variante 4 : bouleaux et sous-bois)
+- ✅ `map/world/forest/temperate_edge_1.png` — 1024×1024 — Lisière de forêt tempérée (variante 1 : pins et feuillus clairsemés)
+- ✅ `map/world/forest/temperate_edge_2.png` — 1024×1024 — Lisière de forêt tempérée (variante 2 : grands pins et jeunes sapins)
+- ✅ `map/world/forest/temperate_edge_3.png` — 1024×1024 — Lisière de forêt tempérée (variante 3 : gros chênes et buissons)
+- ✅ `map/world/fx/cloud_1.png` — 1536×1024 — Nuage qui passe lentement au-dessus de la carte (variante 1), très léger
+- ✅ `map/world/fx/cloud_2.png` — 1536×1024 — Nuage qui passe lentement au-dessus de la carte (variante 2), très léger
+- ✅ `map/world/fx/cloud_3.png` — 1536×1024 — Nuage qui passe lentement au-dessus de la carte (variante 3), très léger
+- ✅ `map/world/ground/drygrass_1.png` — 1024×1024 — Sol de la carte : herbe sèche, variante 1 sur 3 (steppe dorée) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/drygrass_2.png` — 1024×1024 — Sol de la carte : herbe sèche, variante 2 sur 3 (herbe sèche clairsemée) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/drygrass_3.png` — 1024×1024 — Sol de la carte : herbe sèche, variante 3 sur 3 (touffes hautes) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/earth_1.png` — 1024×1024 — Sol de la carte : terre (champs), variante 1 sur 3 (champ labouré) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/earth_2.png` — 1024×1024 — Sol de la carte : terre (champs), variante 2 sur 3 (jeunes pousses) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/earth_3.png` — 1024×1024 — Sol de la carte : terre (champs), variante 3 sur 3 (chaume après moisson) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/grass_1.png` — 1024×1024 — Sol de la carte : herbe (prairie), variante 1 sur 4 (prairie rase) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/grass_2.png` — 1024×1024 — Sol de la carte : herbe (prairie), variante 2 sur 4 (prairie fleurie) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/grass_3.png` — 1024×1024 — Sol de la carte : herbe (prairie), variante 3 sur 4 (herbe dense au trèfle) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/grass_4.png` — 1024×1024 — Sol de la carte : herbe (prairie), variante 4 sur 4 (prairie caillouteuse) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/ice_1.png` — 1024×1024 — Sol de la carte : glace, variante 1 sur 2 (glace lisse) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/ice_2.png` — 1024×1024 — Sol de la carte : glace, variante 2 sur 2 (glace rugueuse) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/sand_1.png` — 1024×1024 — Sol de la carte : sable, variante 1 sur 3 (sable ridé) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/sand_2.png` — 1024×1024 — Sol de la carte : sable, variante 2 sur 3 (sable caillouteux) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/sand_3.png` — 1024×1024 — Sol de la carte : sable, variante 3 sur 3 (sable sec) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/snow_1.png` — 1024×1024 — Sol de la carte : neige, variante 1 sur 3 (poudreuse) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/snow_2.png` — 1024×1024 — Sol de la carte : neige, variante 2 sur 3 (neige croûtée) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/snow_3.png` — 1024×1024 — Sol de la carte : neige, variante 3 sur 3 (neige fine) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/water_1.png` — 1024×1024 — Sol de la carte : eau, variante 1 sur 2 (rivière) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/ground/water_2.png` — 1024×1024 — Sol de la carte : eau, variante 2 sur 2 (lac) ; texture répétable, le jeu fait les fondus avec les sols voisins
+- ✅ `map/world/mountains/desert_1.png` — 1024×1024 — Montagne du désert (mesa) isolée, modèle 1/3, infranchissable
+- ✅ `map/world/mountains/desert_2.png` — 1024×1024 — Montagne du désert (mesa) isolée, modèle 2/3, infranchissable
+- ✅ `map/world/mountains/desert_3.png` — 1024×1024 — Montagne du désert (mesa) isolée, modèle 3/3, infranchissable
+- ✅ `map/world/mountains/desert_x_1.png` — 1024×1024 — Chaîne de montagnes du désert (mesa) dans l'axe haut-gauche → bas-droite, modèle 1/3
+- ✅ `map/world/mountains/desert_x_2.png` — 1024×1024 — Chaîne de montagnes du désert (mesa) dans l'axe haut-gauche → bas-droite, modèle 2/3
+- ✅ `map/world/mountains/desert_x_3.png` — 1024×1024 — Chaîne de montagnes du désert (mesa) dans l'axe haut-gauche → bas-droite, modèle 3/3
+- ✅ `map/world/mountains/desert_xy_1.png` — 1024×1024 — Cœur de massif du désert (mesa) entouré de montagnes, modèle 1/3
+- ✅ `map/world/mountains/desert_xy_2.png` — 1024×1024 — Cœur de massif du désert (mesa) entouré de montagnes, modèle 2/3
+- ✅ `map/world/mountains/desert_xy_3.png` — 1024×1024 — Cœur de massif du désert (mesa) entouré de montagnes, modèle 3/3
+- ✅ `map/world/mountains/desert_y_1.png` — 1024×1024 — Chaîne de montagnes du désert (mesa) dans l'axe haut-droite → bas-gauche, modèle 1/3
+- ✅ `map/world/mountains/desert_y_2.png` — 1024×1024 — Chaîne de montagnes du désert (mesa) dans l'axe haut-droite → bas-gauche, modèle 2/3
+- ✅ `map/world/mountains/desert_y_3.png` — 1024×1024 — Chaîne de montagnes du désert (mesa) dans l'axe haut-droite → bas-gauche, modèle 3/3
+- ✅ `map/world/mountains/snow_1.png` — 1024×1024 — Montagne enneigée isolée, modèle 1/3, infranchissable
+- ✅ `map/world/mountains/snow_2.png` — 1024×1024 — Montagne enneigée isolée, modèle 2/3, infranchissable
+- ✅ `map/world/mountains/snow_3.png` — 1024×1024 — Montagne enneigée isolée, modèle 3/3, infranchissable
+- ✅ `map/world/mountains/snow_x_1.png` — 1024×1024 — Chaîne de montagnes enneigée dans l'axe haut-gauche → bas-droite, modèle 1/3
+- ✅ `map/world/mountains/snow_x_2.png` — 1024×1024 — Chaîne de montagnes enneigée dans l'axe haut-gauche → bas-droite, modèle 2/3
+- ✅ `map/world/mountains/snow_x_3.png` — 1024×1024 — Chaîne de montagnes enneigée dans l'axe haut-gauche → bas-droite, modèle 3/3
+- ✅ `map/world/mountains/snow_xy_1.png` — 1024×1024 — Cœur de massif enneigée entouré de montagnes, modèle 1/3
+- ✅ `map/world/mountains/snow_xy_2.png` — 1024×1024 — Cœur de massif enneigée entouré de montagnes, modèle 2/3
+- ✅ `map/world/mountains/snow_xy_3.png` — 1024×1024 — Cœur de massif enneigée entouré de montagnes, modèle 3/3
+- ✅ `map/world/mountains/snow_y_1.png` — 1024×1024 — Chaîne de montagnes enneigée dans l'axe haut-droite → bas-gauche, modèle 1/3
+- ✅ `map/world/mountains/snow_y_2.png` — 1024×1024 — Chaîne de montagnes enneigée dans l'axe haut-droite → bas-gauche, modèle 2/3
+- ✅ `map/world/mountains/snow_y_3.png` — 1024×1024 — Chaîne de montagnes enneigée dans l'axe haut-droite → bas-gauche, modèle 3/3
+- ✅ `map/world/mountains/temperate_1.png` — 1024×1024 — Montagne tempérée isolée, modèle 1/3, infranchissable
+- ✅ `map/world/mountains/temperate_2.png` — 1024×1024 — Montagne tempérée isolée, modèle 2/3, infranchissable
+- ✅ `map/world/mountains/temperate_3.png` — 1024×1024 — Montagne tempérée isolée, modèle 3/3, infranchissable
+- ✅ `map/world/mountains/temperate_x_1.png` — 1024×1024 — Chaîne de montagnes tempérée dans l'axe haut-gauche → bas-droite, modèle 1/3
+- ✅ `map/world/mountains/temperate_x_2.png` — 1024×1024 — Chaîne de montagnes tempérée dans l'axe haut-gauche → bas-droite, modèle 2/3
+- ✅ `map/world/mountains/temperate_x_3.png` — 1024×1024 — Chaîne de montagnes tempérée dans l'axe haut-gauche → bas-droite, modèle 3/3
+- ✅ `map/world/mountains/temperate_xy_1.png` — 1024×1024 — Cœur de massif tempérée entouré de montagnes, modèle 1/3
+- ✅ `map/world/mountains/temperate_xy_2.png` — 1024×1024 — Cœur de massif tempérée entouré de montagnes, modèle 2/3
+- ✅ `map/world/mountains/temperate_xy_3.png` — 1024×1024 — Cœur de massif tempérée entouré de montagnes, modèle 3/3
+- ✅ `map/world/mountains/temperate_y_1.png` — 1024×1024 — Chaîne de montagnes tempérée dans l'axe haut-droite → bas-gauche, modèle 1/3
+- ✅ `map/world/mountains/temperate_y_2.png` — 1024×1024 — Chaîne de montagnes tempérée dans l'axe haut-droite → bas-gauche, modèle 2/3
+- ✅ `map/world/mountains/temperate_y_3.png` — 1024×1024 — Chaîne de montagnes tempérée dans l'axe haut-droite → bas-gauche, modèle 3/3
+- ✅ `map/world/river/bridge_x.png` — 1024×1024 — Pont (axe haut-gauche → bas-droite) : passage à vitesse normale
+- ✅ `map/world/river/bridge_y.png` — 1024×1024 — Pont (axe haut-droite → bas-gauche)
+- ✅ `map/world/river/ford_x.png` — 1024×1024 — Gué (axe haut-gauche → bas-droite) : passage moitié moins vite
+- ✅ `map/world/river/ford_y.png` — 1024×1024 — Gué (axe haut-droite → bas-gauche)
+- ✅ `map/world/rocks/boulders_1.png` — 1024×1024 — Amas de rochers (variante 1), infranchissable
+- ✅ `map/world/rocks/boulders_2.png` — 1024×1024 — Amas de rochers (variante 2), infranchissable
+- ✅ `map/world/rocks/boulders_3.png` — 1024×1024 — Amas de rochers (variante 3), infranchissable
+- ✅ `map/world/rocks/boulders_4.png` — 1024×1024 — Amas de rochers (variante 4), infranchissable
+- ✅ `map/world/rocks/desert_1.png` — 1024×1024 — Rochers épars du désert (variante 1), franchissables
+- ✅ `map/world/rocks/desert_2.png` — 1024×1024 — Rochers épars du désert (variante 2), franchissables
+- ✅ `map/world/rocks/desert_3.png` — 1024×1024 — Rochers épars du désert (variante 3), franchissables
+- ✅ `map/world/water/boat_1.png` — 1024×1024 — Bateau (décor, variante 1) sur les rivières et les lacs
+- ✅ `map/world/water/boat_2.png` — 1024×1024 — Bateau (décor, variante 2) sur les rivières et les lacs
+- ✅ `map/world/water/boat_3.png` — 1024×1024 — Bateau (décor, variante 3) sur les rivières et les lacs
+- ✅ `map/world/water/dock_x.png` — 1024×1024 — Quai (décor) au bord de l'eau
+- ✅ `map/world/water/dock_y.png` — 1024×1024 — Quai (décor) au bord de l'eau
+
+## Enceinte de la ville — 114
+
+- ⬜ `walls/EGYPT/1_seg_x_low.png` — 1024×1024 — Enceinte de Égypte, palier 1 du Mur (1-6) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/EGYPT/1_seg_x.png` — 1024×1024 — Enceinte de Égypte, palier 1 du Mur (1-6) : courtine de face droite (haute, derrière)
+- ⬜ `walls/EGYPT/1_seg_z_low.png` — 1024×1024 — Enceinte de Égypte, palier 1 du Mur (1-6) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/EGYPT/1_seg_z.png` — 1024×1024 — Enceinte de Égypte, palier 1 du Mur (1-6) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/EGYPT/1_tower.png` — 1024×1024 — Enceinte de Égypte, palier 1 du Mur (1-6) : tour d'angle
+- ⬜ `walls/EGYPT/2_seg_x_low.png` — 1024×1024 — Enceinte de Égypte, palier 2 du Mur (7-13) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/EGYPT/2_seg_x.png` — 1024×1024 — Enceinte de Égypte, palier 2 du Mur (7-13) : courtine de face droite (haute, derrière)
+- ⬜ `walls/EGYPT/2_seg_z_low.png` — 1024×1024 — Enceinte de Égypte, palier 2 du Mur (7-13) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/EGYPT/2_seg_z.png` — 1024×1024 — Enceinte de Égypte, palier 2 du Mur (7-13) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/EGYPT/2_tower.png` — 1024×1024 — Enceinte de Égypte, palier 2 du Mur (7-13) : tour d'angle
+- ⬜ `walls/EGYPT/3_seg_x_low.png` — 1024×1024 — Enceinte de Égypte, palier 3 du Mur (14-20) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/EGYPT/3_seg_x.png` — 1024×1024 — Enceinte de Égypte, palier 3 du Mur (14-20) : courtine de face droite (haute, derrière)
+- ⬜ `walls/EGYPT/3_seg_z_low.png` — 1024×1024 — Enceinte de Égypte, palier 3 du Mur (14-20) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/EGYPT/3_seg_z.png` — 1024×1024 — Enceinte de Égypte, palier 3 du Mur (14-20) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/EGYPT/3_tower.png` — 1024×1024 — Enceinte de Égypte, palier 3 du Mur (14-20) : tour d'angle
+- ⬜ `walls/EGYPT/gate.png` — 1024×1024 — Porte de la ville de Égypte (arête sud-est de l'enceinte)
+- ⬜ `walls/EGYPT/site_seg_x.png` — 1024×1024 — Enceinte de Égypte en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/EGYPT/site_seg_z.png` — 1024×1024 — Enceinte de Égypte en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/EGYPT/site_tower.png` — 1024×1024 — Enceinte de Égypte en chantier : tour d'angle en travaux (premier palier du Mur)
+- ⬜ `walls/GAUL/1_seg_x_low.png` — 1024×1024 — Enceinte de Gaule, palier 1 du Mur (1-6) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/GAUL/1_seg_x.png` — 1024×1024 — Enceinte de Gaule, palier 1 du Mur (1-6) : courtine de face droite (haute, derrière)
+- ⬜ `walls/GAUL/1_seg_z_low.png` — 1024×1024 — Enceinte de Gaule, palier 1 du Mur (1-6) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/GAUL/1_seg_z.png` — 1024×1024 — Enceinte de Gaule, palier 1 du Mur (1-6) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/GAUL/1_tower.png` — 1024×1024 — Enceinte de Gaule, palier 1 du Mur (1-6) : tour d'angle
+- ⬜ `walls/GAUL/2_seg_x_low.png` — 1024×1024 — Enceinte de Gaule, palier 2 du Mur (7-13) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/GAUL/2_seg_x.png` — 1024×1024 — Enceinte de Gaule, palier 2 du Mur (7-13) : courtine de face droite (haute, derrière)
+- ⬜ `walls/GAUL/2_seg_z_low.png` — 1024×1024 — Enceinte de Gaule, palier 2 du Mur (7-13) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/GAUL/2_seg_z.png` — 1024×1024 — Enceinte de Gaule, palier 2 du Mur (7-13) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/GAUL/2_tower.png` — 1024×1024 — Enceinte de Gaule, palier 2 du Mur (7-13) : tour d'angle
+- ⬜ `walls/GAUL/3_seg_x_low.png` — 1024×1024 — Enceinte de Gaule, palier 3 du Mur (14-20) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/GAUL/3_seg_x.png` — 1024×1024 — Enceinte de Gaule, palier 3 du Mur (14-20) : courtine de face droite (haute, derrière)
+- ⬜ `walls/GAUL/3_seg_z_low.png` — 1024×1024 — Enceinte de Gaule, palier 3 du Mur (14-20) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/GAUL/3_seg_z.png` — 1024×1024 — Enceinte de Gaule, palier 3 du Mur (14-20) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/GAUL/3_tower.png` — 1024×1024 — Enceinte de Gaule, palier 3 du Mur (14-20) : tour d'angle
+- ⬜ `walls/GAUL/gate.png` — 1024×1024 — Porte de la ville de Gaule (arête sud-est de l'enceinte)
+- ⬜ `walls/GAUL/site_seg_x.png` — 1024×1024 — Enceinte de Gaule en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/GAUL/site_seg_z.png` — 1024×1024 — Enceinte de Gaule en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/GAUL/site_tower.png` — 1024×1024 — Enceinte de Gaule en chantier : tour d'angle en travaux (premier palier du Mur)
+- ⬜ `walls/GREEK/1_seg_x_low.png` — 1024×1024 — Enceinte de Grèce, palier 1 du Mur (1-6) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/GREEK/1_seg_x.png` — 1024×1024 — Enceinte de Grèce, palier 1 du Mur (1-6) : courtine de face droite (haute, derrière)
+- ⬜ `walls/GREEK/1_seg_z_low.png` — 1024×1024 — Enceinte de Grèce, palier 1 du Mur (1-6) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/GREEK/1_seg_z.png` — 1024×1024 — Enceinte de Grèce, palier 1 du Mur (1-6) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/GREEK/1_tower.png` — 1024×1024 — Enceinte de Grèce, palier 1 du Mur (1-6) : tour d'angle
+- ⬜ `walls/GREEK/2_seg_x_low.png` — 1024×1024 — Enceinte de Grèce, palier 2 du Mur (7-13) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/GREEK/2_seg_x.png` — 1024×1024 — Enceinte de Grèce, palier 2 du Mur (7-13) : courtine de face droite (haute, derrière)
+- ⬜ `walls/GREEK/2_seg_z_low.png` — 1024×1024 — Enceinte de Grèce, palier 2 du Mur (7-13) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/GREEK/2_seg_z.png` — 1024×1024 — Enceinte de Grèce, palier 2 du Mur (7-13) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/GREEK/2_tower.png` — 1024×1024 — Enceinte de Grèce, palier 2 du Mur (7-13) : tour d'angle
+- ⬜ `walls/GREEK/3_seg_x_low.png` — 1024×1024 — Enceinte de Grèce, palier 3 du Mur (14-20) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/GREEK/3_seg_x.png` — 1024×1024 — Enceinte de Grèce, palier 3 du Mur (14-20) : courtine de face droite (haute, derrière)
+- ⬜ `walls/GREEK/3_seg_z_low.png` — 1024×1024 — Enceinte de Grèce, palier 3 du Mur (14-20) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/GREEK/3_seg_z.png` — 1024×1024 — Enceinte de Grèce, palier 3 du Mur (14-20) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/GREEK/3_tower.png` — 1024×1024 — Enceinte de Grèce, palier 3 du Mur (14-20) : tour d'angle
+- ⬜ `walls/GREEK/gate.png` — 1024×1024 — Porte de la ville de Grèce (arête sud-est de l'enceinte)
+- ⬜ `walls/GREEK/site_seg_x.png` — 1024×1024 — Enceinte de Grèce en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/GREEK/site_seg_z.png` — 1024×1024 — Enceinte de Grèce en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/GREEK/site_tower.png` — 1024×1024 — Enceinte de Grèce en chantier : tour d'angle en travaux (premier palier du Mur)
+- ⬜ `walls/HUN/1_seg_x_low.png` — 1024×1024 — Enceinte de Huns, palier 1 du Mur (1-6) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/HUN/1_seg_x.png` — 1024×1024 — Enceinte de Huns, palier 1 du Mur (1-6) : courtine de face droite (haute, derrière)
+- ⬜ `walls/HUN/1_seg_z_low.png` — 1024×1024 — Enceinte de Huns, palier 1 du Mur (1-6) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/HUN/1_seg_z.png` — 1024×1024 — Enceinte de Huns, palier 1 du Mur (1-6) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/HUN/1_tower.png` — 1024×1024 — Enceinte de Huns, palier 1 du Mur (1-6) : tour d'angle
+- ⬜ `walls/HUN/2_seg_x_low.png` — 1024×1024 — Enceinte de Huns, palier 2 du Mur (7-13) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/HUN/2_seg_x.png` — 1024×1024 — Enceinte de Huns, palier 2 du Mur (7-13) : courtine de face droite (haute, derrière)
+- ⬜ `walls/HUN/2_seg_z_low.png` — 1024×1024 — Enceinte de Huns, palier 2 du Mur (7-13) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/HUN/2_seg_z.png` — 1024×1024 — Enceinte de Huns, palier 2 du Mur (7-13) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/HUN/2_tower.png` — 1024×1024 — Enceinte de Huns, palier 2 du Mur (7-13) : tour d'angle
+- ⬜ `walls/HUN/3_seg_x_low.png` — 1024×1024 — Enceinte de Huns, palier 3 du Mur (14-20) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/HUN/3_seg_x.png` — 1024×1024 — Enceinte de Huns, palier 3 du Mur (14-20) : courtine de face droite (haute, derrière)
+- ⬜ `walls/HUN/3_seg_z_low.png` — 1024×1024 — Enceinte de Huns, palier 3 du Mur (14-20) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/HUN/3_seg_z.png` — 1024×1024 — Enceinte de Huns, palier 3 du Mur (14-20) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/HUN/3_tower.png` — 1024×1024 — Enceinte de Huns, palier 3 du Mur (14-20) : tour d'angle
+- ⬜ `walls/HUN/gate.png` — 1024×1024 — Porte de la ville de Huns (arête sud-est de l'enceinte)
+- ⬜ `walls/HUN/site_seg_x.png` — 1024×1024 — Enceinte de Huns en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/HUN/site_seg_z.png` — 1024×1024 — Enceinte de Huns en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/HUN/site_tower.png` — 1024×1024 — Enceinte de Huns en chantier : tour d'angle en travaux (premier palier du Mur)
+- ⬜ `walls/ROME/1_seg_x_low.png` — 1024×1024 — Enceinte de Rome, palier 1 du Mur (1-6) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/ROME/1_seg_x.png` — 1024×1024 — Enceinte de Rome, palier 1 du Mur (1-6) : courtine de face droite (haute, derrière)
+- ⬜ `walls/ROME/1_seg_z_low.png` — 1024×1024 — Enceinte de Rome, palier 1 du Mur (1-6) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/ROME/1_seg_z.png` — 1024×1024 — Enceinte de Rome, palier 1 du Mur (1-6) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/ROME/1_tower.png` — 1024×1024 — Enceinte de Rome, palier 1 du Mur (1-6) : tour d'angle
+- ⬜ `walls/ROME/2_seg_x_low.png` — 1024×1024 — Enceinte de Rome, palier 2 du Mur (7-13) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/ROME/2_seg_x.png` — 1024×1024 — Enceinte de Rome, palier 2 du Mur (7-13) : courtine de face droite (haute, derrière)
+- ⬜ `walls/ROME/2_seg_z_low.png` — 1024×1024 — Enceinte de Rome, palier 2 du Mur (7-13) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/ROME/2_seg_z.png` — 1024×1024 — Enceinte de Rome, palier 2 du Mur (7-13) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/ROME/2_tower.png` — 1024×1024 — Enceinte de Rome, palier 2 du Mur (7-13) : tour d'angle
+- ✅ `walls/ROME/3_seg_x_low.png` — 1024×1024 — Enceinte de Rome, palier 3 du Mur (14-20) : courtine de face droite (muret bas, devant la ville)
+- ✅ `walls/ROME/3_seg_x.png` — 1024×1024 — Enceinte de Rome, palier 3 du Mur (14-20) : courtine de face droite (haute, derrière)
+- ✅ `walls/ROME/3_seg_z_low.png` — 1024×1024 — Enceinte de Rome, palier 3 du Mur (14-20) : courtine de face gauche (muret bas, devant la ville)
+- ✅ `walls/ROME/3_seg_z.png` — 1024×1024 — Enceinte de Rome, palier 3 du Mur (14-20) : courtine de face gauche (haute, derrière)
+- ✅ `walls/ROME/3_tower.png` — 1024×1024 — Enceinte de Rome, palier 3 du Mur (14-20) : tour d'angle
+- ⬜ `walls/ROME/gate.png` — 1024×1024 — Porte de la ville de Rome (arête sud-est de l'enceinte)
+- ⬜ `walls/ROME/site_seg_x.png` — 1024×1024 — Enceinte de Rome en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/ROME/site_seg_z.png` — 1024×1024 — Enceinte de Rome en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/ROME/site_tower.png` — 1024×1024 — Enceinte de Rome en chantier : tour d'angle en travaux (premier palier du Mur)
+- ⬜ `walls/SULTAN/1_seg_x_low.png` — 1024×1024 — Enceinte de Sultanat, palier 1 du Mur (1-6) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/SULTAN/1_seg_x.png` — 1024×1024 — Enceinte de Sultanat, palier 1 du Mur (1-6) : courtine de face droite (haute, derrière)
+- ⬜ `walls/SULTAN/1_seg_z_low.png` — 1024×1024 — Enceinte de Sultanat, palier 1 du Mur (1-6) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/SULTAN/1_seg_z.png` — 1024×1024 — Enceinte de Sultanat, palier 1 du Mur (1-6) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/SULTAN/1_tower.png` — 1024×1024 — Enceinte de Sultanat, palier 1 du Mur (1-6) : tour d'angle
+- ⬜ `walls/SULTAN/2_seg_x_low.png` — 1024×1024 — Enceinte de Sultanat, palier 2 du Mur (7-13) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/SULTAN/2_seg_x.png` — 1024×1024 — Enceinte de Sultanat, palier 2 du Mur (7-13) : courtine de face droite (haute, derrière)
+- ⬜ `walls/SULTAN/2_seg_z_low.png` — 1024×1024 — Enceinte de Sultanat, palier 2 du Mur (7-13) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/SULTAN/2_seg_z.png` — 1024×1024 — Enceinte de Sultanat, palier 2 du Mur (7-13) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/SULTAN/2_tower.png` — 1024×1024 — Enceinte de Sultanat, palier 2 du Mur (7-13) : tour d'angle
+- ⬜ `walls/SULTAN/3_seg_x_low.png` — 1024×1024 — Enceinte de Sultanat, palier 3 du Mur (14-20) : courtine de face droite (muret bas, devant la ville)
+- ⬜ `walls/SULTAN/3_seg_x.png` — 1024×1024 — Enceinte de Sultanat, palier 3 du Mur (14-20) : courtine de face droite (haute, derrière)
+- ⬜ `walls/SULTAN/3_seg_z_low.png` — 1024×1024 — Enceinte de Sultanat, palier 3 du Mur (14-20) : courtine de face gauche (muret bas, devant la ville)
+- ⬜ `walls/SULTAN/3_seg_z.png` — 1024×1024 — Enceinte de Sultanat, palier 3 du Mur (14-20) : courtine de face gauche (haute, derrière)
+- ⬜ `walls/SULTAN/3_tower.png` — 1024×1024 — Enceinte de Sultanat, palier 3 du Mur (14-20) : tour d'angle
+- ⬜ `walls/SULTAN/gate.png` — 1024×1024 — Porte de la ville de Sultanat (arête sud-est de l'enceinte)
+- ⬜ `walls/SULTAN/site_seg_x.png` — 1024×1024 — Enceinte de Sultanat en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/SULTAN/site_seg_z.png` — 1024×1024 — Enceinte de Sultanat en chantier : courtine en travaux (premier palier du Mur)
+- ⬜ `walls/SULTAN/site_tower.png` — 1024×1024 — Enceinte de Sultanat en chantier : tour d'angle en travaux (premier palier du Mur)
+
+## Champs et parcelles — 54
+
+- ⬜ `fields/desert/FARM_1.png` — 1024×1024 — Champ « Ferme » niveaux 1-6, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/FARM_2.png` — 1024×1024 — Champ « Ferme » niveaux 7-13, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/FARM_3.png` — 1024×1024 — Champ « Ferme » niveaux 14-20, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/FARM_site.png` — 1024×1024 — Champ « Ferme » en chantier (biome desert) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/desert/IRON_MINE_1.png` — 1024×1024 — Champ « Mine de fer » niveaux 1-6, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/IRON_MINE_2.png` — 1024×1024 — Champ « Mine de fer » niveaux 7-13, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/IRON_MINE_3.png` — 1024×1024 — Champ « Mine de fer » niveaux 14-20, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/IRON_MINE_site.png` — 1024×1024 — Champ « Mine de fer » en chantier (biome desert) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/desert/LUMBER_1.png` — 1024×1024 — Champ « Bûcheron » niveaux 1-6, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/LUMBER_2.png` — 1024×1024 — Champ « Bûcheron » niveaux 7-13, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/LUMBER_3.png` — 1024×1024 — Champ « Bûcheron » niveaux 14-20, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/LUMBER_site.png` — 1024×1024 — Champ « Bûcheron » en chantier (biome desert) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/desert/QUARRY_1.png` — 1024×1024 — Champ « Carrière de pierre » niveaux 1-6, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/QUARRY_2.png` — 1024×1024 — Champ « Carrière de pierre » niveaux 7-13, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/QUARRY_3.png` — 1024×1024 — Champ « Carrière de pierre » niveaux 14-20, biome desert : troisième anneau de la ville
+- ⬜ `fields/desert/QUARRY_site.png` — 1024×1024 — Champ « Carrière de pierre » en chantier (biome desert) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/forest/FARM_1.png` — 1024×1024 — Champ « Ferme » niveaux 1-6, biome forest : troisième anneau de la ville
+- ✅ `fields/forest/FARM_2.png` — 1024×1024 — Champ « Ferme » niveaux 7-13, biome forest : troisième anneau de la ville
+- ⬜ `fields/forest/FARM_3.png` — 1024×1024 — Champ « Ferme » niveaux 14-20, biome forest : troisième anneau de la ville
+- ⬜ `fields/forest/FARM_site.png` — 1024×1024 — Champ « Ferme » en chantier (biome forest) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/forest/IRON_MINE_1.png` — 1024×1024 — Champ « Mine de fer » niveaux 1-6, biome forest : troisième anneau de la ville
+- ✅ `fields/forest/IRON_MINE_2.png` — 1024×1024 — Champ « Mine de fer » niveaux 7-13, biome forest : troisième anneau de la ville
+- ⬜ `fields/forest/IRON_MINE_3.png` — 1024×1024 — Champ « Mine de fer » niveaux 14-20, biome forest : troisième anneau de la ville
+- ⬜ `fields/forest/IRON_MINE_site.png` — 1024×1024 — Champ « Mine de fer » en chantier (biome forest) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/forest/LUMBER_1.png` — 1024×1024 — Champ « Bûcheron » niveaux 1-6, biome forest : troisième anneau de la ville
+- ✅ `fields/forest/LUMBER_2.png` — 1024×1024 — Champ « Bûcheron » niveaux 7-13, biome forest : troisième anneau de la ville
+- ⬜ `fields/forest/LUMBER_3.png` — 1024×1024 — Champ « Bûcheron » niveaux 14-20, biome forest : troisième anneau de la ville
+- ⬜ `fields/forest/LUMBER_site.png` — 1024×1024 — Champ « Bûcheron » en chantier (biome forest) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/forest/QUARRY_1.png` — 1024×1024 — Champ « Carrière de pierre » niveaux 1-6, biome forest : troisième anneau de la ville
+- ✅ `fields/forest/QUARRY_2.png` — 1024×1024 — Champ « Carrière de pierre » niveaux 7-13, biome forest : troisième anneau de la ville
+- ⬜ `fields/forest/QUARRY_3.png` — 1024×1024 — Champ « Carrière de pierre » niveaux 14-20, biome forest : troisième anneau de la ville
+- ⬜ `fields/forest/QUARRY_site.png` — 1024×1024 — Champ « Carrière de pierre » en chantier (biome forest) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/snow/FARM_1.png` — 1024×1024 — Champ « Ferme » niveaux 1-6, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/FARM_2.png` — 1024×1024 — Champ « Ferme » niveaux 7-13, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/FARM_3.png` — 1024×1024 — Champ « Ferme » niveaux 14-20, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/FARM_site.png` — 1024×1024 — Champ « Ferme » en chantier (biome snow) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/snow/IRON_MINE_1.png` — 1024×1024 — Champ « Mine de fer » niveaux 1-6, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/IRON_MINE_2.png` — 1024×1024 — Champ « Mine de fer » niveaux 7-13, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/IRON_MINE_3.png` — 1024×1024 — Champ « Mine de fer » niveaux 14-20, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/IRON_MINE_site.png` — 1024×1024 — Champ « Mine de fer » en chantier (biome snow) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/snow/LUMBER_1.png` — 1024×1024 — Champ « Bûcheron » niveaux 1-6, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/LUMBER_2.png` — 1024×1024 — Champ « Bûcheron » niveaux 7-13, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/LUMBER_3.png` — 1024×1024 — Champ « Bûcheron » niveaux 14-20, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/LUMBER_site.png` — 1024×1024 — Champ « Bûcheron » en chantier (biome snow) : à la place de la parcelle vide pendant la première construction
+- ⬜ `fields/snow/QUARRY_1.png` — 1024×1024 — Champ « Carrière de pierre » niveaux 1-6, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/QUARRY_2.png` — 1024×1024 — Champ « Carrière de pierre » niveaux 7-13, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/QUARRY_3.png` — 1024×1024 — Champ « Carrière de pierre » niveaux 14-20, biome snow : troisième anneau de la ville
+- ⬜ `fields/snow/QUARRY_site.png` — 1024×1024 — Champ « Carrière de pierre » en chantier (biome snow) : à la place de la parcelle vide pendant la première construction
+- ⬜ `plots/desert_0.png` — 1024×1024 — Parcelle au sol (variante 0) du biome desert : sous chaque bâtiment et pour les emplacements libres
+- ⬜ `plots/desert_1.png` — 1024×1024 — Parcelle au sol (variante 1) du biome desert : sous chaque bâtiment et pour les emplacements libres
+- ✅ `plots/forest_0.png` — 1024×1024 — Parcelle au sol (variante 0) du biome forest : sous chaque bâtiment et pour les emplacements libres
+- ✅ `plots/forest_1.png` — 1024×1024 — Parcelle au sol (variante 1) du biome forest : sous chaque bâtiment et pour les emplacements libres
+- ⬜ `plots/snow_0.png` — 1024×1024 — Parcelle au sol (variante 0) du biome snow : sous chaque bâtiment et pour les emplacements libres
+- ⬜ `plots/snow_1.png` — 1024×1024 — Parcelle au sol (variante 1) du biome snow : sous chaque bâtiment et pour les emplacements libres
+
+## Sols, textures et décalques — 59
+
+- ⬜ `decals/branches.png` — 1024×1024 — Décalque au sol « branches » (a few fallen dry branches), semé dans la ville et aux alentours
+- ⬜ `decals/cart_tracks.png` — 1024×1024 — Décalque au sol « cart_tracks » (two parallel cart ruts), semé dans la ville et aux alentours
+- ⬜ `decals/clover.png` — 1024×1024 — Décalque au sol « clover » (a patch of clover and small leaves), semé dans la ville et aux alentours
+- ⬜ `decals/cracks.png` — 1024×1024 — Décalque au sol « cracks » (thin dry cracks in the earth), semé dans la ville et aux alentours
+- ⬜ `decals/flowers_red.png` — 1024×1024 — Décalque au sol « flowers_red » (a small patch of red poppies), semé dans la ville et aux alentours
+- ⬜ `decals/flowers_white.png` — 1024×1024 — Décalque au sol « flowers_white » (a small patch of white and yellow daisies), semé dans la ville et aux alentours
+- ⬜ `decals/grass_tuft.png` — 1024×1024 — Décalque au sol « grass_tuft » (a tuft of taller grass), semé dans la ville et aux alentours
+- ⬜ `decals/hoof_prints.png` — 1024×1024 — Décalque au sol « hoof_prints » (a trail of hoof prints), semé dans la ville et aux alentours
+- ⬜ `decals/ice_patch.png` — 1024×1024 — Décalque au sol « ice_patch » (a patch of thin ice), semé dans la ville et aux alentours
+- ⬜ `decals/leaves.png` — 1024×1024 — Décalque au sol « leaves » (scattered fallen autumn leaves), semé dans la ville et aux alentours
+- ⬜ `decals/moss.png` — 1024×1024 — Décalque au sol « moss » (a soft patch of green moss), semé dans la ville et aux alentours
+- ⬜ `decals/mushrooms.png` — 1024×1024 — Décalque au sol « mushrooms » (a small cluster of brown mushrooms), semé dans la ville et aux alentours
+- ⬜ `decals/pebbles.png` — 1024×1024 — Décalque au sol « pebbles » (a scatter of small grey pebbles), semé dans la ville et aux alentours
+- ⬜ `decals/puddle.png` — 1024×1024 — Décalque au sol « puddle » (a shallow puddle reflecting the sky), semé dans la ville et aux alentours
+- ⬜ `decals/sand_ripple.png` — 1024×1024 — Décalque au sol « sand_ripple » (a patch of wind ripples in sand), semé dans la ville et aux alentours
+- ⬜ `decals/snow_drift.png` — 1024×1024 — Décalque au sol « snow_drift » (a small drift of snow), semé dans la ville et aux alentours
+- ⬜ `terrain/cobble.png` — 1024×1024 — Texture de sol « cobble » : avenues de la ville
+- ⬜ `terrain/cracked_earth.png` — 1024×1024 — Texture de sol « cracked_earth » : terre craquelée
+- ⬜ `terrain/dirt_packed.png` — 1024×1024 — Texture de sol « dirt_packed » : terre battue, plaza hunnique
+- ✅ `terrain/dirt.png` — 1024×1024 — Texture de sol « dirt » : terre battue (plaza, avenues, route par défaut)
+- ⬜ `terrain/edge_cliff.png` — 1024×256 — Bordure de transition « cliff » (rives, routes)
+- ⬜ `terrain/edge_grass_sand.png` — 1024×256 — Bordure de transition « grass_sand » (rives, routes)
+- ⬜ `terrain/edge_grass_snow.png` — 1024×256 — Bordure de transition « grass_snow » (rives, routes)
+- ⬜ `terrain/edge_grass_water.png` — 1024×256 — Bordure de transition « grass_water » (rives, routes)
+- ⬜ `terrain/edge_road.png` — 1024×256 — Bordure de transition « road » (rives, routes)
+- ⬜ `terrain/edge_shore.png` — 1024×256 — Bordure de transition « shore » (rives, routes)
+- ⬜ `terrain/flagstone.png` — 1024×1024 — Texture de sol « flagstone » : dallages
+- ⬜ `terrain/grass_dark.png` — 1024×1024 — Texture de sol « grass_dark » : sous-bois, lisières
+- ⬜ `terrain/grass_dry.png` — 1024×1024 — Texture de sol « grass_dry » : alentours de la ville en prairie
+- ⬜ `terrain/grass_flowers.png` — 1024×1024 — Texture de sol « grass_flowers » : prairie fleurie
+- ⬜ `terrain/grass_hills.png` — 1024×1024 — Texture de sol « grass_hills » : carte du monde (prairie)
+- ⬜ `terrain/grass_lawn.png` — 1024×1024 — Texture de sol « grass_lawn » : sol de l'enceinte en prairie
+- ✅ `terrain/grass.png` — 1024×1024 — Texture de sol « grass » : sol de base prairie
+- ⬜ `terrain/gravel.png` — 1024×1024 — Texture de sol « gravel » : gravier
+- ⬜ `terrain/ice.png` — 1024×1024 — Texture de sol « ice » : lacs gelés
+- ⬜ `terrain/mud.png` — 1024×1024 — Texture de sol « mud » : boue
+- ⬜ `terrain/orchard.png` — 1024×1024 — Texture de sol « orchard » : vergers
+- ⬜ `terrain/path_sand.png` — 1024×1024 — Texture de sol « path_sand » : pistes du désert
+- ⬜ `terrain/plaza_EGYPT.png` — 1024×1024 — Texture de sol « plaza_EGYPT » : plaza d'Égypte
+- ⬜ `terrain/plaza_GAUL.png` — 1024×1024 — Texture de sol « plaza_GAUL » : plaza de Gaule
+- ⬜ `terrain/plaza_GREEK.png` — 1024×1024 — Texture de sol « plaza_GREEK » : plaza de Grèce
+- ⬜ `terrain/plaza_HUN.png` — 1024×1024 — Texture de sol « plaza_HUN » : plaza des Huns
+- ⬜ `terrain/plaza_ROME.png` — 1024×1024 — Texture de sol « plaza_ROME » : plaza de Rome
+- ⬜ `terrain/plaza_SULTAN.png` — 1024×1024 — Texture de sol « plaza_SULTAN » : plaza du Sultanat
+- ⬜ `terrain/road_dirt.png` — 1024×1024 — Texture de sol « road_dirt » : route hors de la ville
+- ⬜ `terrain/road_paved.png` — 1024×1024 — Texture de sol « road_paved » : routes de la carte
+- ⬜ `terrain/sand_ripples.png` — 1024×1024 — Texture de sol « sand_ripples » : sol de l'enceinte en désert, carte
+- ⬜ `terrain/sand_rocky.png` — 1024×1024 — Texture de sol « sand_rocky » : alentours en désert
+- ✅ `terrain/sand.png` — 1024×1024 — Texture de sol « sand » : sol de base désert
+- ⬜ `terrain/snow_fresh.png` — 1024×1024 — Texture de sol « snow_fresh » : sol de l'enceinte en neige
+- ⬜ `terrain/snow_trampled.png` — 1024×1024 — Texture de sol « snow_trampled » : avenues et plaza en neige
+- ✅ `terrain/snow.png` — 1024×1024 — Texture de sol « snow » : sol de base neige
+- ⬜ `terrain/soil_tilled.png` — 1024×1024 — Texture de sol « soil_tilled » : champs vides
+- ⬜ `terrain/tundra.png` — 1024×1024 — Texture de sol « tundra » : alentours en neige, carte
+- ⬜ `terrain/water_deep.png` — 1024×1024 — Texture de sol « water_deep » : mers et grands lacs
+- ⬜ `terrain/water_lake.png` — 1024×1024 — Texture de sol « water_lake » : étangs de la ville, lacs de la carte
+- ⬜ `terrain/water_river.png` — 1024×1024 — Texture de sol « water_river » : rivières
+- ⬜ `terrain/water_shallow.png` — 1024×1024 — Texture de sol « water_shallow » : oasis, rives
+- ⬜ `terrain/wheat.png` — 1024×1024 — Texture de sol « wheat » : fermes développées
+
+## Décors et animations de la ville — 106
+
+- ⬜ `anim/bakery_smoke.png` — bande de 4 cases — Bâtiment vivant : fumée et lueur du four de la Boulangerie
+- ⬜ `anim/barracks_drill.png` — bande de 4 cases — Bâtiment vivant : soldats à l'exercice devant la Caserne
+- ⬜ `anim/furnace.png` — bande de 4 cases — Feu de la fonderie
+- ⬜ `anim/market_crowd.png` — bande de 4 cases — Bâtiment vivant : badauds et marchands au Marché
+- ⬜ `anim/mill_sails.png` — bande de 6 cases — Ailes du moulin
+- ⬜ `anim/sparks.png` — bande de 4 cases — Étincelles de la forge
+- ⬜ `anim/stable_horse.png` — bande de 4 cases — Bâtiment vivant : cheval qui piaffe à l'Écurie
+- ⬜ `anim/watchtower_beacon.png` — bande de 4 cases — Bâtiment vivant : feu de veille au sommet de la Tour de guet
+- ⬜ `anim/workshop_hammer.png` — bande de 4 cases — Bâtiment vivant : marteau et copeaux à l'Atelier
+- ⬜ `props/animal_cat.png` — bande de 4 cases — Chat qui se promène dans la ville
+- ⬜ `props/animal_chicken.png` — bande de 4 cases — Poule qui se promène dans la ville
+- ⬜ `props/animal_dog.png` — bande de 4 cases — Chien qui se promène dans la ville
+- ⬜ `props/animal_goat.png` — bande de 4 cases — Chèvre qui se promène dans la ville
+- ⬜ `props/bird.png` — bande de 3 cases — Ambiance : oiseau
+- ⬜ `props/brazier.png` — bande de 4 cases — Brasero de la plaza
+- ✅ `props/bush.png` — 512×768 — Décor de scène « bush » : autour de la ville et des champs (a small bush)
+- ⬜ `props/cactus.png` — 512×768 — Décor de scène « cactus » : autour de la ville et des champs (a single cactus)
+- ⬜ `props/cart.png` — bande de 4 cases — Charrette sur la route
+- ⬜ `props/dune.png` — 512×768 — Décor de scène « dune » : autour de la ville et des champs (a low sand dune)
+- ⬜ `props/dust_devil.png` — bande de 4 cases — Ambiance : tourbillon de sable
+- ⬜ `props/farmer.png` — bande de 4 cases — Paysan qui fauche (champs de la ville)
+- ⬜ `props/flagp_EGYPT.png` — bande de 8 cases — Drapeau peint de Égypte (remplace le drapeau 3D animé)
+- ⬜ `props/flagp_GAUL.png` — bande de 8 cases — Drapeau peint de Gaule (remplace le drapeau 3D animé)
+- ⬜ `props/flagp_GREEK.png` — bande de 8 cases — Drapeau peint de Grèce (remplace le drapeau 3D animé)
+- ⬜ `props/flagp_HUN.png` — bande de 8 cases — Drapeau peint de Huns (remplace le drapeau 3D animé)
+- ⬜ `props/flagp_ROME.png` — bande de 8 cases — Drapeau peint de Rome (remplace le drapeau 3D animé)
+- ⬜ `props/flagp_SULTAN.png` — bande de 8 cases — Drapeau peint de Sultanat (remplace le drapeau 3D animé)
+- ⬜ `props/flame.png` — bande de 4 cases — Flamme de torche (tours, porte, remparts)
+- ⬜ `props/flowers.png` — 512×768 — Décor de scène « flowers » : autour de la ville et des champs (a small flowering bush)
+- ⬜ `props/glory_arch.png` — 1024×1024 — 150 000 Gloire : arc de triomphe de pierre claire, reliefs sculptés, quadrige doré au sommet
+- ⬜ `props/glory_column.png` — 1024×1024 — 300 000 Gloire : colonne triomphale à frise en spirale, statue dorée au sommet
+- ⬜ `props/glory_statue.png` — 1024×1024 — 50 000 Gloire : statue équestre dorée sur socle de marbre, guirlandes de laurier
+- ⬜ `props/horse_idle.png` — bande de 4 cases — Chevaux devant l'écurie
+- ⬜ `props/leaf.png` — bande de 3 cases — Ambiance : feuille
+- ⬜ `props/lumberjack.png` — bande de 4 cases — Bûcheron qui abat un arbre (champs de la ville)
+- ⬜ `props/miner.png` — bande de 4 cases — Mineur à la pioche (champs de la ville)
+- ✅ `props/oak.png` — 512×768 — Décor de scène « oak » : autour de la ville et des champs (a single round leafy oak tree)
+- ✅ `props/oak2.png` — 512×768 — Décor de scène « oak2 » : autour de la ville et des champs (a single light-green leafy tree)
+- ⬜ `props/palm.png` — 512×768 — Décor de scène « palm » : autour de la ville et des champs (a single palm tree)
+- ✅ `props/pine.png` — 512×768 — Décor de scène « pine » : autour de la ville et des champs (a single pine tree)
+- ✅ `props/pine2.png` — 512×768 — Décor de scène « pine2 » : autour de la ville et des champs (a single light-green pine tree)
+- ⬜ `props/plaza_EGYPT_fountain.png` — 512×768 — Ornement de plaza de Égypte : fontaine ou puits (autour du Bâtiment principal)
+- ⬜ `props/plaza_EGYPT_stall.png` — 512×768 — Ornement de plaza de Égypte : étal de marché (autour du Bâtiment principal)
+- ⬜ `props/plaza_EGYPT_statue.png` — 512×768 — Ornement de plaza de Égypte : statue (autour du Bâtiment principal)
+- ⬜ `props/plaza_GAUL_fountain.png` — 512×768 — Ornement de plaza de Gaule : fontaine ou puits (autour du Bâtiment principal)
+- ⬜ `props/plaza_GAUL_stall.png` — 512×768 — Ornement de plaza de Gaule : étal de marché (autour du Bâtiment principal)
+- ⬜ `props/plaza_GAUL_statue.png` — 512×768 — Ornement de plaza de Gaule : statue (autour du Bâtiment principal)
+- ⬜ `props/plaza_GREEK_fountain.png` — 512×768 — Ornement de plaza de Grèce : fontaine ou puits (autour du Bâtiment principal)
+- ⬜ `props/plaza_GREEK_stall.png` — 512×768 — Ornement de plaza de Grèce : étal de marché (autour du Bâtiment principal)
+- ⬜ `props/plaza_GREEK_statue.png` — 512×768 — Ornement de plaza de Grèce : statue (autour du Bâtiment principal)
+- ⬜ `props/plaza_HUN_fountain.png` — 512×768 — Ornement de plaza de Huns : fontaine ou puits (autour du Bâtiment principal)
+- ⬜ `props/plaza_HUN_stall.png` — 512×768 — Ornement de plaza de Huns : étal de marché (autour du Bâtiment principal)
+- ⬜ `props/plaza_HUN_statue.png` — 512×768 — Ornement de plaza de Huns : statue (autour du Bâtiment principal)
+- ⬜ `props/plaza_ROME_fountain.png` — 512×768 — Ornement de plaza de Rome : fontaine ou puits (autour du Bâtiment principal)
+- ⬜ `props/plaza_ROME_stall.png` — 512×768 — Ornement de plaza de Rome : étal de marché (autour du Bâtiment principal)
+- ⬜ `props/plaza_ROME_statue.png` — 512×768 — Ornement de plaza de Rome : statue (autour du Bâtiment principal)
+- ⬜ `props/plaza_SULTAN_fountain.png` — 512×768 — Ornement de plaza de Sultanat : fontaine ou puits (autour du Bâtiment principal)
+- ⬜ `props/plaza_SULTAN_stall.png` — 512×768 — Ornement de plaza de Sultanat : étal de marché (autour du Bâtiment principal)
+- ⬜ `props/plaza_SULTAN_statue.png` — 512×768 — Ornement de plaza de Sultanat : statue (autour du Bâtiment principal)
+- ⬜ `props/quarryman.png` — bande de 4 cases — Carrier qui taille un bloc (champs de la ville)
+- ✅ `props/rock.png` — 512×768 — Décor de scène « rock » : autour de la ville et des champs (a grey boulder)
+- ✅ `props/rock2.png` — 512×768 — Décor de scène « rock2 » : autour de la ville et des champs (two grey boulders)
+- ⬜ `props/scaffold_EGYPT_1.png` — 1024×1024 — Échafaudage de chantier de Égypte, taille 1 (paliers 1-6) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_EGYPT_2.png` — 1024×1024 — Échafaudage de chantier de Égypte, taille 2 (paliers 7-13) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_EGYPT_3.png` — 1024×1024 — Échafaudage de chantier de Égypte, taille 3 (paliers 14-20) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_GAUL_1.png` — 1024×1024 — Échafaudage de chantier de Gaule, taille 1 (paliers 1-6) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_GAUL_2.png` — 1024×1024 — Échafaudage de chantier de Gaule, taille 2 (paliers 7-13) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_GAUL_3.png` — 1024×1024 — Échafaudage de chantier de Gaule, taille 3 (paliers 14-20) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_GREEK_1.png` — 1024×1024 — Échafaudage de chantier de Grèce, taille 1 (paliers 1-6) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_GREEK_2.png` — 1024×1024 — Échafaudage de chantier de Grèce, taille 2 (paliers 7-13) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_GREEK_3.png` — 1024×1024 — Échafaudage de chantier de Grèce, taille 3 (paliers 14-20) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_HUN_1.png` — 1024×1024 — Échafaudage de chantier de Huns, taille 1 (paliers 1-6) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_HUN_2.png` — 1024×1024 — Échafaudage de chantier de Huns, taille 2 (paliers 7-13) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_HUN_3.png` — 1024×1024 — Échafaudage de chantier de Huns, taille 3 (paliers 14-20) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_ROME_1.png` — 1024×1024 — Échafaudage de chantier de Rome, taille 1 (paliers 1-6) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_ROME_2.png` — 1024×1024 — Échafaudage de chantier de Rome, taille 2 (paliers 7-13) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_ROME_3.png` — 1024×1024 — Échafaudage de chantier de Rome, taille 3 (paliers 14-20) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_SULTAN_1.png` — 1024×1024 — Échafaudage de chantier de Sultanat, taille 1 (paliers 1-6) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_SULTAN_2.png` — 1024×1024 — Échafaudage de chantier de Sultanat, taille 2 (paliers 7-13) : posé sur le bâtiment en travaux
+- ⬜ `props/scaffold_SULTAN_3.png` — 1024×1024 — Échafaudage de chantier de Sultanat, taille 3 (paliers 14-20) : posé sur le bâtiment en travaux
+- ⬜ `props/scroll_research.png` — 512×768 — Parchemin « recherche en cours » au-dessus de l'Académie
+- ⬜ `props/sign_build.png` — 512×768 — Panneau « construire ici » sur les emplacements libres
+- ⬜ `props/smoke_campfire.png` — bande de 4 cases — Fumée de feu de camp peinte
+- ⬜ `props/smoke_chimney.png` — bande de 4 cases — Fumée de cheminée peinte (remplace les bouffées 3D)
+- ⬜ `props/snowflake.png` — bande de 3 cases — Ambiance : flocon
+- ⬜ `props/snowpine.png` — 512×768 — Décor de scène « snowpine » : autour de la ville et des champs (a single pine tree covered with snow)
+- ⬜ `props/snowrock.png` — 512×768 — Décor de scène « snowrock » : autour de la ville et des champs (a grey boulder capped with snow)
+- ⬜ `props/stump.png` — 512×768 — Décor de scène « stump » : autour de la ville et des champs (a tree stump)
+- ⬜ `props/villager_EGYPT_a.png` — bande de 6 cases — Villageois de Égypte (homme) qui marche dans la ville
+- ⬜ `props/villager_EGYPT_b.png` — bande de 6 cases — Villageois de Égypte (femme) qui marche dans la ville
+- ⬜ `props/villager_GAUL_a.png` — bande de 6 cases — Villageois de Gaule (homme) qui marche dans la ville
+- ⬜ `props/villager_GAUL_b.png` — bande de 6 cases — Villageois de Gaule (femme) qui marche dans la ville
+- ⬜ `props/villager_GREEK_a.png` — bande de 6 cases — Villageois de Grèce (homme) qui marche dans la ville
+- ⬜ `props/villager_GREEK_b.png` — bande de 6 cases — Villageois de Grèce (femme) qui marche dans la ville
+- ⬜ `props/villager_HUN_a.png` — bande de 6 cases — Villageois de Huns (homme) qui marche dans la ville
+- ⬜ `props/villager_HUN_b.png` — bande de 6 cases — Villageois de Huns (femme) qui marche dans la ville
+- ⬜ `props/villager_ROME_a.png` — bande de 6 cases — Villageois de Rome (homme) qui marche dans la ville
+- ⬜ `props/villager_ROME_b.png` — bande de 6 cases — Villageois de Rome (femme) qui marche dans la ville
+- ⬜ `props/villager_SULTAN_a.png` — bande de 6 cases — Villageois de Sultanat (homme) qui marche dans la ville
+- ⬜ `props/villager_SULTAN_b.png` — bande de 6 cases — Villageois de Sultanat (femme) qui marche dans la ville
+- ⬜ `props/worker_EGYPT.png` — bande de 4 cases — Ouvrier de chantier de Égypte au marteau
+- ⬜ `props/worker_GAUL.png` — bande de 4 cases — Ouvrier de chantier de Gaule au marteau
+- ⬜ `props/worker_GREEK.png` — bande de 4 cases — Ouvrier de chantier de Grèce au marteau
+- ⬜ `props/worker_HUN.png` — bande de 4 cases — Ouvrier de chantier de Huns au marteau
+- ⬜ `props/worker_ROME.png` — bande de 4 cases — Ouvrier de chantier de Rome au marteau
+- ⬜ `props/worker_SULTAN.png` — bande de 4 cases — Ouvrier de chantier de Sultanat au marteau
+
+## Unités et héros — 226
+
+- ⬜ `busts/ARCHER_EGYPT.png` — 1024×1024 — Buste-jeton : an archer with a bow and a quiver de Égypte (listes, rapports, composition d'armée)
+- ⬜ `busts/ARCHER_GAUL.png` — 1024×1024 — Buste-jeton : an archer with a bow and a quiver de Gaule (listes, rapports, composition d'armée)
+- ⬜ `busts/ARCHER_GREEK.png` — 1024×1024 — Buste-jeton : an archer with a bow and a quiver de Grèce (listes, rapports, composition d'armée)
+- ⬜ `busts/ARCHER_HUN.png` — 1024×1024 — Buste-jeton : an archer with a bow and a quiver de Huns (listes, rapports, composition d'armée)
+- ⬜ `busts/ARCHER_ROME.png` — 1024×1024 — Buste-jeton : an archer with a bow and a quiver de Rome (listes, rapports, composition d'armée)
+- ⬜ `busts/ARCHER_SULTAN.png` — 1024×1024 — Buste-jeton : an archer with a bow and a quiver de Sultanat (listes, rapports, composition d'armée)
+- ⬜ `busts/ARCHER.png` — 1024×1024 — Buste-jeton : an archer with a bow and a quiver (neutre) (listes, rapports, composition d'armée)
+- ⬜ `busts/CAVALRY_EGYPT.png` — 1024×1024 — Buste-jeton : a cavalryman riding a horse with a lance de Égypte (listes, rapports, composition d'armée)
+- ⬜ `busts/CAVALRY_GAUL.png` — 1024×1024 — Buste-jeton : a cavalryman riding a horse with a lance de Gaule (listes, rapports, composition d'armée)
+- ⬜ `busts/CAVALRY_GREEK.png` — 1024×1024 — Buste-jeton : a cavalryman riding a horse with a lance de Grèce (listes, rapports, composition d'armée)
+- ⬜ `busts/CAVALRY_HUN.png` — 1024×1024 — Buste-jeton : a cavalryman riding a horse with a lance de Huns (listes, rapports, composition d'armée)
+- ⬜ `busts/CAVALRY_ROME.png` — 1024×1024 — Buste-jeton : a cavalryman riding a horse with a lance de Rome (listes, rapports, composition d'armée)
+- ⬜ `busts/CAVALRY_SULTAN.png` — 1024×1024 — Buste-jeton : a cavalryman riding a horse with a lance de Sultanat (listes, rapports, composition d'armée)
+- ⬜ `busts/CAVALRY.png` — 1024×1024 — Buste-jeton : a cavalryman riding a horse with a lance (neutre) (listes, rapports, composition d'armée)
+- ⬜ `busts/INFANTRY_EGYPT.png` — 1024×1024 — Buste-jeton : an infantry soldier with spear and round shield de Égypte (listes, rapports, composition d'armée)
+- ⬜ `busts/INFANTRY_GAUL.png` — 1024×1024 — Buste-jeton : an infantry soldier with spear and round shield de Gaule (listes, rapports, composition d'armée)
+- ⬜ `busts/INFANTRY_GREEK.png` — 1024×1024 — Buste-jeton : an infantry soldier with spear and round shield de Grèce (listes, rapports, composition d'armée)
+- ⬜ `busts/INFANTRY_HUN.png` — 1024×1024 — Buste-jeton : an infantry soldier with spear and round shield de Huns (listes, rapports, composition d'armée)
+- ⬜ `busts/INFANTRY_ROME.png` — 1024×1024 — Buste-jeton : an infantry soldier with spear and round shield de Rome (listes, rapports, composition d'armée)
+- ⬜ `busts/INFANTRY_SULTAN.png` — 1024×1024 — Buste-jeton : an infantry soldier with spear and round shield de Sultanat (listes, rapports, composition d'armée)
+- ⬜ `busts/INFANTRY.png` — 1024×1024 — Buste-jeton : an infantry soldier with spear and round shield (neutre) (listes, rapports, composition d'armée)
+- ⬜ `busts/SETTLER_EGYPT.png` — 1024×1024 — Portrait du colon de Égypte (onglet Colons de la Résidence, modale de fondation, carte d'armée)
+- ⬜ `busts/SETTLER_GAUL.png` — 1024×1024 — Portrait du colon de Gaule (onglet Colons de la Résidence, modale de fondation, carte d'armée)
+- ⬜ `busts/SETTLER_GREEK.png` — 1024×1024 — Portrait du colon de Grèce (onglet Colons de la Résidence, modale de fondation, carte d'armée)
+- ⬜ `busts/SETTLER_HUN.png` — 1024×1024 — Portrait du colon de Huns (onglet Colons de la Résidence, modale de fondation, carte d'armée)
+- ⬜ `busts/SETTLER_ROME.png` — 1024×1024 — Portrait du colon de Rome (onglet Colons de la Résidence, modale de fondation, carte d'armée)
+- ⬜ `busts/SETTLER_SULTAN.png` — 1024×1024 — Portrait du colon de Sultanat (onglet Colons de la Résidence, modale de fondation, carte d'armée)
+- ⬜ `busts/SIEGE_EGYPT.png` — 1024×1024 — Buste-jeton : a siege engineer standing next to a catapult de Égypte (listes, rapports, composition d'armée)
+- ⬜ `busts/SIEGE_GAUL.png` — 1024×1024 — Buste-jeton : a siege engineer standing next to a catapult de Gaule (listes, rapports, composition d'armée)
+- ⬜ `busts/SIEGE_GREEK.png` — 1024×1024 — Buste-jeton : a siege engineer standing next to a catapult de Grèce (listes, rapports, composition d'armée)
+- ⬜ `busts/SIEGE_HUN.png` — 1024×1024 — Buste-jeton : a siege engineer standing next to a catapult de Huns (listes, rapports, composition d'armée)
+- ⬜ `busts/SIEGE_ROME.png` — 1024×1024 — Buste-jeton : a siege engineer standing next to a catapult de Rome (listes, rapports, composition d'armée)
+- ⬜ `busts/SIEGE_SULTAN.png` — 1024×1024 — Buste-jeton : a siege engineer standing next to a catapult de Sultanat (listes, rapports, composition d'armée)
+- ⬜ `busts/SIEGE.png` — 1024×1024 — Buste-jeton : a siege engineer standing next to a catapult (neutre) (listes, rapports, composition d'armée)
+- ⬜ `busts/TRIBE_EGYPT.png` — 1024×1024 — Chef de la tribu locale Égypte (rapports de combat contre une tribu, bulle du point)
+- ⬜ `busts/TRIBE_GAUL.png` — 1024×1024 — Chef de la tribu locale Gaule (rapports de combat contre une tribu, bulle du point)
+- ⬜ `busts/TRIBE_GREEK.png` — 1024×1024 — Chef de la tribu locale Grèce (rapports de combat contre une tribu, bulle du point)
+- ⬜ `busts/TRIBE_HUN.png` — 1024×1024 — Chef de la tribu locale Huns (rapports de combat contre une tribu, bulle du point)
+- ⬜ `busts/TRIBE_ROME.png` — 1024×1024 — Chef de la tribu locale Rome (rapports de combat contre une tribu, bulle du point)
+- ⬜ `busts/TRIBE_SULTAN.png` — 1024×1024 — Chef de la tribu locale Sultanat (rapports de combat contre une tribu, bulle du point)
+- ⬜ `busts/units/EGY_ARC_DESERT.png` — 1024×1024 — Jeton de l'unité « Archer du désert » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/EGY_ARC_NIL.png` — 1024×1024 — Jeton de l'unité « Archer du Nil » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/EGY_ARC_PHARAON.png` — 1024×1024 — Jeton de l'unité « Archer du pharaon » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/EGY_CAV_CHAR_LOURD.png` — 1024×1024 — Jeton de l'unité « Char lourd » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/EGY_CAV_DESERT.png` — 1024×1024 — Jeton de l'unité « Cavalier du désert » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/EGY_CAV_PHARAON.png` — 1024×1024 — Jeton de l'unité « Cavalerie du pharaon » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/EGY_INF_ESCLAVE.png` — 1024×1024 — Jeton de l'unité « Esclave égyptien » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/EGY_INF_NIL.png` — 1024×1024 — Jeton de l'unité « Fantassin du Nil » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/EGY_INF_TEMPLE.png` — 1024×1024 — Jeton de l'unité « Guerrier du temple » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/EGY_SIEGE_MANGONNEAU.png` — 1024×1024 — Jeton de l'unité « Mangonneau égyptien » (Égypte) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_ARC_CHASSEUR.png` — 1024×1024 — Jeton de l'unité « Chasseur gaulois » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_ARC_GAULOIS.png` — 1024×1024 — Jeton de l'unité « Archer gaulois » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_ARC_NOBLE.png` — 1024×1024 — Jeton de l'unité « Archer noble » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_CAV_CHASSEUR.png` — 1024×1024 — Jeton de l'unité « Chasseur monté » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_CAV_GAULOIS.png` — 1024×1024 — Jeton de l'unité « Cavalier gaulois » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_CAV_NOBLE.png` — 1024×1024 — Jeton de l'unité « Cavalier noble » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_INF_CHAMPION.png` — 1024×1024 — Jeton de l'unité « Champion gaulois » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_INF_GUERRIER.png` — 1024×1024 — Jeton de l'unité « Guerrier gaulois » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_INF_TRIARII.png` — 1024×1024 — Jeton de l'unité « Triarii gaulois » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GAU_SIEGE_BELIER.png` — 1024×1024 — Jeton de l'unité « Bélier gaulois » (Gaule) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_ARC_ELITE.png` — 1024×1024 — Jeton de l'unité « Archer d’élite grec » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_ARC_PAYSAN.png` — 1024×1024 — Jeton de l'unité « Archer paysan » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_ARC_TOXOTE.png` — 1024×1024 — Jeton de l'unité « Toxote » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_CAV_ECLAIREUR.png` — 1024×1024 — Jeton de l'unité « Éclaireur » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_CAV_ELITE.png` — 1024×1024 — Jeton de l'unité « Cavalerie d’élite grecque » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_CAV_GREC.png` — 1024×1024 — Jeton de l'unité « Cavalier grec » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_INF_HOPLITE.png` — 1024×1024 — Jeton de l'unité « Hoplite » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_INF_JEUNE.png` — 1024×1024 — Jeton de l'unité « Jeune guerrier » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_INF_SPARTIATE.png` — 1024×1024 — Jeton de l'unité « Spartiate » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/GRE_SIEGE_CATAPULTE.png` — 1024×1024 — Jeton de l'unité « Catapulte grecque » (Grèce) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_ARC_CAMP.png` — 1024×1024 — Jeton de l'unité « Archer du camp » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_ARC_ELITE.png` — 1024×1024 — Jeton de l'unité « Archer d’élite hun » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_ARC_NOMADE.png` — 1024×1024 — Jeton de l'unité « Archer nomade » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_CAV_ELITE.png` — 1024×1024 — Jeton de l'unité « Horde d’Attila » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_CAV_INTER.png` — 1024×1024 — Jeton de l'unité « Cavalier hun » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_CAV_PILLARD.png` — 1024×1024 — Jeton de l'unité « Cavalier pillard » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_INF_GARDE.png` — 1024×1024 — Jeton de l'unité « Garde tribale » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_INF_NOMADE.png` — 1024×1024 — Jeton de l'unité « Guerrier nomade » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_INF_VETERAN.png` — 1024×1024 — Jeton de l'unité « Nomade vétéran » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/HUN_SIEGE_SAPEUR.png` — 1024×1024 — Jeton de l'unité « Sapeurs huns » (Huns) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_ARC_ELITE.png` — 1024×1024 — Jeton de l'unité « Archer d’élite romain » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_ARC_MILICIEN.png` — 1024×1024 — Jeton de l'unité « Archer milicien » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_ARC_VETERAN.png` — 1024×1024 — Jeton de l'unité « Archer vétéran » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_CAV_AUXILIAIRE.png` — 1024×1024 — Jeton de l'unité « Cavalerie auxiliaire » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_CAV_EQUITES.png` — 1024×1024 — Jeton de l'unité « Equites » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_CAV_LOURDE.png` — 1024×1024 — Jeton de l'unité « Cavalerie lourde romaine » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_INF_LEGIONNAIRE.png` — 1024×1024 — Jeton de l'unité « Légionnaire romain » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_INF_MILICIEN.png` — 1024×1024 — Jeton de l'unité « Milicien romain » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_INF_TRIARII.png` — 1024×1024 — Jeton de l'unité « Triarii » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/ROM_SIEGE_CATAPULTE.png` — 1024×1024 — Jeton de l'unité « Catapulte romaine » (Rome) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_ARC_DESERT.png` — 1024×1024 — Jeton de l'unité « Archer du désert » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_ARC_PERSE.png` — 1024×1024 — Jeton de l'unité « Archer perse » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_ARC_TIREUR.png` — 1024×1024 — Jeton de l'unité « Tireur du désert » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_CAV_BEDOUIN.png` — 1024×1024 — Jeton de l'unité « Cavalier bédouin » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_CAV_DESERT.png` — 1024×1024 — Jeton de l'unité « Cavalier du désert » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_CAV_MAMELOUK.png` — 1024×1024 — Jeton de l'unité « Mamelouk du palais » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_INF_CROISSANT.png` — 1024×1024 — Jeton de l'unité « Guerrier du croissant » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_INF_DESERT.png` — 1024×1024 — Jeton de l'unité « Guerrier du désert » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_INF_PALAIS.png` — 1024×1024 — Jeton de l'unité « Défenseur du palais » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `busts/units/SUL_SIEGE_MANGONNEAU.png` — 1024×1024 — Jeton de l'unité « Mangonneau oriental » (Sultanat) : listes, rapports, composition d'armée
+- ⬜ `figures/ARCHER_EGYPT.png` — 1024×1536 — Figurine en pied : an archer with a bow and a quiver de Égypte (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/ARCHER_GAUL.png` — 1024×1536 — Figurine en pied : an archer with a bow and a quiver de Gaule (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/ARCHER_GREEK.png` — 1024×1536 — Figurine en pied : an archer with a bow and a quiver de Grèce (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/ARCHER_HUN.png` — 1024×1536 — Figurine en pied : an archer with a bow and a quiver de Huns (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/ARCHER_ROME.png` — 1024×1536 — Figurine en pied : an archer with a bow and a quiver de Rome (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/ARCHER_SULTAN.png` — 1024×1536 — Figurine en pied : an archer with a bow and a quiver de Sultanat (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/CAVALRY_EGYPT.png` — 1024×1536 — Figurine en pied : a cavalryman riding a horse with a lance de Égypte (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/CAVALRY_GAUL.png` — 1024×1536 — Figurine en pied : a cavalryman riding a horse with a lance de Gaule (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/CAVALRY_GREEK.png` — 1024×1536 — Figurine en pied : a cavalryman riding a horse with a lance de Grèce (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/CAVALRY_HUN.png` — 1024×1536 — Figurine en pied : a cavalryman riding a horse with a lance de Huns (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/CAVALRY_ROME.png` — 1024×1536 — Figurine en pied : a cavalryman riding a horse with a lance de Rome (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/CAVALRY_SULTAN.png` — 1024×1536 — Figurine en pied : a cavalryman riding a horse with a lance de Sultanat (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/INFANTRY_EGYPT.png` — 1024×1536 — Figurine en pied : an infantry soldier with spear and round shield de Égypte (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/INFANTRY_GAUL.png` — 1024×1536 — Figurine en pied : an infantry soldier with spear and round shield de Gaule (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/INFANTRY_GREEK.png` — 1024×1536 — Figurine en pied : an infantry soldier with spear and round shield de Grèce (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/INFANTRY_HUN.png` — 1024×1536 — Figurine en pied : an infantry soldier with spear and round shield de Huns (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/INFANTRY_ROME.png` — 1024×1536 — Figurine en pied : an infantry soldier with spear and round shield de Rome (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/INFANTRY_SULTAN.png` — 1024×1536 — Figurine en pied : an infantry soldier with spear and round shield de Sultanat (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/SIEGE_EGYPT.png` — 1024×1536 — Figurine en pied : a siege engineer standing next to a catapult de Égypte (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/SIEGE_GAUL.png` — 1024×1536 — Figurine en pied : a siege engineer standing next to a catapult de Gaule (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/SIEGE_GREEK.png` — 1024×1536 — Figurine en pied : a siege engineer standing next to a catapult de Grèce (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/SIEGE_HUN.png` — 1024×1536 — Figurine en pied : a siege engineer standing next to a catapult de Huns (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/SIEGE_ROME.png` — 1024×1536 — Figurine en pied : a siege engineer standing next to a catapult de Rome (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/SIEGE_SULTAN.png` — 1024×1536 — Figurine en pied : a siege engineer standing next to a catapult de Sultanat (fiches d'unité, cartes de recrutement)
+- ⬜ `figures/units/EGY_ARC_DESERT.png` — 1024×1536 — Figurine en pied de l'unité « Archer du désert » (Égypte, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/EGY_ARC_NIL.png` — 1024×1536 — Figurine en pied de l'unité « Archer du Nil » (Égypte, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/EGY_ARC_PHARAON.png` — 1024×1536 — Figurine en pied de l'unité « Archer du pharaon » (Égypte, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/EGY_CAV_CHAR_LOURD.png` — 1024×1536 — Figurine en pied de l'unité « Char lourd » (Égypte, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/EGY_CAV_DESERT.png` — 1024×1536 — Figurine en pied de l'unité « Cavalier du désert » (Égypte, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/EGY_CAV_PHARAON.png` — 1024×1536 — Figurine en pied de l'unité « Cavalerie du pharaon » (Égypte, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/EGY_INF_ESCLAVE.png` — 1024×1536 — Figurine en pied de l'unité « Esclave égyptien » (Égypte, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/EGY_INF_NIL.png` — 1024×1536 — Figurine en pied de l'unité « Fantassin du Nil » (Égypte, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/EGY_INF_TEMPLE.png` — 1024×1536 — Figurine en pied de l'unité « Guerrier du temple » (Égypte, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/EGY_SIEGE_MANGONNEAU.png` — 1024×1536 — Figurine en pied de l'unité « Mangonneau égyptien » (Égypte, siege) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_ARC_CHASSEUR.png` — 1024×1536 — Figurine en pied de l'unité « Chasseur gaulois » (Gaule, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_ARC_GAULOIS.png` — 1024×1536 — Figurine en pied de l'unité « Archer gaulois » (Gaule, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_ARC_NOBLE.png` — 1024×1536 — Figurine en pied de l'unité « Archer noble » (Gaule, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_CAV_CHASSEUR.png` — 1024×1536 — Figurine en pied de l'unité « Chasseur monté » (Gaule, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_CAV_GAULOIS.png` — 1024×1536 — Figurine en pied de l'unité « Cavalier gaulois » (Gaule, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_CAV_NOBLE.png` — 1024×1536 — Figurine en pied de l'unité « Cavalier noble » (Gaule, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_INF_CHAMPION.png` — 1024×1536 — Figurine en pied de l'unité « Champion gaulois » (Gaule, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_INF_GUERRIER.png` — 1024×1536 — Figurine en pied de l'unité « Guerrier gaulois » (Gaule, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_INF_TRIARII.png` — 1024×1536 — Figurine en pied de l'unité « Triarii gaulois » (Gaule, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GAU_SIEGE_BELIER.png` — 1024×1536 — Figurine en pied de l'unité « Bélier gaulois » (Gaule, siege) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_ARC_ELITE.png` — 1024×1536 — Figurine en pied de l'unité « Archer d’élite grec » (Grèce, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_ARC_PAYSAN.png` — 1024×1536 — Figurine en pied de l'unité « Archer paysan » (Grèce, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_ARC_TOXOTE.png` — 1024×1536 — Figurine en pied de l'unité « Toxote » (Grèce, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_CAV_ECLAIREUR.png` — 1024×1536 — Figurine en pied de l'unité « Éclaireur » (Grèce, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_CAV_ELITE.png` — 1024×1536 — Figurine en pied de l'unité « Cavalerie d’élite grecque » (Grèce, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_CAV_GREC.png` — 1024×1536 — Figurine en pied de l'unité « Cavalier grec » (Grèce, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_INF_HOPLITE.png` — 1024×1536 — Figurine en pied de l'unité « Hoplite » (Grèce, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_INF_JEUNE.png` — 1024×1536 — Figurine en pied de l'unité « Jeune guerrier » (Grèce, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_INF_SPARTIATE.png` — 1024×1536 — Figurine en pied de l'unité « Spartiate » (Grèce, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/GRE_SIEGE_CATAPULTE.png` — 1024×1536 — Figurine en pied de l'unité « Catapulte grecque » (Grèce, siege) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_ARC_CAMP.png` — 1024×1536 — Figurine en pied de l'unité « Archer du camp » (Huns, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_ARC_ELITE.png` — 1024×1536 — Figurine en pied de l'unité « Archer d’élite hun » (Huns, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_ARC_NOMADE.png` — 1024×1536 — Figurine en pied de l'unité « Archer nomade » (Huns, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_CAV_ELITE.png` — 1024×1536 — Figurine en pied de l'unité « Horde d’Attila » (Huns, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_CAV_INTER.png` — 1024×1536 — Figurine en pied de l'unité « Cavalier hun » (Huns, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_CAV_PILLARD.png` — 1024×1536 — Figurine en pied de l'unité « Cavalier pillard » (Huns, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_INF_GARDE.png` — 1024×1536 — Figurine en pied de l'unité « Garde tribale » (Huns, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_INF_NOMADE.png` — 1024×1536 — Figurine en pied de l'unité « Guerrier nomade » (Huns, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_INF_VETERAN.png` — 1024×1536 — Figurine en pied de l'unité « Nomade vétéran » (Huns, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/HUN_SIEGE_SAPEUR.png` — 1024×1536 — Figurine en pied de l'unité « Sapeurs huns » (Huns, siege) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_ARC_ELITE.png` — 1024×1536 — Figurine en pied de l'unité « Archer d’élite romain » (Rome, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_ARC_MILICIEN.png` — 1024×1536 — Figurine en pied de l'unité « Archer milicien » (Rome, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_ARC_VETERAN.png` — 1024×1536 — Figurine en pied de l'unité « Archer vétéran » (Rome, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_CAV_AUXILIAIRE.png` — 1024×1536 — Figurine en pied de l'unité « Cavalerie auxiliaire » (Rome, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_CAV_EQUITES.png` — 1024×1536 — Figurine en pied de l'unité « Equites » (Rome, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_CAV_LOURDE.png` — 1024×1536 — Figurine en pied de l'unité « Cavalerie lourde romaine » (Rome, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_INF_LEGIONNAIRE.png` — 1024×1536 — Figurine en pied de l'unité « Légionnaire romain » (Rome, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_INF_MILICIEN.png` — 1024×1536 — Figurine en pied de l'unité « Milicien romain » (Rome, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_INF_TRIARII.png` — 1024×1536 — Figurine en pied de l'unité « Triarii » (Rome, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/ROM_SIEGE_CATAPULTE.png` — 1024×1536 — Figurine en pied de l'unité « Catapulte romaine » (Rome, siege) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_ARC_DESERT.png` — 1024×1536 — Figurine en pied de l'unité « Archer du désert » (Sultanat, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_ARC_PERSE.png` — 1024×1536 — Figurine en pied de l'unité « Archer perse » (Sultanat, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_ARC_TIREUR.png` — 1024×1536 — Figurine en pied de l'unité « Tireur du désert » (Sultanat, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_CAV_BEDOUIN.png` — 1024×1536 — Figurine en pied de l'unité « Cavalier bédouin » (Sultanat, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_CAV_DESERT.png` — 1024×1536 — Figurine en pied de l'unité « Cavalier du désert » (Sultanat, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_CAV_MAMELOUK.png` — 1024×1536 — Figurine en pied de l'unité « Mamelouk du palais » (Sultanat, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_INF_CROISSANT.png` — 1024×1536 — Figurine en pied de l'unité « Guerrier du croissant » (Sultanat, intermediate) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_INF_DESERT.png` — 1024×1536 — Figurine en pied de l'unité « Guerrier du désert » (Sultanat, base) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_INF_PALAIS.png` — 1024×1536 — Figurine en pied de l'unité « Défenseur du palais » (Sultanat, elite) : fiche d'unité, carte de recrutement
+- ⬜ `figures/units/SUL_SIEGE_MANGONNEAU.png` — 1024×1536 — Figurine en pied de l'unité « Mangonneau oriental » (Sultanat, siege) : fiche d'unité, carte de recrutement
+- ⬜ `heroes/EGYPT_bust_t2.png` — 1024×1024 — Buste du héros de Égypte au palier 2
+- ⬜ `heroes/EGYPT_bust_t3.png` — 1024×1024 — Buste du héros de Égypte au palier 3
+- ⬜ `heroes/EGYPT_bust.png` — 1024×1024 — Buste du héros de Égypte (cartes d'armée, choix de civilisation)
+- ⬜ `heroes/EGYPT_idle.png` — bande de 3 cases — Héros de Égypte en pose d'attente
+- ⬜ `heroes/EGYPT_t2.png` — 1024×1536 — Héros de Égypte au palier 2 (niveaux 10-19) : armure et cape plus riches
+- ⬜ `heroes/EGYPT_t3.png` — 1024×1536 — Héros de Égypte au palier 3 (niveaux 20+) : armure et cape plus riches
+- ⬜ `heroes/EGYPT.png` — 1024×1536 — Héros de Égypte en pied
+- ⬜ `heroes/GAUL_bust_t2.png` — 1024×1024 — Buste du héros de Gaule au palier 2
+- ⬜ `heroes/GAUL_bust_t3.png` — 1024×1024 — Buste du héros de Gaule au palier 3
+- ⬜ `heroes/GAUL_bust.png` — 1024×1024 — Buste du héros de Gaule (cartes d'armée, choix de civilisation)
+- ⬜ `heroes/GAUL_idle.png` — bande de 3 cases — Héros de Gaule en pose d'attente
+- ⬜ `heroes/GAUL_t2.png` — 1024×1536 — Héros de Gaule au palier 2 (niveaux 10-19) : armure et cape plus riches
+- ⬜ `heroes/GAUL_t3.png` — 1024×1536 — Héros de Gaule au palier 3 (niveaux 20+) : armure et cape plus riches
+- ⬜ `heroes/GAUL.png` — 1024×1536 — Héros de Gaule en pied
+- ⬜ `heroes/GREEK_bust_t2.png` — 1024×1024 — Buste du héros de Grèce au palier 2
+- ⬜ `heroes/GREEK_bust_t3.png` — 1024×1024 — Buste du héros de Grèce au palier 3
+- ⬜ `heroes/GREEK_bust.png` — 1024×1024 — Buste du héros de Grèce (cartes d'armée, choix de civilisation)
+- ⬜ `heroes/GREEK_idle.png` — bande de 3 cases — Héros de Grèce en pose d'attente
+- ⬜ `heroes/GREEK_t2.png` — 1024×1536 — Héros de Grèce au palier 2 (niveaux 10-19) : armure et cape plus riches
+- ⬜ `heroes/GREEK_t3.png` — 1024×1536 — Héros de Grèce au palier 3 (niveaux 20+) : armure et cape plus riches
+- ⬜ `heroes/GREEK.png` — 1024×1536 — Héros de Grèce en pied
+- ⬜ `heroes/HUN_bust_t2.png` — 1024×1024 — Buste du héros de Huns au palier 2
+- ⬜ `heroes/HUN_bust_t3.png` — 1024×1024 — Buste du héros de Huns au palier 3
+- ⬜ `heroes/HUN_bust.png` — 1024×1024 — Buste du héros de Huns (cartes d'armée, choix de civilisation)
+- ⬜ `heroes/HUN_idle.png` — bande de 3 cases — Héros de Huns en pose d'attente
+- ⬜ `heroes/HUN_t2.png` — 1024×1536 — Héros de Huns au palier 2 (niveaux 10-19) : armure et cape plus riches
+- ⬜ `heroes/HUN_t3.png` — 1024×1536 — Héros de Huns au palier 3 (niveaux 20+) : armure et cape plus riches
+- ⬜ `heroes/HUN.png` — 1024×1536 — Héros de Huns en pied
+- ⬜ `heroes/ROME_bust_t2.png` — 1024×1024 — Buste du héros de Rome au palier 2
+- ⬜ `heroes/ROME_bust_t3.png` — 1024×1024 — Buste du héros de Rome au palier 3
+- ⬜ `heroes/ROME_bust.png` — 1024×1024 — Buste du héros de Rome (cartes d'armée, choix de civilisation)
+- ⬜ `heroes/ROME_idle.png` — bande de 3 cases — Héros de Rome en pose d'attente
+- ⬜ `heroes/ROME_t2.png` — 1024×1536 — Héros de Rome au palier 2 (niveaux 10-19) : armure et cape plus riches
+- ⬜ `heroes/ROME_t3.png` — 1024×1536 — Héros de Rome au palier 3 (niveaux 20+) : armure et cape plus riches
+- ⬜ `heroes/ROME.png` — 1024×1536 — Héros de Rome en pied
+- ⬜ `heroes/SULTAN_bust_t2.png` — 1024×1024 — Buste du héros de Sultanat au palier 2
+- ⬜ `heroes/SULTAN_bust_t3.png` — 1024×1024 — Buste du héros de Sultanat au palier 3
+- ⬜ `heroes/SULTAN_bust.png` — 1024×1024 — Buste du héros de Sultanat (cartes d'armée, choix de civilisation)
+- ⬜ `heroes/SULTAN_idle.png` — bande de 3 cases — Héros de Sultanat en pose d'attente
+- ⬜ `heroes/SULTAN_t2.png` — 1024×1536 — Héros de Sultanat au palier 2 (niveaux 10-19) : armure et cape plus riches
+- ⬜ `heroes/SULTAN_t3.png` — 1024×1536 — Héros de Sultanat au palier 3 (niveaux 20+) : armure et cape plus riches
+- ⬜ `heroes/SULTAN.png` — 1024×1536 — Héros de Sultanat en pied
+
+## Scènes et bandeaux — 30
+
+- ⬜ `scenes/auth-landscape.png` — 1536×1024 — Scène « auth-landscape » : écran de connexion
+- ⬜ `scenes/auth-portrait.png` — 1024×1536 — Scène « auth-portrait » : écran de connexion
+- ⬜ `scenes/battlefield.png` — 1536×1024 — Scène « battlefield » : fond du replay de bataille
+- ⬜ `scenes/expedition-desert.png` — 1536×1024 — Vignette de destination d'expédition : desert
+- ⬜ `scenes/expedition-forest.png` — 1536×1024 — Vignette de destination d'expédition : forest
+- ⬜ `scenes/expedition-mountain.png` — 1536×1024 — Vignette de destination d'expédition : mountain
+- ⬜ `scenes/expedition-ruins.png` — 1536×1024 — Vignette de destination d'expédition : ruins
+- ⬜ `scenes/faction-EGYPT.png` — 1536×1024 — Paysage de Égypte derrière sa carte de civilisation (inscription)
+- ⬜ `scenes/faction-GAUL.png` — 1536×1024 — Paysage de Gaule derrière sa carte de civilisation (inscription)
+- ⬜ `scenes/faction-GREEK.png` — 1536×1024 — Paysage de Grèce derrière sa carte de civilisation (inscription)
+- ⬜ `scenes/faction-HUN.png` — 1536×1024 — Paysage de Huns derrière sa carte de civilisation (inscription)
+- ⬜ `scenes/faction-ROME.png` — 1536×1024 — Paysage de Rome derrière sa carte de civilisation (inscription)
+- ⬜ `scenes/faction-SULTAN.png` — 1536×1024 — Paysage de Sultanat derrière sa carte de civilisation (inscription)
+- ⬜ `scenes/header-alliance.png` — 1536×1024 — Scène « header-alliance » : bandeau en tête d'écran
+- ⬜ `scenes/header-army.png` — 1536×1024 — Bandeau en tête de l'écran Armée
+- ⬜ `scenes/header-inventory.png` — 1536×1024 — Scène « header-inventory » : bandeau en tête d'écran
+- ⬜ `scenes/header-market.png` — 1536×1024 — Scène « header-market » : bandeau en tête d'écran
+- ⬜ `scenes/header-ranking.png` — 1536×1024 — Scène « header-ranking » : bandeau en tête d'écran
+- ⬜ `scenes/header-reports.png` — 1536×1024 — Scène « header-reports » : bandeau en tête d'écran
+- ⬜ `scenes/header-research.png` — 1536×1024 — Bandeau en tête de l'écran Recherche
+- ⬜ `scenes/hero-EGYPT.png` — 1024×1536 — Scène « hero-EGYPT » : estrade de l'écran du héros
+- ⬜ `scenes/hero-GAUL.png` — 1024×1536 — Scène « hero-GAUL » : estrade de l'écran du héros
+- ⬜ `scenes/hero-GREEK.png` — 1024×1536 — Scène « hero-GREEK » : estrade de l'écran du héros
+- ⬜ `scenes/hero-HUN.png` — 1024×1536 — Scène « hero-HUN » : estrade de l'écran du héros
+- ⬜ `scenes/hero-ROME.png` — 1024×1536 — Scène « hero-ROME » : estrade de l'écran du héros
+- ⬜ `scenes/hero-SULTAN.png` — 1024×1536 — Scène « hero-SULTAN » : estrade de l'écran du héros
+- ⬜ `scenes/vignette-founding.png` — 1536×1024 — Vignette « fondation d'une ville » (onglet Colons, modale de fondation)
+- ⬜ `scenes/vignette-tribe-desert.png` — 1536×1024 — Vignette du camp d'une tribu locale (desert) en tête des rapports « Combat contre la tribu »
+- ⬜ `scenes/vignette-tribe-forest.png` — 1536×1024 — Vignette du camp d'une tribu locale (forest) en tête des rapports « Combat contre la tribu »
+- ⬜ `scenes/vignette-tribe-snow.png` — 1536×1024 — Vignette du camp d'une tribu locale (snow) en tête des rapports « Combat contre la tribu »
+
+## Interface — 132
+
+- ⬜ `banners/banner_bull.png` — 1024×1024 — bannière du taureau
+- ⬜ `banners/banner_eagle.png` — 1024×1024 — bannière de l'aigle
+- ⬜ `banners/banner_sun.png` — 1024×1024 — bannière du soleil
+- ⬜ `banners/banner_wolf.png` — 1024×1024 — bannière du loup
+- ✅ `ui/alliance.png` — 1024×1024 — Icône d'interface « alliance » (two overlapping shields, one blue and one red)
+- ✅ `ui/amphora.png` — 1024×1024 — Icône d'interface « amphora » (a clay amphora)
+- ✅ `ui/army.png` — 1024×1024 — Icône d'interface « army » (two crossed swords)
+- ✅ `ui/attack.png` — 1024×1024 — Icône d'interface « attack » (a red shield with a crossed sword)
+- ✅ `ui/bar-wood.png` — 1024×1024 — Habillage : bar-wood (cadres, plaques, barres de l'interface)
+- ✅ `ui/bolt.png` — 1024×1024 — Icône d'interface « bolt » (a golden lightning bolt)
+- ✅ `ui/bow.png` — 1024×1024 — Icône d'interface « bow » (a wooden bow with an arrow)
+- ⬜ `ui/branch_DEFENSE.png` — 1024×1024 — Icône de la branche de recherche DEFENSE
+- ⬜ `ui/branch_ECONOMY.png` — 1024×1024 — Icône de la branche de recherche ECONOMY
+- ⬜ `ui/branch_LOGISTICS.png` — 1024×1024 — Icône de la branche de recherche LOGISTICS
+- ⬜ `ui/branch_MILITARY.png` — 1024×1024 — Icône de la branche de recherche MILITARY
+- ✅ `ui/btn-danger-pressed.png` — 1024×1024 — Habillage : bouton danger enfoncé
+- ✅ `ui/btn-danger.png` — 1024×1024 — Habillage : bouton danger
+- ✅ `ui/btn-gold-pressed.png` — 1024×1024 — Habillage : bouton gold enfoncé
+- ✅ `ui/btn-gold.png` — 1024×1024 — Habillage : bouton gold
+- ✅ `ui/btn-info-pressed.png` — 1024×1024 — Habillage : bouton info enfoncé
+- ✅ `ui/btn-info.png` — 1024×1024 — Habillage : bouton info
+- ✅ `ui/btn-primary-pressed.png` — 1024×1024 — Habillage : bouton primary enfoncé
+- ✅ `ui/btn-primary.png` — 1024×1024 — Habillage : bouton primary
+- ⬜ `ui/btn-round-pressed.png` — 1024×1024 — Bouton rond des bulles d'action, enfoncé
+- ⬜ `ui/btn-round.png` — 1024×1024 — Bouton rond des bulles d'action
+- ✅ `ui/btn-secondary-pressed.png` — 1024×1024 — Habillage : bouton secondary enfoncé
+- ✅ `ui/btn-secondary.png` — 1024×1024 — Habillage : bouton secondary
+- ✅ `ui/build.png` — 1024×1024 — Icône d'interface « build » (a wooden mallet)
+- ✅ `ui/city.png` — 1024×1024 — Icône d'interface « city » (a small house with a terracotta roof)
+- ✅ `ui/clock.png` — 1024×1024 — Icône d'interface « clock » (an hourglass with golden sand)
+- ⬜ `ui/crest_EGYPT.png` — 1024×1024 — Blason de Égypte
+- ⬜ `ui/crest_GAUL.png` — 1024×1024 — Blason de Gaule
+- ⬜ `ui/crest_GREEK.png` — 1024×1024 — Blason de Grèce
+- ⬜ `ui/crest_HUN.png` — 1024×1024 — Blason de Huns
+- ⬜ `ui/crest_ROME.png` — 1024×1024 — Blason de Rome
+- ⬜ `ui/crest_SULTAN.png` — 1024×1024 — Blason de Sultanat
+- ✅ `ui/crown.png` — 1024×1024 — Icône d'interface « crown » (a golden crown with red gems)
+- ✅ `ui/defense.png` — 1024×1024 — Icône d'interface « defense » (a blue shield with a golden boss)
+- ✅ `ui/endurance.png` — 1024×1024 — Icône d'interface « endurance » (a red heart)
+- ⬜ `ui/exchange.png` — 1024×1024 — (facultatif, décision G9) écran « Échanger » des soldats entre deux armées : deux flèches dorées en cercle ; sinon le jeu réutilise `ui/send`
+- ✅ `ui/expedition.png` — 1024×1024 — Icône d'interface « expedition » (a brass compass rose)
+- ✅ `ui/fields.png` — 1024×1024 — Icône d'interface « fields » (a small square plot of wheat)
+- ✅ `ui/food.png` — 1024×1024 — Icône d'interface « food » (a sheaf of golden wheat)
+- ✅ `ui/frame-modal.png` — 1024×1024 — Habillage : frame-modal (cadres, plaques, barres de l'interface)
+- ✅ `ui/frame-panel.png` — 1024×1024 — Habillage : frame-panel (cadres, plaques, barres de l'interface)
+- ⬜ `ui/fx_coins.png` — bande de 4 cases — Interface : butin reçu
+- ⬜ `ui/fx_levelup.png` — bande de 6 cases — Interface : niveau supérieur
+- ⬜ `ui/fx_sparkle.png` — bande de 6 cases — Interface : construction terminée
+- ⬜ `ui/glory.png` — 1024×1024 — (facultatif) compteur et classement de Gloire : couronne de laurier d'or autour d'une petite étoile ; sinon le jeu réutilise `ui/medal`
+- ✅ `ui/gold.png` — 1024×1024 — Icône d'interface « gold » (a pile of gold coins)
+- ✅ `ui/hero.png` — 1024×1024 — Icône d'interface « hero » (a golden Roman helmet with a red crest)
+- ✅ `ui/home.png` — 1024×1024 — Icône d'interface « home » (a small house)
+- ✅ `ui/horse.png` — 1024×1024 — Icône d'interface « horse » (a brown horse)
+- ⬜ `ui/icons/siege.png` — 1024×1024 — Icône « siège » (bélier ou tour de siège) : alerte de siège, carte d'armée en siège, bouton « Briser le siège »
+- ✅ `ui/inventory.png` — 1024×1024 — Icône d'interface « inventory » (a wooden treasure chest with brass fittings)
+- ✅ `ui/iron.png` — 1024×1024 — Icône d'interface « iron » (a stack of iron ingots)
+- ⬜ `ui/item_achilles_cuirass.png` — 1024×1024 — Cuirasse d'Achille : cuirasse de bronze musclée, dorures
+- ✅ `ui/item_bronze_helm.png` — 1024×1024 — Icône de l'objet du héros « bronze_helm » (inventaire, équipement)
+- ⬜ `ui/item_bucephalus.png` — 1024×1024 — Bucéphale : grand cheval noir à étoile blanche, harnais doré
+- ⬜ `ui/item_capital_move.png` — 1024×1024 — Déplacement de capitale : chariot couvert chargé, petit drapeau
+- ⬜ `ui/item_centurion_gladius.png` — 1024×1024 — Glaive du centurion : glaive romain, poignée d'os, fourreau orné
+- ✅ `ui/item_chain_legs.png` — 1024×1024 — Icône de l'objet du héros « chain_legs » (inventaire, équipement)
+- ✅ `ui/item_chain_mail.png` — 1024×1024 — Icône de l'objet du héros « chain_mail » (inventaire, équipement)
+- ⬜ `ui/item_conqueror_helm.png` — 1024×1024 — Casque du conquérant : casque doré à grand panache, lauriers
+- ✅ `ui/item_crate.png` — 1024×1024 — Icône de l'objet du héros « crate » (inventaire, équipement)
+- ⬜ `ui/item_crested_helm.png` — 1024×1024 — Casque à crête : casque à crin rouge
+- ✅ `ui/item_gold_ring.png` — 1024×1024 — Icône de l'objet du héros « gold_ring » (inventaire, équipement)
+- ⬜ `ui/item_golden_fleece.png` — 1024×1024 — Toison d'or : toison dorée suspendue
+- ⬜ `ui/item_healer_salve.png` — 1024×1024 — Baume du guérisseur : petit pot d'onguent et herbes
+- ⬜ `ui/item_hunting_spear.png` — 1024×1024 — Lance de chasse : hampe de bois, pointe de fer simple
+- ✅ `ui/item_iron_boots.png` — 1024×1024 — Icône de l'objet du héros « iron_boots » (inventaire, équipement)
+- ✅ `ui/item_iron_helm.png` — 1024×1024 — Icône de l'objet du héros « iron_helm » (inventaire, équipement)
+- ✅ `ui/item_iron_shield.png` — 1024×1024 — Icône de l'objet du héros « iron_shield » (inventaire, équipement)
+- ✅ `ui/item_iron_sword.png` — 1024×1024 — Icône de l'objet du héros « iron_sword » (inventaire, équipement)
+- ✅ `ui/item_leather_armor.png` — 1024×1024 — Icône de l'objet du héros « leather_armor » (inventaire, équipement)
+- ⬜ `ui/item_leather_cap.png` — 1024×1024 — Bonnet de cuir : coiffe de cuir souple
+- ✅ `ui/item_leather_pants.png` — 1024×1024 — Icône de l'objet du héros « leather_pants » (inventaire, équipement)
+- ⬜ `ui/item_legion_eagle.png` — 1024×1024 — Aigle de légion : aigle doré sur hampe
+- ⬜ `ui/item_linothorax.png` — 1024×1024 — Linothorax : cuirasse grecque de lin blanc à lambrequins
+- ⬜ `ui/item_lorica_segmentata.png` — 1024×1024 — Lorica segmentata : armure romaine à bandes de fer
+- ⬜ `ui/item_marching_sandals.png` — 1024×1024 — Sandales de marche : caligae de cuir lacées
+- ⬜ `ui/item_mars_blade.png` — 1024×1024 — Lame de Mars : épée de légende, lame claire, garde dorée, lueur rouge
+- ⬜ `ui/item_messenger_boots.png` — 1024×1024 — Bottes du messager : bottes souples à revers
+- ⬜ `ui/item_owl_charm.png` — 1024×1024 — Talisman de la chouette : médaillon d'argent à la chouette
+- ⬜ `ui/item_pack_mule.png` — 1024×1024 — Mule de bât : mule chargée de sacoches
+- ✅ `ui/item_steel_sword.png` — 1024×1024 — Icône de l'objet du héros « steel_sword » (inventaire, équipement)
+- ⬜ `ui/item_steppe_horse.png` — 1024×1024 — Cheval des steppes : petit cheval trapu, selle simple
+- ⬜ `ui/item_strategist_scroll.png` — 1024×1024 — Rouleau du stratège : rouleau de papyrus scellé
+- ⬜ `ui/item_surgeon_kit.png` — 1024×1024 — Trousse du chirurgien : trousse de cuir, instruments de bronze
+- ✅ `ui/item_war_amulet.png` — 1024×1024 — Icône de l'objet du héros « war_amulet » (inventaire, équipement)
+- ✅ `ui/item_war_boots.png` — 1024×1024 — Icône de l'objet du héros « war_boots » (inventaire, équipement)
+- ⬜ `ui/item_war_horse.png` — 1024×1024 — Cheval de guerre : destrier caparaçonné
+- ⬜ `ui/item_winged_sandals.png` — 1024×1024 — Sandales ailées : sandales à petites ailes dorées
+- ✅ `ui/item_wooden_shield.png` — 1024×1024 — Icône de l'objet du héros « wooden_shield » (inventaire, équipement)
+- ✅ `ui/list.png` — 1024×1024 — Icône d'interface « list » (a clipboard with a parchment list)
+- ✅ `ui/lock.png` — 1024×1024 — Icône d'interface « lock » (a golden padlock)
+- ✅ `ui/map.png` — 1024×1024 — Icône d'interface « map » (an unrolled parchment map on two wooden rods)
+- ✅ `ui/market.png` — 1024×1024 — Icône d'interface « market » (a brass balance scale)
+- ✅ `ui/medal_bronze.png` — 1024×1024 — Icône d'interface « medal_bronze » (a bronze medal on a red and blue ribbon)
+- ✅ `ui/medal_silver.png` — 1024×1024 — Icône d'interface « medal_silver » (a silver medal on a red and blue ribbon)
+- ✅ `ui/medal.png` — 1024×1024 — Icône d'interface « medal » (a gold medal on a red and blue ribbon)
+- ✅ `ui/pin.png` — 1024×1024 — Icône d'interface « pin » (a red map pin)
+- ✅ `ui/plate-dark.png` — 1024×1024 — Habillage : plate-dark (cadres, plaques, barres de l'interface)
+- ⬜ `ui/plate-parchment.png` — 1024×1024 — Habillage : plate-parchment (cadres, plaques, barres de l'interface)
+- ✅ `ui/player.png` — 1024×1024 — Icône d'interface « player » (a villager figure on a stone base)
+- ✅ `ui/population.png` — 1024×1024 — Icône d'interface « population » (two villagers side by side)
+- ✅ `ui/rally.png` — 1024×1024 — Icône d'interface « rally » (a red flag on a pole on a stone base)
+- ✅ `ui/ranking.png` — 1024×1024 — Icône d'interface « ranking » (a golden trophy cup)
+- ✅ `ui/recruit.png` — 1024×1024 — Icône d'interface « recruit » (two crossed swords)
+- ✅ `ui/reports.png` — 1024×1024 — Icône d'interface « reports » (a parchment scroll)
+- ✅ `ui/send.png` — 1024×1024 — Icône d'interface « send » (a parchment letter with a golden arrow)
+- ✅ `ui/settings.png` — 1024×1024 — Icône d'interface « settings » (an iron cogwheel)
+- ⬜ `ui/settler.png` — 1024×1024 — Icône du colon (onglet Colons de la Résidence, carte d'armée, bouton « Fonder une ville » de la carte)
+- ✅ `ui/skull.png` — 1024×1024 — Icône d'interface « skull » (a bone skull)
+- ✅ `ui/spy.png` — 1024×1024 — Icône d'interface « spy » (a magnifying glass)
+- ✅ `ui/star.png` — 1024×1024 — Icône d'interface « star » (a golden five-pointed star)
+- ✅ `ui/stats.png` — 1024×1024 — Icône d'interface « stats » (three bar-chart columns of bronze, gold and silver)
+- ✅ `ui/stone.png` — 1024×1024 — Icône d'interface « stone » (a block of grey stone)
+- ✅ `ui/target.png` — 1024×1024 — Icône d'interface « target » (an archery target with an arrow)
+- ⬜ `ui/tech_AGRONOMY.png` — 1024×1024 — Icône de la technologie AGRONOMY (onglet Recherche de l'Académie, fiche)
+- ⬜ `ui/tech_CARTOGRAPHY.png` — 1024×1024 — Icône de la technologie CARTOGRAPHY (onglet Recherche de l'Académie, fiche)
+- ⬜ `ui/tech_DISCIPLINE.png` — 1024×1024 — Icône de la technologie DISCIPLINE (onglet Recherche de l'Académie, fiche)
+- ⬜ `ui/tech_ENGINEERING.png` — 1024×1024 — Icône de la technologie ENGINEERING (onglet Recherche de l'Académie, fiche)
+- ⬜ `ui/tech_MEDICINE.png` — 1024×1024 — Icône de la technologie MEDICINE (onglet Recherche de l'Académie, fiche)
+- ⬜ `ui/tech_SUPPLY.png` — 1024×1024 — Icône de la technologie SUPPLY (onglet Recherche de l'Académie, fiche)
+- ⬜ `ui/tech_TACTICS.png` — 1024×1024 — Icône de la technologie TACTICS (onglet Recherche de l'Académie, fiche)
+- ⬜ `ui/tech_TRAINING.png` — 1024×1024 — Icône de la technologie TRAINING (onglet Recherche de l'Académie, fiche)
+- ✅ `ui/tools.png` — 1024×1024 — Icône d'interface « tools » (a crossed hammer and pickaxe)
+- ✅ `ui/tree.png` — 1024×1024 — Icône d'interface « tree » (a pine tree)
+- ⬜ `ui/tribe.png` — 1024×1024 — Icône « tribu locale » (bulle du point, rapports, listes)
+- ⬜ `ui/triumph.png` — 1024×1024 — bouton « Triomphe » du Bâtiment principal : couronne de laurier d'or et deux trompettes romaines croisées
+- ✅ `ui/wood.png` — 1024×1024 — Icône d'interface « wood » (a bundle of cut logs)
+
+## Effets — 3
+
+- ⬜ `fx/arrow.png` — 512×512 — Replay : flèche en vol
+- ⬜ `fx/impact.png` — bande de 3 cases — Replay : éclat d'impact
+- ⬜ `fx/stone.png` — 512×512 — Replay : pierre de catapulte
+
+## Boutique et application — 3
+
+- ⬜ `store/feature-graphic.png` — 1024×1024 — bannière Google Play 1024×500, opaque : ville des six civilisations à l'heure dorée, héros romain à gauche, tiers droit calme pour le titre
+- ⬜ `store/ic_stat_notify.png` — 1024×1024 — icône de notification Android : silhouette du casque de l'emblème, **blanc uni sur transparent**, 96×96
+- ⬜ `store/icon-1024.png` — 1024×1024 — icône de l'application peinte 1024×1024, opaque : casque doré à crête rouge dans un médaillon de bronze et laurier sur fond rouge
