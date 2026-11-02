@@ -15,6 +15,10 @@
 // Bastions et dernier assaut gagné (E3), camps brisés par un groupe arrivé dans la même minute (E4) ; pour juger les
 // décisions D6 et D13, soldats par palier et Grandes caserne / écurie des colonies. Le plafond de la garnison d'un Bastion
 // ne compte que les armées postées qui ont des soldats, comme le serveur.
+// Analyse de la simulation du 2 novembre 2026 : taille des gardes rattachées aux colonies contre la part que vise le joueur
+// automatique (gardes faibles, vides), soldats sans les engins de chaque joueur et sigles des alliances (part de l'alliance
+// dans un rassemblement contre un Bastion, défenseurs postés contre une vague d'Immortels), Villes Merveille à part des
+// colonies (les colonies comptées sur 76, pas 78).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
@@ -34,6 +38,12 @@ const COLONY_ONLY = buildingsData.filter(b => b.effects?.notInCapital).map(b => 
 // 15 : décisions du 31 octobre 2026), lu dans les données comme le serveur (fx.maxLevelIn)
 const MAX_LEVEL = { keys: buildingsData.map(b => b.key), capital: buildingsData.map(b => fx.maxLevelIn(b.key, true)), colony: buildingsData.map(b => fx.maxLevelIn(b.key, false)) };
 const MOVING = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'SUPPORTING', 'RALLY_JOIN', 'RALLY_MARCH', 'BESIEGING'];
+// les engins de siège ne sont pas des soldats (garde d'une colonie, part de l'alliance)
+const SIEGE = new Set(unitsData.filter(u => u.class === 'SIEGE').map(u => u.key));
+const soldiersOf = (units) => (units || []).reduce((t, u) => t + (SIEGE.has(u.unitKey) ? 0 : (u.count || 0)), 0);
+// garde d'une colonie : la part des soldats du joueur que vise le joueur automatique (modules/30-military.cjs GUARD_SHARE,
+// GUARD_MIN : 15 %, 40 au moins)
+const GUARD = { share: 0.15, min: 40 };
 
 async function invariants(prisma, clock) {
   const late = new Date(clock.now() - 13 * 3600000);   // deux pas de 6 h et un peu : une arrivée aurait dû être jouée
@@ -112,7 +122,7 @@ async function snapshot(prisma, clock, bots, sinceMs = null) {
       id: p.id, name: p.name, faction: p.faction, group: groupOf.get(p.id) || null, alliance: p.alliance?.allianceId || null,
       population: p.population, cities: cs.length, hall, levels: cs.reduce((t, c) => t + c.buildings.reduce((u, b) => u + b.level, 0), 0),
       fieldsAvg: fields.length ? Math.round(fields.reduce((t, x) => t + x, 0) / fields.length * 10) / 10 : 0,
-      tech: techBy.get(p.id) || 0, units: units.reduce((t, u) => t + u.count, 0), power: Math.round(calculateArmyPower(units, unitsData)),
+      tech: techBy.get(p.id) || 0, units: units.reduce((t, u) => t + u.count, 0), soldiers: soldiersOf(units), power: Math.round(calculateArmyPower(units, unitsData)),
       stock: Math.round(cs.reduce((t, c) => t + c.wood + c.stone + c.iron + c.food, 0)), gold: p.gold, ap: p.alliancePoints,
       hero: p.hero ? (p.hero.diedAt ? -p.hero.level : p.hero.level) : 0
     };
@@ -137,7 +147,8 @@ async function snapshot(prisma, clock, bots, sinceMs = null) {
     bastionBreaks: await bastionBreaks(prisma, since)
   };
   const world = {
-    cities: cities.length, colonies: cities.filter(c => !c.isCapital).length,
+    // colonies : toutes les villes hors capitales, Villes Merveille comprises (comme avant) ; wonderCities : ces dernières
+    cities: cities.length, colonies: cities.filter(c => !c.isCapital).length, wonderCities: cities.filter(c => c.isWonder).length,
     wonder: Math.max(0, ...cities.filter(c => c.isWonder).map(c => c.wonderLevel)),
     bastions: await q(`SELECT status, count(*)::int AS n FROM "Bastion" GROUP BY 1`),
     invasions: await count(`SELECT count(*)::int AS n FROM "Invasion"`),
@@ -215,7 +226,27 @@ async function mapView(prisma, cities, players) {
   const sides = {};
   for (const c of cities.filter(x => x.isCapital)) { const s = spawn().sideAt(c.x, c.y); sides[s] = (sides[s] || 0) + 1; }
   const sites = await prisma.$queryRawUnsafe(`SELECT rn.level, count(*)::int AS n FROM "ResourceNode" rn JOIN "City" c ON c.id = rn."cityId" WHERE NOT c."isCapital" AND NOT c."isWonder" GROUP BY 1 ORDER BY 1`);
-  return { size: config.map.worldSize, foundable: await foundableNodes(prisma), coloniesPerPlayer: colonies, capitalsBySide: sides, colonySiteLevels: Object.fromEntries(sites.map(r => [r.level, r.n])), unguarded: await unguardedColonies(prisma, cities.filter(c => !c.isCapital && !c.isWonder).length), colonyArmies: await colonyArmies(prisma) };
+  return { size: config.map.worldSize, foundable: await foundableNodes(prisma), coloniesPerPlayer: colonies, capitalsBySide: sides, colonySiteLevels: Object.fromEntries(sites.map(r => [r.level, r.n])), unguarded: await unguardedColonies(prisma, cities.filter(c => !c.isCapital && !c.isWonder).length), colonyArmies: await colonyArmies(prisma), colonyGuards: await colonyGuards(prisma).catch(() => null) };
+}
+// Taille des armées rattachées aux colonies (analyse de la simulation du 2 novembre 2026 : des gardes usées par les raids,
+// jamais regarnies, cinq vides). Pour chacune : ses soldats (sans les engins) contre la part que vise le joueur automatique,
+// 15 % des soldats de son propriétaire (toutes ses armées, garnison comprise), 40 au moins. n : armées rattachées ; median :
+// soldats d'une garde (médiane) ; target : la part visée (médiane) ; ratio : soldats / part visée (médiane) ; under30,
+// under50 : gardes sous 30 % et 50 % de leur part ; empty : sans soldats.
+async function colonyGuards(prisma) {
+  const q = (sql) => prisma.$queryRawUnsafe(sql);
+  const attached = await q(`SELECT a.id, a."ownerId" AS owner FROM "Army" a JOIN "City" c ON c.id = a."cityId" WHERE NOT a."isGarrison" AND NOT c."isCapital" AND NOT c."isWonder"`);
+  const units = await q(`SELECT u."armyId" AS army, a."ownerId" AS owner, u."unitKey", u.count FROM "ArmyUnit" u JOIN "Army" a ON a.id = u."armyId" WHERE u.count > 0`);
+  const byArmy = new Map(), byOwner = new Map();
+  for (const u of units) {
+    if (SIEGE.has(u.unitKey)) continue;
+    byArmy.set(u.army, (byArmy.get(u.army) || 0) + u.count);
+    byOwner.set(u.owner, (byOwner.get(u.owner) || 0) + u.count);
+  }
+  const rows = attached.map(a => { const soldiers = byArmy.get(a.id) || 0; const target = Math.max(GUARD.min, Math.round(GUARD.share * (byOwner.get(a.owner) || 0))); return { soldiers, target, ratio: soldiers / target }; });
+  const med = (list) => { const s = [...list].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+  const ratio = med(rows.map(r => r.ratio));
+  return { n: rows.length, median: med(rows.map(r => r.soldiers)), target: med(rows.map(r => r.target)), ratio: ratio === null ? null : Math.round(ratio * 100) / 100, under30: rows.filter(r => r.ratio < 0.3).length, under50: rows.filter(r => r.ratio < 0.5).length, empty: rows.filter(r => r.soldiers === 0).length, share: GUARD.share };
 }
 // Armées rattachées aux colonies (décision du 1er novembre 2026, E2) : armées (hors garnison) dont la ville est une colonie
 // (ni capitale, ni Ville Merveille) ; avec des soldats ; colonies qui en ont une ; joueurs qui en ont une ; armées sur les
@@ -249,6 +280,9 @@ async function endgameView(prisma, now = Date.now()) {
   const wonders = await q(`SELECT c.name, c."wonderLevel" AS level, a.tag FROM "City" c LEFT JOIN "AllianceMember" m ON m."playerId" = c."playerId" LEFT JOIN "Alliance" a ON a.id = m."allianceId" WHERE c."isWonder"`);
   const plans = await q(`SELECT a.tag, count(*)::int AS n FROM "WonderPlan" p LEFT JOIN "AllianceMember" m ON m."playerId" = p."holderId" LEFT JOIN "Alliance" a ON a.id = m."allianceId" WHERE p."holderId" IS NOT NULL GROUP BY 1`);
   const sites = await q(`SELECT "resourceType" AS kind, count(*)::int AS n, count(*) FILTER (WHERE "hasDefenders")::int AS guarded FROM "ResourceNode" WHERE "resourceType" IN ('WONDER', 'PLAN') GROUP BY 1`);
+  // sigle de chaque alliance (les joueurs du relevé n'ont que l'id de la leur) : le rapport rapporte un rassemblement ou
+  // des défenseurs à l'alliance entière (membres, soldats)
+  const alliances = await q(`SELECT id, tag FROM "Alliance"`).catch(() => []);
   const BS = bastionService();
   const livesOf = (g) => (g.status === 'DESTROYED' || !rowsById.has(g.id) ? 0 : BS.livesOf(BS.structureNow(rowsById.get(g.id), now)));
   // fin de la pause : celle que le panneau du Bastion affiche (bastionService.regenView), sinon le dernier assaut gagné + la pause
@@ -258,7 +292,7 @@ async function endgameView(prisma, now = Date.now()) {
     const t = g.lastWonAt ? new Date(g.lastWonAt).getTime() + pauseMs : 0;
     return pauseMs && g.status !== 'DESTROYED' && t > now ? new Date(t).toISOString() : null;
   };
-  return { bastions: garrison.map(g => ({ tag: g.tag, status: g.status, lives: livesOf(g), garrison: g.garrison, soldiers: g.soldiers, lastWonAt: g.lastWonAt ? new Date(g.lastWonAt).toISOString() : null, pausedUntil: pausedUntil(g) })), rallies, wonders, plans, sites };
+  return { bastions: garrison.map(g => ({ tag: g.tag, status: g.status, lives: livesOf(g), garrison: g.garrison, soldiers: g.soldiers, lastWonAt: g.lastWonAt ? new Date(g.lastWonAt).toISOString() : null, pausedUntil: pausedUntil(g) })), rallies, wonders, plans, sites, alliances };
 }
 
 // ---------- cumuls : quêtes, cachettes ----------

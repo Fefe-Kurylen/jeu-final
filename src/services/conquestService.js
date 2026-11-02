@@ -191,6 +191,9 @@ async function relocateCapital(cityId, byArmyId) {
     // resolved right now (claimed) finishes first and then walks to the new place.
     const { depositCarryTx } = require('./armyService');
     await require('./marketService').cancelOffersOfCity(tx, city.id, city.id);   // offres annulées, marchandises rendues
+    // stocks relus après les offres rendues (villes déjà verrouillées plus haut) : ce que portent les armées va à la
+    // capitale, puis aux autres villes selon la place (stock commun, E1) ; la liste suit chaque dépôt
+    const cities = await lockPlayerCities(tx, owner.playerId);
     const campsLeft = new Set(), bastionCampsLeft = new Set();
     for (const a of city.armies) {
       if (a.claimedAt) {
@@ -204,7 +207,7 @@ async function relocateCapital(cityId, byArmyId) {
       if (a.status === 'EXPEDITION') await tx.expedition.updateMany({ where: { armyId: a.id, status: 'IN_PROGRESS' }, data: { status: 'EXPIRED' } });
       if (a.status === 'BESIEGING' && a.targetCityId) campsLeft.add(a.targetCityId);
       if (a.status === 'BESIEGING' && a.targetBastionId) bastionCampsLeft.add(a.targetBastionId);   // camp devant un Bastion
-      if (!a.isGarrison) await depositCarryTx(tx, a.id, city.id);
+      if (!a.isGarrison) await depositCarryTx(tx, a.id, city.id, cities);
       // mission annulée : plus de cible ni de rassemblement (un ancien rallyId fausserait le héros d'un assaut de Bastion)
       await tx.army.update({ where: { id: a.id }, data: { status: 'IDLE', x: pos.x, y: pos.y, targetX: null, targetY: null, targetCityId: null, targetBastionId: null, rallyId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null } });
     }

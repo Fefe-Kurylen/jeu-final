@@ -10,7 +10,8 @@
 //            rôle attend : waitingRoles, 30-military.cjs tidy)
 //   guard  : garde de chaque colonie (décision du 31 octobre 2026, rapport de vérification : une armée postée dans chaque
 //            colonie, les colonies n'ont pas de garnison) ; formée dans la capitale, elle n'y garde sa place que le temps
-//            d'aller se rattacher à sa colonie (ou de revenir s'y regarnir)
+//            d'aller se rattacher à sa colonie ; une garde trop faible est relevée par une nouvelle, formée de même (la
+//            relève attendue compte comme une garde qui manque : simulation sim-e, gardes jamais regarnies)
 //   convoy : convoi du Bastion, puis sa garnison (20-alliance.cjs)
 //   ost    : armée des guerriers et des pillards (50-war.cjs)
 //   wonder : garde de la Ville Merveille de l'alliance (70-wonder.cjs)
@@ -53,6 +54,15 @@ function guardsMissing(bot) {
   const g = bot.mem?.mil?.guard || {};
   return colonies(bot).filter(c => !(bot.armies || []).some(a => a.id === g[c.id])).length;
 }
+// relèves attendues : colonies dont la garde est trop faible (bot.mem.mil.gr, 30-military.cjs) et dont la relève n'est pas
+// encore formée (bot.mem.mil.rel). Simulation sim-e : une garde affaiblie attendait une place libre à la capitale pour
+// rentrer se regarnir (8 061 refus), sans que personne ne la lui rende
+function reliefsMissing(bot) {
+  const mil = bot.mem?.mil;
+  if (!mil?.gr) return 0;
+  const has = (id) => !!id && (bot.armies || []).some(a => a.id === id);
+  return colonies(bot).filter(c => mil.gr[c.id] !== undefined && has(mil.guard?.[c.id]) && !has(mil.rel?.[c.id])).length;
+}
 // armées rattachées aux colonies du joueur (E2 : leur ville est la colonie), hors garnison
 const attachedArmies = (bot) => { const ids = new Set(colonies(bot).map(c => c.id)); return (bot.armies || []).filter(a => !a.isGarrison && ids.has(a.cityId)); };
 
@@ -63,7 +73,7 @@ function missing(bot, role) {
   const war = bot.mem?.war;
   switch (role) {
     case 'field': return militaryNeed(bot, cap);
-    case 'guard': return bot.mem?.mil ? guardsMissing(bot) : 0;
+    case 'guard': return bot.mem?.mil ? guardsMissing(bot) + reliefsMissing(bot) : 0;
     case 'convoy': return bot.mem?.al?.wantConvoy && !named(bot, NAMES.convoy).length ? 1 : 0;
     case 'ost': return war?.wantOst && !named(bot, NAMES.ost).length ? 1 : 0;
     case 'wonder': return bot.mem?.won?.wantGuard && !named(bot, NAMES.wonder).length ? 1 : 0;
@@ -101,4 +111,4 @@ function freeSlot(bot, role, city = bot.capital) {
   return null;
 }
 
-module.exports = { NAMES, ORDER, atHome, founding, militaryNeed, guardsMissing, attachedArmies, missing, freeSlot, mustYield, freePlaces, waitingRoles, named, fieldArmies, colonies };
+module.exports = { NAMES, ORDER, atHome, founding, militaryNeed, guardsMissing, reliefsMissing, attachedArmies, missing, freeSlot, mustYield, freePlaces, waitingRoles, named, fieldArmies, colonies };

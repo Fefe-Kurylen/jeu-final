@@ -153,6 +153,7 @@ test('vague contre une Ville Merveille murée : le mur tombe sous les mangonneau
     city: { findUnique: async () => city, update: async ({ data }) => { writes.push(data); return { ...city, ...data }; }, findMany: async () => [] },   // capitale sans Forge
     army: { findMany: async () => [] },
     armyUnit: { deleteMany: async () => ({}), update: async () => ({}) },
+    playerTechnology: { findMany: async () => [] },
     battleReport: { create: async ({ data }) => { reports.push(data); return { id: 'r1' }; } }
   };
   const savedRecord = RK.recordCombat; RK.recordCombat = async () => {};
@@ -183,6 +184,7 @@ test('vague contre une Ville Merveille sans troupes propres : les armées du jou
     city: { findUnique: async () => city, update: async () => ({}), findMany: async ({ where }) => { asked.push(where); return [{ isCapital: true, buildings: where.playerId === 'p2' ? [{ key: 'FORGE', level: 20 }] : [] }]; } },
     army: { findMany: async ({ where }) => { asked.push(where); return guests; } },
     armyUnit: { deleteMany: async ({ where }) => { hit.push(where.id); return {}; }, update: async ({ where }) => { hit.push(where.id); return {}; } },
+    playerTechnology: { findMany: async () => [] },
     battleReport: { create: async ({ data }) => { reports.push(data); return { id: 'r1' }; } }
   };
   const savedRecord = RK.recordCombat; RK.recordCombat = async () => {};
@@ -193,7 +195,8 @@ test('vague contre une Ville Merveille sans troupes propres : les armées du jou
   const relooked = [], moved = [];
   const restore = stubPrisma({ $transaction: async (fn) => fn(tx), notification: { create: async () => ({ id: 'n' }) },
     army: { findUnique: async ({ where }) => { relooked.push(where.id); return guests.find(g => g.id === where.id) || null; }, update: async ({ where }) => { moved.push(where.id); return {}; } },
-    armyUnit: { count: async () => 1 } });
+    armyUnit: { count: async () => 1 },
+    city: { findFirst: async () => null } });   // capitales sans Tente de soins : pas de blessés ici
   try {
     const out = await W.immortalWave({ id: 'w1', wonderLevel: 1 }, new Date());
     assert.deepEqual(relooked.sort(), ['ally', 'cap'], 'les défenseurs venus d\'ailleurs sont relus');
@@ -206,6 +209,109 @@ test('vague contre une Ville Merveille sans troupes propres : les armées du jou
     // 400 soldats sans Forge et 400 renforts à Forge 20 (+10 %) : +5 % pour les défenseurs, rien pour les Immortels
     assert.deepEqual(mods[0], { attacker: { atk: 1, def: 1 }, defender: { atk: 1.05, def: 1.05 } }, 'chaque joueur garde sa Forge, moyenne selon les soldats');
   } finally { restore(); RK.recordCombat = savedRecord; CS.resolveCombatDetailed = savedCombat; }
+});
+
+// ---- vague d'Immortels défendue comme une ville (simulation de 200 jours, novembre 2026) : technologies du propriétaire,
+// héros qui commande la défense, blessés ramenés par chaque armée, héros d'une armée anéantie tombé ----
+// Transaction factice d'une vague : lignes d'unités tenues à jour (pertes, blessés ramenés), armées et héros lus par id
+function waveTx({ city, guests, techs = {}, heroes = [] }) {
+  const store = guests.flatMap(g => g.units.map(u => ({ ...u, armyId: g.id })));
+  const log = { mods: [], heroArg: [], heroUpdates: [], armyUpdates: {} };
+  const tx = {
+    $queryRaw: async () => [],
+    city: { findUnique: async () => city, update: async () => ({}), findMany: async () => [{ isCapital: true, buildings: [] }] },   // capitales sans Forge
+    army: {
+      findMany: async () => guests.map(g => ({ ...g, units: store.filter(u => u.armyId === g.id).map(u => ({ ...u })) })),
+      findUnique: async ({ where }) => guests.find(g => g.id === where.id) || null,
+      update: async ({ where, data }) => { Object.assign(log.armyUpdates[where.id] ||= {}, data); return {}; },
+      updateMany: async ({ where, data }) => { const g = guests.find(x => x.id === where.id && x.heroId === where.heroId); if (!g) return { count: 0 }; Object.assign(g, data); return { count: 1 }; }
+    },
+    armyUnit: {
+      deleteMany: async ({ where }) => { const i = store.findIndex(u => u.id === where.id); if (i >= 0) store.splice(i, 1); return {}; },
+      update: async ({ where, data }) => { store.find(u => u.id === where.id).count = data.count; return {}; },
+      aggregate: async ({ where }) => ({ _sum: { count: store.filter(u => u.armyId === where.armyId && u.count > (where.count?.gt ?? -1)).reduce((t, u) => t + u.count, 0) } })
+    },
+    playerTechnology: { findMany: async ({ where }) => techs[where.playerId] || [] },
+    hero: { findUnique: async ({ where }) => heroes.find(h => h.id === where.id) || null, update: async ({ where, data }) => { log.heroUpdates.push({ id: where.id, ...data }); return {}; } },
+    battleReport: { create: async () => ({ id: 'r1' }) }
+  };
+  return { tx, store, log };
+}
+async function runWave(w, level) {
+  const CS = require('../../src/services/combatService');
+  const savedCombat = CS.resolveCombatDetailed, savedRecord = RK.recordCombat;
+  CS.resolveCombatDetailed = (...args) => { w.log.mods.push(args[10]); w.log.heroArg.push(args[6]); return savedCombat(...args); };
+  RK.recordCombat = async () => {};
+  const restore = stubPrisma({ $transaction: async (fn) => fn(w.tx), notification: { create: async () => ({ id: 'n' }) },
+    city: { findFirst: async () => ({ buildings: [{ key: 'HEALING_TENT', level: 5 }] }), findUnique: async () => null },   // Tente 5 dans chaque capitale : 45 %
+    army: { findUnique: async ({ where }) => w.tx.army.findUnique({ where }), update: async () => ({}) },
+    armyUnit: { count: async ({ where }) => w.store.filter(u => u.armyId === where.armyId && u.count > 0).length } });
+  try { return await W.immortalWave({ id: 'w1', wonderLevel: level }, new Date()); } finally { restore(); CS.resolveCombatDetailed = savedCombat; RK.recordCombat = savedRecord; }
+}
+const wonderCity = () => ({ id: 'w1', name: 'Merveille', x: 1, y: 2, playerId: 'p1', isWonder: true, wonderLevel: 4, wallMaxHp: 0, wallHp: 0, wallStructure: 1, buildings: [], player: { name: 'Aulus', faction: 'ROME' }, armies: [] });
+const legion = (id, count) => [{ id, unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count }];
+
+test('vague tenue : chaque armée venue d\'ailleurs ramène ses blessés (Médecine de son joueur), Discipline du propriétaire, héros de la défense', async () => {
+  const hero = { id: 'h2', name: 'Léonidas', playerId: 'p2', diedAt: null, talents: {}, items: [] };
+  const guests = [
+    { id: 'cap', ownerId: 'p1', cityId: 'capitale', x: 1, y: 2, status: 'IDLE', heroId: null, hero: null, owner: { id: 'p1', faction: 'ROME', technologies: [{ techKey: 'DISCIPLINE', level: 20 }] }, units: legion('u1', 400) },
+    { id: 'ally', ownerId: 'p2', cityId: 'ailleurs', x: 1, y: 2, status: 'STATIONED', heroId: 'h2', hero, owner: { id: 'p2', faction: 'ROME', technologies: [{ techKey: 'MEDICINE', level: 10 }] }, units: legion('u2', 400) }
+  ];
+  const w = waveTx({ city: wonderCity(), guests, techs: { p1: [{ techKey: 'DISCIPLINE', level: 20 }] }, heroes: [hero] });
+  const out = await runWave(w, 4);
+  assert.equal(out.won, true, 'la vague est repoussée');
+  assert.deepEqual(w.log.mods[0], { attacker: { atk: 1, def: 1 }, defender: { atk: 1, def: 1.05 } }, 'Discipline 20 du propriétaire : +5 % de défense (sans Forge)');
+  assert.equal(w.log.heroArg[0]?.id, 'h2', 'le héros d\'une armée qui défend commande la défense');
+  const lost = (unitId) => 400 - w.store.find(u => u.id === unitId).count;
+  assert.ok(lost('u1') > 0 && lost('u2') > 0, 'les défenseurs ont perdu des soldats');
+  const WD = require('../../src/services/woundedService');
+  const rate = (medicine) => WD.woundedRate([{ key: 'HEALING_TENT', level: 5 }], 'ROME', medicine * 0.5);
+  assert.deepEqual(w.log.armyUpdates.cap?.woundedCarry, [{ unitKey: 'ROM_INF_LEGIONNAIRE', count: Math.floor(lost('u1') * rate(0)) }], 'l\'armée du propriétaire venue de sa capitale');
+  assert.deepEqual(w.log.armyUpdates.ally?.woundedCarry, [{ unitKey: 'ROM_INF_LEGIONNAIRE', count: Math.floor(lost('u2') * rate(10)) }], 'le renfort allié, avec la Médecine de son joueur');
+  assert.deepEqual(w.log.heroUpdates, [], 'son armée a survécu : le héros reste debout');
+});
+
+test('vague perdue : la garde anéantie perd son héros (résurrection au Domus) et ne ramène aucun blessé', async () => {
+  const hero = { id: 'h9', name: 'Brennus', playerId: 'p2', diedAt: null, talents: {}, items: [] };
+  const guests = [{ id: 'g', ownerId: 'p2', cityId: 'ailleurs', x: 1, y: 2, status: 'STATIONED', heroId: 'h9', hero, owner: { id: 'p2', faction: 'ROME', technologies: [] }, units: legion('u9', 50) }];
+  const w = waveTx({ city: { ...wonderCity(), wonderLevel: 30 }, guests, heroes: [hero] });
+  const out = await runWave(w, 30);
+  assert.equal(out.won, false);
+  assert.equal(w.store.length, 0, 'la garde est anéantie');
+  assert.deepEqual(w.log.heroUpdates.map(h => [h.id, h.diedAt instanceof Date]), [['h9', true]], 'son héros tombe');
+  assert.equal(guests[0].heroId, null, 'il quitte son armée');
+  assert.equal(w.log.armyUpdates.g?.woundedCarry, undefined, 'une armée sans survivant ne ramène personne');
+});
+
+// règle commune (woundedService.carryArmiesWounded) : assaut de Bastion des deux côtés, vague d'Immortels
+test('blessés de plusieurs armées : chacune les siens, ramenés chez elle ; dans sa propre ville, posés aussitôt ; technologies lues une fois par joueur', async () => {
+  const WD = require('../../src/services/woundedService');
+  const left = { far: 10, mine: 10, wiped: 0, again: 10 };   // soldats restants après le combat
+  const techReads = [], upserts = [], carried = {};
+  const tx = {
+    armyUnit: { aggregate: async ({ where }) => ({ _sum: { count: left[where.armyId] } }) },
+    army: { findUnique: async () => ({ woundedCarry: [] }), update: async ({ where, data }) => { carried[where.id] = data.woundedCarry; return {}; } },
+    playerTechnology: { findMany: async ({ where }) => { techReads.push(where.playerId); return where.playerId === 'p2' ? [{ techKey: 'MEDICINE', level: 10 }] : []; } },
+    woundedUnit: { upsert: async ({ where, update }) => { upserts.push([where.cityId_unitKey.cityId, where.cityId_unitKey.unitKey, update.waiting.increment]); return {}; } }
+  };
+  const TENT = [{ key: 'HEALING_TENT', level: 5 }];
+  const restore = stubPrisma({ city: { findFirst: async () => ({ buildings: TENT }) } });
+  const killed = [{ key: 'ROM_INF_LEGIONNAIRE', killed: 100 }];
+  try {
+    await WD.carryArmiesWounded(tx, [
+      [{ id: 'far', ownerId: 'p2', cityId: 'c2', owner: { faction: 'ROME' } }, killed],   // renfort venu d'ailleurs
+      [{ id: 'mine', ownerId: 'p1', cityId: 'w1', owner: { faction: 'ROME', technologies: [] } }, killed],   // rattachée à la ville du combat
+      [{ id: 'wiped', ownerId: 'p2', cityId: 'c2', owner: { faction: 'ROME' } }, killed],   // anéantie
+      [{ id: 'again', ownerId: 'p2', cityId: 'c2', owner: { faction: 'ROME' } }, []],   // rien perdu
+      [{ id: 'nohome', ownerId: 'p3', cityId: null }, killed]   // sans ville : rien
+    ], { homeCityId: 'w1' });
+    const n = (medicine) => Math.floor(100 * WD.woundedRate(TENT, 'ROME', medicine * 0.5));
+    assert.deepEqual(carried, { far: [{ unitKey: 'ROM_INF_LEGIONNAIRE', count: n(10) }] }, 'seul le renfort qui a des survivants ramène les siens (Médecine de son joueur)');
+    assert.deepEqual(upserts, [['w1', 'ROM_INF_LEGIONNAIRE', n(0)]], 'l\'armée de la ville les pose aussitôt chez elle');
+    assert.deepEqual(techReads, ['p2'], 'une lecture par joueur ; celles déjà chargées avec l\'armée servent telles quelles');
+    // une erreur n'arrête pas le combat
+    await WD.carryArmiesWounded({ ...tx, playerTechnology: { findMany: async () => { throw new Error('panne'); } } }, [[{ id: 'far', ownerId: 'p9', cityId: 'c9' }, killed]]);
+  } finally { restore(); }
 });
 
 // ---- rassemblement contre les Immortels d'un site ou d'un plan (décision du 30 octobre 2026) ----

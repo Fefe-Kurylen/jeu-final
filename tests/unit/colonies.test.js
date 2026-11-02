@@ -250,6 +250,48 @@ test('fondation : la nouvelle colonie n\'a pas de garnison (seules les armées q
   assert.doesNotMatch(body, /isGarrison: true/);
 });
 
+// ---- nom par défaut d'une colonie (simulation de 200 jours, novembre 2026 : deux « Colonie de Baybars 2 » à la fois) ----
+test('fondation : le nom par défaut prend le premier numéro libre parmi les villes du joueur (une colonie rasée libère le sien)', () => {
+  const { defaultColonyName } = require('../../src/game/processors/armyProcessor');
+  assert.equal(defaultColonyName('Baybars', ['Capitale de Baybars']), 'Colonie de Baybars 1');
+  assert.equal(defaultColonyName('Baybars', ['Capitale', 'Colonie de Baybars 2']), 'Colonie de Baybars 1', 'la colonie 1 rasée, la 2 debout : jamais un second « 2 »');
+  assert.equal(defaultColonyName('Baybars', ['Capitale', 'Colonie de Baybars 1', 'Colonie de Baybars 2', 'Merveille de Baybars']), 'Colonie de Baybars 3', 'la Ville Merveille ne prend aucun numéro');
+  assert.equal(defaultColonyName('Tiberius', ['Roma', 'Ostia', 'Colonie de Tiberius 1']), 'Colonie de Tiberius 2', 'une colonie nommée par le joueur non plus');
+});
+
+test('fondation achevée : la colonie sans nom choisi prend un numéro qu\'aucune ville du joueur ne porte ; un nom choisi reste', async () => {
+  const { processArmyMovements } = require('../../src/game/processors/armyProcessor');
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const now = new Date();
+  async function found(chosen) {
+    const node = { id: 'n1', x: -60, y: -22, resourceType: 'WOOD', cityId: null };   // case où une ville tient (graine 0)
+    const army = { id: 'a1', name: 'Colons', ownerId: 'p1', cityId: 'cap', status: 'FOUNDING', missionType: 'FOUND', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt: now, claimedAt: null, settlers: 1, units: [], owner: { name: 'Baybars', faction: 'SULTAN' } };
+    const created = [], asked = [];
+    const tx = {
+      $executeRaw: async () => 1, $queryRaw: async () => [],
+      resourceNode: { findUnique: async () => node, findFirst: async () => null, update: async () => ({}) },
+      army: { findUnique: async () => ({ ...army, harvestResourceType: chosen, carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0 }), findFirst: async () => null, updateMany: async () => ({ count: 0 }), update: async () => ({}) },
+      bastion: { findFirst: async () => null },
+      // le joueur garde sa capitale et la colonie 2 ; la colonie 1 a été rasée
+      city: { findFirst: async () => null, count: async ({ where }) => (where.isWonder ? 0 : 1), findMany: async ({ where }) => { asked.push(where); return [{ name: 'Capitale de Baybars' }, { name: 'Colonie de Baybars 2' }]; }, create: async ({ data }) => { created.push(data); return { id: 'new', ...data }; } },
+      cityBuilding: { create: async () => ({}) }
+    };
+    const s = stub({
+      $transaction: async (fn) => fn(tx), $executeRaw: async () => 1,
+      army: { findMany: async ({ where }) => (where.claimedAt === null ? [army] : []), updateMany: async () => ({ count: 1 }), update: async () => ({}) },
+      city: { findUnique: async () => null },
+      notification: { create: async () => ({ id: 'n' }) }
+    });
+    try { await processArmyMovements(now); } finally { s.restore(); }
+    return { created, asked };
+  }
+  const plain = await found(null);
+  assert.deepEqual(plain.created.map(c => c.name), ['Colonie de Baybars 1'], 'pas un second « Colonie de Baybars 2 »');
+  assert.deepEqual(plain.asked, [{ playerId: 'p1' }], 'toutes les villes du joueur');
+  const named = await found('Ostia');
+  assert.deepEqual(named.created.map(c => c.name), ['Ostia']);
+});
+
 // ---- interblocage : la transaction est relancée ----
 test('withDeadlockRetry : relance après un interblocage (40P01, P2034), jamais pour une autre erreur', async () => {
   let calls = 0;

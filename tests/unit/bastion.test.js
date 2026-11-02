@@ -272,6 +272,7 @@ function breakDb({ armies = [], bastions = [], members = [], diplomacy = [], uni
   const unitTable = {
     findMany: async ({ where }) => units.filter(u => u.armyId === where.armyId).map(u => ({ ...u })),
     count: async ({ where }) => units.filter(u => matches(u, where)).length,
+    aggregate: async ({ where }) => ({ _sum: { count: units.filter(u => matches(u, where)).reduce((t, u) => t + u.count, 0) } }),   // blessés ramenés, chute du héros
     // pertes d'un combat en terrain ouvert (decrement) ou d'un assaut (nouvel effectif)
     update: async ({ where, data }) => { const u = units.find(x => x.id === where.id); if (u) u.count = typeof data.count === 'number' ? data.count : u.count - data.count.decrement; return u; },
     deleteMany: async ({ where }) => { const i = units.findIndex(x => x.id === where.id); if (i >= 0) units.splice(i, 1); return { count: i >= 0 ? 1 : 0 }; }
@@ -579,4 +580,46 @@ test('briser le siège ensemble (E4, E2) : une sortie vaincue rattachée à une 
     assert.deepEqual([db.army('g-p2').cityId, db.army('g-p2').slot], ['c-p2', 3], 'toujours rattachée à sa colonie, même emplacement');
     assert.ok(db.notes.some(n => n.playerId === 'p2' && /\(2 armées ensemble\) : les survivants rentrent\.$/.test(n.body)), JSON.stringify(db.notes.map(n => n.body)));
   } finally { db.restore(); }
+});
+
+// ---- règle des blessés (simulation de 200 jours, novembre 2026) : un assaut de Bastion en donne aux deux camps, comme
+// l'assaut d'une ville et le camp brisé ; chaque armée ramène les siens chez elle, une armée anéantie ne ramène personne ----
+test('assaut : blessés des deux camps, ramenés par chaque armée (Tente de la capitale, Médecine de son joueur) ; une armée anéantie n\'en ramène pas', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const WD = require('../../src/services/woundedService');
+  const TENT = [{ key: 'HEALING_TENT', level: 5 }];   // 45 % : sous le plafond de 70 %, la Médecine se voit
+  const rateOf = (faction, medicine = 0) => WD.woundedRate(TENT, faction, medicine * 0.5);
+  // garnison chargée comme en vrai : propriétaire sans ses technologies (lues à part)
+  const guard = (id, ownerId, units) => garrisonRow(id, ownerId, units, { owner: { id: ownerId, name: ownerId, faction: 'ROME', alliance: { allianceId: MEMBERS.find(m => m.playerId === ownerId).allianceId } } });
+  for (const won of [true, false]) {
+    // gagné : 600 légionnaires (p1) tombent tous ; repoussé : 1200 (p1) et 800 (p2, Médecine 10) perdent des soldats quand le mur tombe
+    const units = [{ id: 'u-s', armyId: 'solo', unitKey: 'GAU_INF_GUERRIER', tier: 'base', count: 2000 }, { id: 'r-s', armyId: 'solo', unitKey: 'GAU_SIEGE_BELIER', tier: 'base', count: 1000 },
+      ...(won ? [['g1', 600]] : [['g1', 1200], ['g2', 800]]).map(([armyId, count]) => ({ id: `u-${armyId}`, armyId, unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count }))];
+    const before = Object.fromEntries(units.map(u => [u.id, u.count]));
+    const attacker = siegeCamp('solo', 'p7', 0);
+    delete attacker.units;
+    withUnits(attacker, units);
+    const garrison = won ? [guard('g1', 'p1', units)] : [guard('g1', 'p1', units), guard('g2', 'p2', units)];
+    const db = breakDb({ armies: [attacker, ...garrison], bastions: [{ ...BASTION, structure: 0.5, structureAt: new Date(Date.now() - 30 * H) }], members: MEMBERS, diplomacy: DIPLOMACY, units });
+    prisma.city.findFirst = async () => ({ buildings: TENT });   // capitale de chaque joueur (calculateWoundedUnits)
+    db.tx.playerTechnology = { findMany: async ({ where }) => (where.playerId === 'p2' ? [{ techKey: 'MEDICINE', level: 10 }] : []) };
+    try {
+      await bastion.handleBastionBattle(db.army('solo'), new Date(), async () => {});
+      await new Promise(r => setImmediate(r));
+      assert.equal(db.reports[0].winner, won ? 'ATTACKER' : 'DEFENDER');
+      const lost = (id) => before[id] - (db.units.find(u => u.id === id)?.count || 0);
+      const carried = (armyId) => Object.fromEntries((db.army(armyId).woundedCarry || []).map(w => [w.unitKey, w.count]));
+      if (won) {
+        assert.ok(lost('u-s') > 0 && lost('r-s') > 0, 'l\'assaillant a perdu des soldats');
+        assert.deepEqual(carried('solo'), { GAU_INF_GUERRIER: Math.floor(lost('u-s') * rateOf('GAUL')), GAU_SIEGE_BELIER: Math.floor(lost('r-s') * rateOf('GAUL')) }, 'l\'assaillant ramène ses blessés');
+        assert.deepEqual(carried('g1'), {}, 'garnison anéantie : personne à ramener');
+      } else {
+        assert.deepEqual(carried('solo'), {}, 'assaillant anéanti : personne à ramener');
+        assert.ok(lost('u-g1') > 0 && lost('u-g2') > 0, 'le mur tombé, la garnison a perdu des soldats');
+        assert.deepEqual(carried('g1'), { ROM_INF_LEGIONNAIRE: Math.floor(lost('u-g1') * rateOf('ROME')) });
+        assert.deepEqual(carried('g2'), { ROM_INF_LEGIONNAIRE: Math.floor(lost('u-g2') * rateOf('ROME', 10)) }, 'la Médecine de son propre joueur');
+        assert.ok(carried('g2').ROM_INF_LEGIONNAIRE > Math.floor(lost('u-g2') * rateOf('ROME')));
+      }
+    } finally { db.restore(); }
+  }
 });

@@ -11,7 +11,7 @@ const { calculateWoundedUnits, carryWounded, addWoundedUnits } = require('./woun
 const { resolveCombat, heroCombatStats } = require('./combatService');
 const { awardHeroXp } = require('./heroXpService');
 const config = require('../config');
-const { takeFromNode, creditCity, capitalBuildingsOf } = require('../utils/db');
+const { takeFromNode, creditPlayer, capitalBuildingsOf } = require('../utils/db');
 const { techPct } = require('../utils/techEffects');
 const { getRelation } = require('./diplomacyService');
 const { campUnits, campPower, campBonusPct } = require('../utils/tribeDefenders');
@@ -271,13 +271,18 @@ function raidCooldownWhere(attackerId, targetCity, since) {
 
 // What an army carries (resources, gold, settlers, wounded) goes into the city, inside the caller's transaction and from
 // the carry as it stands under the lock: an army freed in the same transaction can be sent off again at once, so its load
-// must already be in the city
-async function depositCarryTx(tx, armyId, cityId) {
+// must already be in the city. Resources: the city first, then the player's other cities by free room (stock commun,
+// décision du 1er novembre 2026, simulation de 200 jours, E1 : rien ne se perd tant qu'une ville a de la place).
+// `cities` : the caller's lockPlayerCities result (all the player's cities locked in id order, before the army) ; without
+// it they are locked here. Callers: routes/armies.js (recall on the home tile, detach at the capital),
+// conquestService.relocateCapital, armyProcessor.handleBreakSiege (sortie back inside).
+async function depositCarryTx(tx, armyId, cityId, cities = null) {
   const a = await tx.army.findUnique({ where: { id: armyId }, select: { ownerId: true, carryWood: true, carryStone: true, carryIron: true, carryFood: true, carryGold: true, settlers: true, woundedCarry: true } });
   if (!a) return;
   const carried = (Array.isArray(a.woundedCarry) ? a.woundedCarry : []).filter(w => w && w.count > 0);
   if (carried.length) await addWoundedUnits(cityId, carried, tx);
-  await creditCity(tx, cityId, { wood: a.carryWood, stone: a.carryStone, iron: a.carryIron, food: a.carryFood });
+  const load = { wood: a.carryWood || 0, stone: a.carryStone || 0, iron: a.carryIron || 0, food: a.carryFood || 0 };
+  if (load.wood + load.stone + load.iron + load.food > 0) await creditPlayer(tx, a.ownerId, cityId, load, cities);
   if ((a.carryGold || 0) > 0) await tx.player.update({ where: { id: a.ownerId }, data: { gold: { increment: a.carryGold } } });
   if ((a.settlers || 0) > 0) await tx.city.update({ where: { id: cityId }, data: { settlers: { increment: a.settlers } } });
   await tx.army.update({ where: { id: armyId }, data: { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, carryGold: 0, settlers: 0, woundedCarry: [] } });

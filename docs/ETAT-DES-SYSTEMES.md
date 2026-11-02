@@ -121,8 +121,11 @@ Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` (ce que devient ch
   d'abord, puis dans la plus pleine (`debitPlayer`). Une offre rendue (retirée, expirée, ville tombée) et une livraison qui
   arrive vont à la ville visée d'abord, puis aux autres villes du joueur selon leur place (`creditPlayer`) : ce qui ne tient
   nulle part est perdu pour une offre rendue, et revient avec l'armée pour une livraison ; le message le dit. Ce qu'une armée
-  rapporte chez elle (butin, récolte) suit la même règle. Pour un échange, les villes des deux joueurs sont verrouillées en
-  une seule passe, dans l'ordre des id (`lockCitiesOfPlayers`).
+  rapporte chez elle (butin, récolte) suit la même règle, et aussi ce qu'elle dépose sans marcher (`depositCarryTx`, toutes
+  les villes du joueur verrouillées avant l'armée) : armée rappelée encore sur sa case, armée renvoyée à la capitale depuis
+  la case de la capitale, armées ramenées quand la capitale tombe, sortie qui rentre dans sa ville assiégée (simulation de
+  200 jours, novembre 2026 : avant, tout allait dans la seule ville de l'armée et le surplus était perdu). Pour un
+  échange, les villes des deux joueurs sont verrouillées en une seule passe, dans l'ordre des id (`lockCitiesOfPlayers`).
 - **Restent propres à chaque ville** : marchand du serveur (échange immédiat dans la ville), pillage, raids, siège,
   cachette, récompenses de quêtes. Rien ne circule entre ses propres villes (stock commun, D7).
 - **Or des unités d'élite** (décision du 31 octobre 2026, prix revu le soir même, D5) : une unité d'élite coûte aussi de l'or
@@ -458,7 +461,9 @@ Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bas
   Au Bastion, qui n'est la ville de personne, aucun bonus « chez soi » (défense gauloise, attaque du Sultanat) ; une garnison
   d'une seule civilisation garde ses bonus d'unités (Rome : défense, points de vie en siège), une garnison mêlée a la
   défense des unités en moyenne selon les soldats de chacune. Les assaillants ont la civilisation, le héros et les
-  technologies de l'armée qui mène l'assaut.
+  technologies de l'armée qui mène l'assaut. **Blessés des deux camps** (règle des blessés, simulation de 200 jours,
+  novembre 2026 : avant, un assaut n'en donnait à personne) : chaque armée du rassemblement et de la garnison ramène les
+  siens chez elle (Tente de la capitale, Médecine de son joueur, talent de son héros) ; une armée anéantie n'en ramène pas.
 - **Briser le siège** (décision du 29 octobre 2026) : **n'importe quel joueur** peut attaquer le camp ennemi devant un
   Bastion (Carte → Bastion → « Briser le siège »), sauf les camps de son alliance ou d'une alliance alliée. Un joueur de la
   garnison fait une **sortie** avec une de ses armées (Alliance → Bastion → « Sortie », combat 30 s après) ; le combat a
@@ -780,7 +785,9 @@ Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/ha
   1er à partir du niveau 17 ; les défenseurs doivent battre la vague : ce sont, comme contre
   un joueur, les armées du propriétaire stationnées dans la Ville Merveille et les renforts alliés qui y sont postés (la
   Ville Merveille n'a pas de garnison propre ; corrigé le 30 octobre 2026 : avant, la vague ne voyait aucun défenseur et
-  frappait une ville vide). Une vague ne laisse pas
+  frappait une ville vide). Comme dans une ville (simulation de 200 jours, novembre 2026) : technologies du propriétaire
+  (Discipline) et Forge de chacun, héros d'une armée qui défend en tête, blessés ramenés chez elle par chaque armée, héros
+  d'une armée anéantie tombé (avant : la Forge seule, ni blessés ni chute). Une vague ne laisse pas
   de dégâts au mur (ce n'est pas un siège). Un assaut ennemi victorieux lui ôte **2 niveaux** (au lieu des
   dégâts de rempart) ; la Ville Merveille ne peut pas être rasée.
 - **Fin du monde** : au niveau 100, le monde s'arrête (le jeu se lit mais ne se joue plus : réponses 423 aux actions).
@@ -852,8 +859,9 @@ Règles du GDD (`wounded_and_healing.md`, `combat_config.woundedSystem`) et déc
 
 - **Part des pertes qui reviennent blessées** : 30 %, + 3 % par niveau de la Tente de soins de la capitale, plafond 70 %,
   bonus grec, Médecine et bâtiments de faction de la capitale. Sans Tente dans la capitale, aucun blessé.
-- **Les blessés d'une armée hors de sa ville** (attaque, tribu, combat sur un point de ressource, des deux côtés) **rentrent
-  avec elle** (`Army.woundedCarry`) ; une armée sans survivant ne ramène personne. La carte d'armée affiche les blessés
+- **Les blessés d'une armée hors de sa ville** (attaque, tribu, combat sur un point de ressource, assaut de Bastion et vague
+  d'Immortels depuis novembre 2026, des deux côtés) **rentrent avec elle** (`Army.woundedCarry`) ; une armée sans survivant
+  ne ramène personne. La carte d'armée affiche les blessés
   transportés.
 - **Un blessé arrive en attente** dans sa ville (`WoundedUnit.waiting`) : il n'est pas soigné tout seul et **mange comme un
   soldat** ; en famine, les blessés qui attendent meurent les premiers.
@@ -920,7 +928,8 @@ client `frontend/js/app/08b-hero-talents.js`) :
     vitesse).
   Les talents s'ajoutent au-delà des plafonds. Réinitialisation : la première gratuite, ensuite 100 or.
 - **Chute** : le héros tombe quand l'armée qu'il mène (ou la garnison qu'il commande) perd tous ses soldats dans un
-  combat (siège d'une ville, Bastion, combat en terrain ouvert). Un héros seul dans une garnison sans soldats ne combat
+  combat (siège d'une ville, Bastion, combat en terrain ouvert, vague d'Immortels contre une Ville Merveille depuis
+  novembre 2026). Un héros seul dans une garnison sans soldats ne combat
   pas. Tombé, il garde niveau, points, talents et objets, quitte son armée, ne gagne plus d'XP et ne peut mener aucune
   armée.
 - **Résurrection** au **Domus du Héros de la capitale** : 24 h réduites de 2 % par niveau du Domus (et du talent
@@ -1070,6 +1079,8 @@ GDD : `data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json`
   libre. À l'arrivée le point est réservé (`FOUNDING`, 24 h) ; la ville naît ensuite sur la case du point avec son
   Bâtiment principal niveau 1 et les 3 000 de chaque ressource (gardés même au-dessus du Dépôt de 1 000 : une ville qui
   reçoit ne baisse jamais), **sans garnison** (plus de ligne « Garnison » vide depuis le 30 octobre 2026), et l'armée rentre.
+  Sans nom choisi, elle s'appelle « Colonie de <joueur> N », N le plus petit numéro qu'aucune de ses villes ne porte (une
+  colonie rasée libère le sien ; avant, deux colonies pouvaient porter le même nom).
   Pas de champs, de Dépôt ni de Silo offerts (refusé). Si le point n'est plus libre à l'arrivée, l'armée rentre avec le colon
   et les ressources.
 - **Vulnérabilité** : pendant les 24 h, l'armée fondatrice tient le point comme une récolteuse et peut être attaquée ;

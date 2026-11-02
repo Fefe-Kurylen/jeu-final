@@ -16,7 +16,7 @@ const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallLevelOf, wallHpNow, campEnd, engineCount } = require('./siegeProcessor');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
 const { survivalRatio, applyLosses, mergeUnits } = require('../../utils/armyUnits');
-const { RES_FR, creditPlayer, plunderCity, lockCity, claimNode, buildingsWithCapital } = require('../../utils/db');
+const { RES_FR, creditPlayer, plunderCity, lockCity, lockPlayerCities, claimNode, buildingsWithCapital, withDeadlockRetry } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
@@ -302,6 +302,15 @@ async function handleFoundArrival(army, now) {
   notify(army.ownerId, 'build_done', '🏗️ Fondation commencée', `${army.name} fonde une ville en (${node.x}, ${node.y}) : elle sera prête dans ${Math.round(fx.cityFoundationTimeSec() / 3600)} h.`, { to: 'map', x: node.x, y: node.y });
 }
 
+// Nom par défaut d'une colonie : le plus petit numéro qu'aucune ville du joueur ne porte (une colonie rasée libère le sien,
+// une Ville Merveille ne compte pas) ; jamais deux villes du même nom chez un joueur, pour lui comme dans les rapports
+function defaultColonyName(ownerName, takenNames) {
+  const taken = new Set(takenNames || []);
+  let n = 1;
+  while (taken.has(`Colonie de ${ownerName} ${n}`)) n++;
+  return `Colonie de ${ownerName} ${n}`;
+}
+
 async function handleFoundComplete(army, now) {
   const created = await prisma.$transaction(async (tx) => {
     await lockPlacement(tx);   // no other city placed at the same time on an overlapping block
@@ -309,10 +318,12 @@ async function handleFoundComplete(army, now) {
     const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { owner: true } });
     if (!node || node.cityId || !fresh || (fresh.settlers || 0) < 1) return null;
     if (!(await footprintFree(node.x, node.y, { ignoreNodeId: node.id, db: tx }))) return null;   // a city rose next to it meanwhile
-    const colonies = await tx.city.count({ where: { playerId: army.ownerId, isCapital: false } });
     const wonder = node.resourceType === 'WONDER';   // site de Merveille pris aux Immortels : la Ville Merveille
     if (wonder && (await tx.city.count({ where: { playerId: army.ownerId, isWonder: true } }))) return null;
-    const name = (fresh.harvestResourceType || '').trim() || (wonder ? `Merveille de ${fresh.owner?.name || 'joueur'}` : `Colonie de ${fresh.owner?.name || 'joueur'} ${colonies + 1}`);
+    // le nom choisi par le joueur d'abord ; sinon un nom par défaut libre parmi ses villes
+    const owner = fresh.owner?.name || 'joueur';
+    const name = (fresh.harvestResourceType || '').trim() || (wonder ? `Merveille de ${owner}`
+      : defaultColonyName(owner, (await tx.city.findMany({ where: { playerId: army.ownerId }, select: { name: true } })).map(c => c.name)));
     const carry = { wood: fresh.carryWood, stone: fresh.carryStone, iron: fresh.carryIron, food: fresh.carryFood };
     const city = await tx.city.create({ data: {
       playerId: army.ownerId, name, x: node.x, y: node.y, isCapital: false, isWonder: wonder, ...(wonder ? carry : {})
@@ -569,9 +580,14 @@ async function handleBreakSiege(army, now) {
   const ownCity = !!homeId && homeId === army.targetCityId;
   const sortieFromInside = ownCity && army.x === army.targetX && army.y === army.targetY;   // position before the march
   const pos = ownCity && !sortieFromInside && army.targetX !== null ? await haltTile({ x: army.targetX, y: army.targetY }) : null;
-  const outcome = await prisma.$transaction(async (tx) => {
+  // rejoué après un interblocage rare (toutes les villes du joueur verrouillées pour une armée de la ville)
+  const outcome = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
     if (!army.targetCityId) return null;
-    await lockCity(tx, army.targetCityId);
+    // une armée de la ville assiégée y dépose ce qu'elle porte : toutes les villes de son joueur dans l'ordre des id (la
+    // ville d'abord, puis les autres selon la place, stock commun E1) ; une autre armée : la seule ville assiégée
+    let cities = null;
+    if (ownCity) cities = await lockPlayerCities(tx, army.ownerId);
+    else await lockCity(tx, army.targetCityId);
     const city = await tx.city.findUnique({ where: { id: army.targetCityId }, select: { id: true, name: true, x: true, y: true, playerId: true } });
     if (!city) return null;
     // its own capital fled to a new place during the march: the army walks on to it (sendArmyHome after the commit)
@@ -593,10 +609,10 @@ async function handleBreakSiege(army, now) {
     if (!ownCity && fought && won) { await tx.army.update({ where: { id: army.id }, data: haltData({ x: city.x, y: city.y }) }); fate = 'guard'; }
     if (ownCity) {
       if (fought && !won && !sortieFromInside) { await tx.army.update({ where: { id: army.id }, data: haltData(pos) }); fate = 'halted'; }
-      else { await depositCarryTx(tx, army.id, city.id); await tx.army.update({ where: { id: army.id }, data: { ...haltData({ x: city.x, y: city.y }) } }); fate = 'inside'; }
+      else { await depositCarryTx(tx, army.id, city.id, cities); await tx.army.update({ where: { id: army.id }, data: { ...haltData({ x: city.x, y: city.y }) } }); fate = 'inside'; }
     }
     return { city, fought, won, fate, owners: [...new Set(hostile.map(b => b.ownerId))], defenderName, reportIds };
-  }, TX);
+  }, TX));
   if (outcome?.fought) {
     const { city, won, owners, defenderName, reportIds } = outcome;
     const at = { x: city.x, y: city.y };
@@ -793,4 +809,4 @@ async function handleTransport(army, now) {
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: back.wood, carryStone: back.stone, carryIron: back.iron, carryFood: back.food });
 }
 
-module.exports = { processArmyMovements, sendArmyHome, raidLosses, withGuestDefenders, defendingArmies, sendWipedGuestsHome };   // sendArmyHome : rassemblements d'alliance (rallyService), garnisons de Bastion vidées (bastionService) ; défenseurs d'une ville : vagues d'Immortels (wonderService) ; raidLosses : tests
+module.exports = { processArmyMovements, sendArmyHome, raidLosses, withGuestDefenders, defendingArmies, sendWipedGuestsHome, defaultColonyName };   // sendArmyHome : rassemblements d'alliance (rallyService), garnisons de Bastion vidées (bastionService) ; défenseurs d'une ville : vagues d'Immortels (wonderService) ; raidLosses, defaultColonyName : tests

@@ -516,8 +516,9 @@ router.post('/:id/detach-colony', auth, async (req, res) => {
     const atCapital = probe.x === capital.x && probe.y === capital.y;
     const len = atCapital ? 0 : await routeLength(probe.x, probe.y, capital.x, capital.y, probe.owner?.faction);   // A* hors transaction (NO_ROUTE)
     const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
-      // verrous : sa colonie et la capitale (celui de la création d'armée), dans l'ordre des id ; le héros ; l'armée
-      await lockCitiesById(tx, [probe.cityId, capital.id]);
+      // verrous : toutes les villes du joueur dans l'ordre des id (sa colonie et la capitale comprises : ce qu'elle porte,
+      // déposé à la capitale, va aux autres villes si la capitale est pleine, E1) ; le héros ; l'armée
+      const cities = await lockPlayerCities(tx, playerId);
       if (probe.heroId) await tx.$queryRaw`SELECT id FROM "Hero" WHERE "playerId" = ${playerId} FOR UPDATE`;
       await lockArmy(tx, req.params.id);
       const army = await loadArmy(req.params.id, playerId, {}, tx);
@@ -538,7 +539,7 @@ router.post('/:id/detach-colony', auth, async (req, res) => {
         : { status: 'RETURNING', missionType: 'RETURN', targetX: cap.x, targetY: cap.y, arrivalAt: new Date(now.getTime() + travelTime * 1000), departedAt: now };
       const moved = await tx.army.updateMany({ where: { id: army.id, status: 'IDLE', cityId: army.cityId, claimedAt: null }, data: { cityId: cap.id, slot, name, targetCityId: null, targetBastionId: null, rallyId: null, ...march } });
       if (moved.count !== 1) return { error: 'Armée déjà en mission', status: 409 };
-      if (atCapital) await depositCarryTx(tx, army.id, cap.id);   // déjà sur place : chez elle aussitôt
+      if (atCapital) await depositCarryTx(tx, army.id, cap.id, cities);   // déjà sur place : chez elle aussitôt
       if (army.heroId) await tx.hero.update({ where: { id: army.heroId }, data: { cityId: cap.id } });
       const minutes = Math.max(1, Math.round(travelTime / 60));
       return {
@@ -819,12 +820,16 @@ const RECALL_EN_ROUTE = [...OUTBOUND, 'RALLY_JOIN', 'RALLY_MARCH'];
 // POST /api/army/:id/return — also recalls an army that is still on its way
 router.post('/:id/return', auth, async (req, res) => {
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    // rejoué après un interblocage rare avec le tick (toutes les villes du joueur verrouillées pour un rappel en route)
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       // a camp is locked City then Army, the order of every tick transaction on a siege (no deadlock)
       const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { status: true, targetCityId: true, cityId: true } });
       const campCityId = probe?.status === 'BESIEGING' || probe?.status === 'STATIONED' ? probe.targetCityId : null;   // a camp, or a reinforcement in an allied city
+      // a mission recalled on its home tile unloads there: all the player's cities in id order (stock commun, E1 : the
+      // load goes to its city first, then to the others by free room), before the army
+      let cities = null;
       if (campCityId) await lockCity(tx, campCityId);
-      else if (RECALL_EN_ROUTE.includes(probe?.status) && probe.cityId) await lockCity(tx, probe.cityId);   // a mission recalled on its home tile unloads there
+      else if (RECALL_EN_ROUTE.includes(probe?.status) && probe.cityId) cities = await lockPlayerCities(tx, req.user.playerId);
       await lockArmy(tx, req.params.id);
       const army = await loadArmy(req.params.id, req.user.playerId, {}, tx);
       if (!army) return { error: 'Armee non trouvee', status: 404 };
@@ -846,7 +851,8 @@ router.post('/:id/return', auth, async (req, res) => {
         // left from its own city and not off its tile yet (a sortie, or any mission recalled at once): it is simply back
         // inside, with its load, and never has to fight its way through a camp it did not cross
         if (isHome(army, army.city) && fromX === army.city.x && fromY === army.city.y) {
-          await depositCarryTx(tx, army.id, army.city.id);
+          if (!cities) return { error: 'L\'armée a changé entre-temps, réessayez', status: 409 };   // partie après la première lecture : ses villes ne sont pas verrouillées
+          await depositCarryTx(tx, army.id, army.city.id, cities);
           await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', x: army.city.x, y: army.city.y, targetX: null, targetY: null, targetCityId: null, targetBastionId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null, rallyId: null } });
           return { message: 'Armée rentrée en ville', travelTime: 0 };
         }
@@ -870,7 +876,7 @@ router.post('/:id/return', auth, async (req, res) => {
       if (army.status === 'BESIEGING' && army.targetBastionId) await bastionBonus().refreshSieged(tx, army.targetBastionId);   // camp devant un Bastion
       const leftSupport = (army.status === 'STATIONED' || army.status === 'SUPPORTING') && army.targetCityId ? await tx.city.findUnique({ where: { id: army.targetCityId }, select: { id: true, name: true, playerId: true } }) : null;
       return { message: 'Retour en cours', travelTime, arrivalAt, leftSupport, armyName: army.name, ownerName: army.owner?.name };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     const { leftSupport, armyName, ownerName, ...out } = result;
     if (leftSupport) notify(leftSupport.playerId, 'alliance', '↩️ Renfort rappelé', `${ownerName || 'Votre allié'} rappelle ${armyName} de ${leftSupport.name}.`, { to: 'city', cityId: leftSupport.id });

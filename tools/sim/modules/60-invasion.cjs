@@ -41,6 +41,19 @@
 //   rassemblements prêts, relève les issues, et les membres qui jouent ce pas-ci dont une armée vient de rentrer d'un
 //   rassemblement de donjon rejoignent ou lancent l'étage suivant sans attendre le pas suivant ; nextDue donne à sim.cjs
 //   l'heure du retour de ces armées (un tick d'une heure à ce moment-là).
+//
+// Simulation de 200 jours relue (sim-e : aucun rassemblement contre un donjon de niveau 4 ou 5 sur 1 075, la décision E5 ne
+// pouvait pas être jugée pour eux) :
+// - ce que l'alliance peut abattre d'ici la fin (portée d'un donjon neuf) se compte sur tous ses membres : la meilleure armée
+//   prête de chacun, ou, si c'est plus, 80 % de son armée de campagne la plus forte (partie récolter, elle rentre pendant le
+//   week-end) avec ce que la garnison lui donnera ; avant, seulement les membres qui avaient une armée à la maison et jouaient
+//   encore ce pas-ci ; le suivi compte les donjons neufs de niveau 4 ou 5 restés hors de portée (outOfReachL4, outOfReachL5)
+//   et la plus grande part de leur force que la portée a atteinte (reachPctMaxL4, reachPctMaxL5) ;
+// - l'alliance peut ouvrir un donjon neuf d'un niveau au-dessus du plus haut qu'elle a commencé, même quand un donjon
+//   commencé est à sa portée (un seul à la fois par niveau), s'il entre dans cette portée. Le combat d'un rassemblement
+//   contre un étage est celui du serveur (combatService.resolveCombat : puissance contre puissance, bonus du lanceur) ; la
+//   marge apprise (rassemblements gagnés ou repoussés) en tient compte ;
+// - chefs combattus, battus ou repoussés, comptés par niveau (bossBeatenL4, bossRepelledL5…) avec les armées du rassemblement.
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -373,6 +386,24 @@ async function expectedJoiners(bot, ctx, city, allianceId) {
   return out.sort((a, b) => b.pot - a.pot);
 }
 
+// ---------- ce que toute l'alliance amène à un rassemblement ----------
+// pour chaque membre : sa meilleure armée prête (usableArmies, sans rien changer à sa mémoire), ou, si c'est plus, 80 % de
+// son armée de campagne la plus forte avec ce que la garnison lui donnera (elle rentre pendant le week-end ; invasionTurn la
+// rappelle). Avec une place libre, l'armée « prête » est souvent celle à former avec la seule garnison : l'armée de campagne
+// partie récolter n'était alors pas comptée
+function alliancePot(ctx, allianceId) {
+  let sum = 0;
+  for (const b of ctx.bots) {
+    if (!allianceId || b.me?.alliance?.allianceId !== allianceId || !b.capital || !Array.isArray(b.armies)) continue;
+    const ready = Math.max(0, ...usableArmies(b, b.mem.inv || {}, true).map(o => o.pot));
+    const own = new Set(b.mem.mil?.own || []);
+    const field = Math.max(0, ...b.armies.filter(a => own.has(a.id) && !a.isGarrison).map(a => powerOf(fighters(a.units))));
+    const garrison = powerOf(fighters(garrisonOf(b, b.capital.id)?.units)) * (1 - KEEP);
+    sum += Math.max(ready, 0.8 * (field + garrison));
+  }
+  return sum;
+}
+
 // ---------- la cible d'un nouveau rassemblement ----------
 // joinPot : ce que les membres attendus apportent (certains rejoindront un autre rassemblement : 60 % ; contre un chef, la
 // notification est suivie : 80 %). Score : le trésor au plus près (ce qu'il reste à abattre), le plus haut niveau (objet plus
@@ -385,7 +416,9 @@ function targetScore(n, p, mine) {
   return treasureOf(n.level).res * 1000 / Math.max(1, n.power + n.rest) * (1 + 0.2 * (n.level - 1)) * (mine ? 3 : 1)
     * (n.floor === 3 ? 5 : n.floor === 2 ? 1.5 : 1) * (p.wear && n.floor < 3 ? 0.5 : 1) - p.march / 600000;
 }
-function pickTarget(nodes, { started, margin, plan, reachCap }) {
+// maxStarted : le plus haut niveau des donjons que l'alliance a commencés ; un donjon neuf plus haut reste permis quand un
+// donjon commencé est à portée (sinon l'alliance ne quittait jamais les petits niveaux)
+function pickTarget(nodes, { started, margin, plan, reachCap, maxStarted = Infinity }) {
   const ok = [];
   for (const n of nodes) {
     if (!(n.power > 0)) continue;
@@ -396,7 +429,7 @@ function pickTarget(nodes, { started, margin, plan, reachCap }) {
   let best = null;
   for (const { n, p } of ok) {
     const fresh = n.floor === 1 && !started.has(n.nodeId);
-    if (fresh && (startedOk || (n.power + n.rest) * margin > reachCap)) continue;
+    if (fresh && ((startedOk && n.level <= maxStarted) || (n.power + n.rest) * margin > reachCap)) continue;
     const score = targetScore(n, p, started.has(n.nodeId));
     if (!best || score > best.score) best = { n, p, score };
   }
@@ -476,10 +509,19 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
     const wear = !group && o.pot + joinPot >= ATTRITION * need && tickAfter(ctx, nt + march) < endsAt;
     return { solo, group, wear, march, joinPot };
   };
-  // ce que l'alliance abat d'ici la fin : un rassemblement tous les deux pas
-  const reachCap = (o.pot + joinSum * 0.6) * Math.max(1, Math.floor((endsAt - nt) / stepMs(ctx) / 2));
+  // ce que l'alliance abat d'ici la fin : 60 % de ce que tous ses membres amènent, un rassemblement tous les deux pas
+  const reachCap = Math.max(o.pot + joinSum * 0.6, alliancePot(ctx, allianceId) * 0.6) * Math.max(1, Math.floor((endsAt - nt) / stepMs(ctx) / 2));
   const started = st.started?.get(allianceId) || new Set();
-  const target = pickTarget([...st.nodes.values()].filter(n => !targeted.has(n.nodeId)), { started, margin: g.margin, plan, reachCap });
+  const maxStarted = Math.max(0, ...[...started].map(id => st.nodes.get(id)?.level || 0));
+  // suivi (rapport, E5) : le donjon neuf de niveau 4 ou 5 le moins cher hors de portée de l'alliance d'ici la fin, et la plus
+  // grande part de lui que cette portée a atteinte (en %)
+  for (const lv of [4, 5]) {
+    const cheapest = Math.min(...[...st.nodes.values()].filter(n => n.level === lv && n.floor === 1 && !started.has(n.nodeId)).map(n => (n.power + n.rest) * g.margin));
+    if (!Number.isFinite(cheapest) || cheapest <= reachCap) continue;
+    bump(m, `outOfReachL${lv}`);
+    g.k[`reachPctMaxL${lv}`] = Math.max(g.k[`reachPctMaxL${lv}`] || 0, Math.round(100 * reachCap / cheapest));
+  }
+  const target = pickTarget([...st.nodes.values()].filter(n => !targeted.has(n.nodeId)), { started, margin: g.margin, plan, reachCap, maxStarted });
   if (!target) { bump(m, 'noTarget'); return; }
   // ce que voit le joueur avant de lancer : l'invasion en cours, puis le panneau du donjon
   const inv = await B.call('GET', '/api/invasion');
@@ -648,7 +690,13 @@ async function trackOutcomes(ctx) {
     const tag = await tagOf(ctx, r.allianceId);
     if (res.gone) { gbump(ctx, 'gone'); gbump(ctx, res.reason === 'aucune armée' ? 'goneArmiesLostOnTheWay' : 'goneDungeonLeft'); continue; }
     const base = { tag, leader: b.name, level: horde?.level || null, floor: res.floor, x: r.targetX, y: r.targetY, armies: res.armies, points: res.points };
-    if (res.floor === 3) gbump(ctx, res.won ? 'bossBeaten' : 'bossRepelled');   // combats contre le chef
+    // combats contre le chef, aussi par niveau, avec les armées (une par joueur) du rassemblement
+    if (res.floor === 3) {
+      const key = `${res.won ? 'bossBeaten' : 'bossRepelled'}L${horde?.level || 0}`;
+      gbump(ctx, res.won ? 'bossBeaten' : 'bossRepelled');
+      gbump(ctx, key);
+      gbump(ctx, `${key}Armies`, Array.isArray(res.armies) ? res.armies.length : Number(res.armies) || 0);
+    }
     if (!res.won) {
       gbump(ctx, 'repelled');
       // usure voulue : l'étage garde ses pertes, la marge ne change pas ; l'étage visé : la puissance demandée monte ;
@@ -845,7 +893,7 @@ function summary(ctx, final = false) {
 module.exports = {
   name: 'invasion',
   subTick, nextDue,
-  pickTarget, targetScore, takeRows, option, mergeable, usableArmies, marchSecs, learn,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
+  pickTarget, targetScore, takeRows, option, mergeable, usableArmies, alliancePot, marchSecs, learn,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
   // début du tour (29-invasion-early.cjs, avant le module militaire) : rejoindre ou lancer un rassemblement
   async early(bot, ctx) {
     try { await participate(bot, ctx, await stepState(ctx)); } catch (e) { const g = stats(ctx); g.errors = (g.errors || 0) + 1; g.lastError = String(e?.stack || e).slice(0, 400); }

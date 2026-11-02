@@ -22,13 +22,13 @@ const { routeLength } = require('../utils/pathfinding');
 const { footprintFree, lockPlacement } = require('../utils/spawn');
 const { transition, lockCity, lockPlayerCities, debitPlayer, missingMessage, withDeadlockRetry } = require('../utils/db');
 const { resolveCombat, resolveCombatDetailed, heroCombatStats } = require('./combatService');
-const { calculateWoundedUnits, carryWounded } = require('./woundedService');
+const { calculateWoundedUnits, carryWounded, carryArmiesWounded } = require('./woundedService');
 const { awardHeroXp } = require('./heroXpService');
 const { relationsOf, getRelation } = require('./diplomacyService');
 const { notify } = require('./pushService');
 const T = require('../utils/techEffects');
 const fx = require('../utils/buildingEffects');
-const { mergeUnits, applyLosses } = require('../utils/armyUnits');
+const { mergeUnits, applyLosses, survivalRatio } = require('../utils/armyUnits');
 
 const B = config.bastion;
 const RES = ['wood', 'stone', 'iron', 'food'];
@@ -618,14 +618,21 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     if (army.rallyId) await tx.army.updateMany({ where: { id: { in: group.map(g => g.id) } }, data: { rallyId: null } });
     // technologies du chef de l'assaut ; Forge de chaque joueur des deux camps, selon ses soldats (décision du 31 octobre 2026)
     const { combatPct, combatMult } = require('./armyService');
-    const atkBonus = combatMult(await combatPct(tx, leadOwnerId, await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } }), group.map(g => ({ ownerId: g.ownerId, units: rowsOf.get(g.id) }))));
+    const leadTech = await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } });
+    const atkBonus = combatMult(await combatPct(tx, leadOwnerId, leadTech, group.map(g => ({ ownerId: g.ownerId, units: rowsOf.get(g.id) }))));
     const garrison = garrisonFaction(defenders);
     const forge = combatMult(await combatPct(tx, null, null, defenders));
     const result = resolveCombatDetailed(mergeUnits([...rowsOf.values()].flat()), mergeUnits(defenders.flatMap(d => d.units)), B.wallReferenceLevel, attackerName, `Bastion [${b.alliance.tag}]`,
       heroCombatStats(leadHero), heroCombatStats(defHero), (group.find(g => g.ownerId === leadOwnerId) || army).owner?.faction, garrison.faction, B.bonuses.garrisonDefensePct,
       { attacker: atkBonus, defender: { atk: forge.atk, def: garrison.def * forge.def } }, { hp: maxHp * structure, maxHp });
+    // pertes de chaque armée par type d'unité, comptées avant de les écrire (blessés ci-dessous)
+    const lostOf = (rows, finals) => rows.map(u => ({ key: u.unitKey, killed: u.count - Math.round(u.count * survivalRatio(finals, u.unitKey)) })).filter(k => k.killed > 0);
+    const fallen = [...group.map(g => [g, lostOf(rowsOf.get(g.id), result.attackerFinalUnits)]), ...defenders.map(d => [d, lostOf(d.units, result.defenderFinalUnits)])];
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const d of defenders) await applyLosses(tx, d.units, result.defenderFinalUnits);
+    // blessés des deux camps (règle des blessés) : chaque armée du rassemblement et de la garnison ramène les siens chez
+    // elle, comme à l'assaut d'une ville et devant le camp brisé ; une armée anéantie ne ramène personne
+    await carryArmiesWounded(tx, fallen, { techOf: new Map([[leadOwnerId, leadTech]]) });
     // armées de la garnison sans soldats après l'assaut (et celles déjà vides) : elles rentrent après la transaction et
     // libèrent leur place dans la garnison
     const wiped = stationed.filter(d => !alive(d));

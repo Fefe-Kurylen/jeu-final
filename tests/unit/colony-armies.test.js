@@ -220,7 +220,9 @@ test('renvoyer à la capitale : l\'emplacement libre de la capitale est pris dè
     assert.ok(res.body.travelTime > 0 && u.arrivalAt.getTime() >= before + res.body.travelTime * 1000 - 5, 'elle marche jusqu\'à la capitale');
     assert.deepEqual(db.heroes, [{ where: { id: 'h1' }, data: { cityId: 'cap' } }], 'le héros suit son armée');
     assert.match(res.body.message, /Armée 3 rentre à la capitale \(arrivée dans \d+ min\) : l'emplacement 3 l'y attend/);
-    assert.match(db.sql[0].text, /FROM "City" WHERE id = ANY\(\?\) ORDER BY id FOR UPDATE/);
+    // toutes les villes du joueur dans l'ordre des id, avant l'armée (ce qu'elle porte peut aller dans toutes ses villes, E1)
+    assert.match(db.sql[0].text, /FROM "City" WHERE "playerId" = \? ORDER BY id FOR UPDATE/);
+    assert.deepEqual(db.sql[0].values, ['p1']);
   } finally { db.restore(); }
 });
 

@@ -379,36 +379,52 @@ async function stealPlans(db, fromPlayerId, toPlayerId) {
 }
 
 // Vague d'Immortels contre une Ville Merveille : combat contre ses défenseurs, derrière le mur que seuls ses mangonneaux
-// abîment ; perdu = un niveau en moins. Le mur n'en garde pas de dégâts (une vague n'est pas un siège).
+// abîment ; perdu = un niveau en moins. Le mur n'en garde pas de dégâts (une vague n'est pas un siège). Comme la défense
+// d'une ville : technologies du propriétaire et Forge de chacun, héros qui commande la défense, blessés ramenés chez elle
+// par chaque armée (règle des blessés), héros d'une armée anéantie tombé (simulation de 200 jours, novembre 2026).
 async function immortalWave(city, now) {
-  const { resolveCombatDetailed } = require('./combatService');
+  const { resolveCombatDetailed, heroCombatStats } = require('./combatService');
   const { wallHpNow } = require('../game/processors/siegeProcessor');
+  const { carryArmiesWounded } = require('./woundedService');
+  const HS = require('./heroService');
   const atk = immortalLines(waveUnits(city.wonderLevel));
   const outcome = await prisma.$transaction(async (tx) => {
     await require('../utils/db').lockCity(tx, city.id);
-    const full = await tx.city.findUnique({ where: { id: city.id }, include: { buildings: true, player: true, armies: { include: { units: true } } } });
+    const armyInclude = { units: true, hero: { include: { items: true } } };
+    // armées rattachées à la Ville Merveille (si un jour permis) : avec leur propriétaire, comme les autres défenseurs
+    // (civilisation et Médecine pour leurs blessés)
+    const full = await tx.city.findUnique({ where: { id: city.id }, include: { buildings: true, player: true, armies: { include: { ...armyInclude, owner: { select: { id: true, name: true, faction: true, technologies: true } } } } } });
     if (!full || !full.isWonder || full.wonderLevel < 1) return null;
     // ceux qui se tiennent dans la ville, comme contre un joueur : la Ville Merveille n'a pas de troupes propres (§ 1 bis),
     // les armées que le joueur y envoie de ses autres villes et les renforts alliés stationnés la défendent
     const AP = require('../game/processors/armyProcessor');
-    const defenders = AP.defendingArmies(await AP.withGuestDefenders(tx, full, { units: true }));
+    const defenders = AP.defendingArmies(await AP.withGuestDefenders(tx, full, armyInclude));
     const merged = {};
     for (const a of defenders) for (const u of a.units) if (u.count > 0) (merged[u.unitKey] ||= { unitKey: u.unitKey, tier: u.tier, count: 0 }).count += u.count;
     const wallLevel = full.buildings.find(b => b.key === 'WALL')?.level || 0;
     const wall = wallLevel > 0 && full.wallMaxHp > 0 ? { hp: wallHpNow(full), maxHp: full.wallMaxHp } : null;
-    // la Forge arme aussi les défenseurs contre les Immortels (décision du 31 octobre 2026) : celle de chaque joueur, selon
-    // ses soldats (les armées du joueur et les renforts alliés)
+    // le propriétaire mène la défense, comme dans sa ville : ses technologies (Discipline) ; la Forge arme aussi les
+    // défenseurs (décision du 31 octobre 2026) : celle de chaque joueur, selon ses soldats (ses armées et les renforts)
     const { combatPct, combatMult } = require('./armyService');
-    const forge = combatMult(await combatPct(tx, full.playerId, null, defenders));
-    const result = resolveCombatDetailed(atk, Object.values(merged), wallLevel, 'Immortels', full.player.name, null, null, 'SULTAN', full.player.faction, 0, { attacker: { atk: 1, def: 1 }, defender: forge }, wall);
+    const defTech = await tx.playerTechnology.findMany({ where: { playerId: full.playerId } });
+    const defMods = combatMult(await combatPct(tx, full.playerId, defTech, defenders));
+    const defHero = HS.leadingHero(defenders);   // un héros sans soldats ne combat pas
+    const engaged = HS.fought(defenders);   // héros des armées qui combattent avec des soldats (avant les pertes)
+    const result = resolveCombatDetailed(atk, Object.values(merged), wallLevel, 'Immortels', full.player.name, null, heroCombatStats(defHero), 'SULTAN', full.player.faction, 0, { attacker: { atk: 1, def: 1 }, defender: defMods }, wall);
     const wallInfo = wall ? { wallHpStart: Math.round(result.wallHpStart), wallHpEnd: result.wallHpEnd, wallMaxHp: Math.round(wall.maxHp), wallBroken: result.wallHpEnd <= 0 } : {};
     const ratio = (key) => { const r = result.defenderFinalUnits.find(x => x.key === key); return r && r.initial > 0 ? r.remaining / r.initial : 1; };
+    // pertes de chaque armée par type d'unité, comptées avant de les écrire (blessés ci-dessous)
+    const fallen = defenders.map(a => [a, a.units.map(u => ({ key: u.unitKey, killed: u.count - Math.round(u.count * ratio(u.unitKey)) })).filter(k => k.killed > 0)]);
     for (const a of defenders) for (const u of a.units) {
       const n = Math.round(u.count * ratio(u.unitKey));
       if (n <= 0) await tx.armyUnit.deleteMany({ where: { id: u.id } }); else if (n !== u.count) await tx.armyUnit.update({ where: { id: u.id }, data: { count: n } });
     }
+    // blessés : chaque armée venue d'ailleurs les ramène chez elle (une anéantie ne ramène personne) ; héros d'une armée
+    // anéantie tombé (résurrection au Domus)
+    await carryArmiesWounded(tx, fallen, { techOf: new Map([[full.playerId, defTech]]), homeCityId: full.id });
+    await HS.fallIfWiped(tx, engaged, now);
     await tx.city.update({ where: { id: full.id }, data: { lastImmortalWave: now } });
-    const report = await tx.battleReport.create({ data: { playerId: full.playerId, defenderId: full.playerId, x: full.x, y: full.y, result: result.attackerWon ? 'LOSE' : 'WIN', winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER', attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits, attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled }, defenderLosses: { rate: result.defenderLossRate, units: result.defenderFinalUnits, totalKilled: result.defenderTotalKilled }, loot: { type: 'IMMORTALS', attackerName: 'Immortels', defenderName: full.player.name, cityName: full.name, cityId: full.id, rounds: result.rounds, ...wallInfo } } });
+    const report = await tx.battleReport.create({ data: { playerId: full.playerId, defenderId: full.playerId, x: full.x, y: full.y, result: result.attackerWon ? 'LOSE' : 'WIN', winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER', attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits, attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled }, defenderLosses: { rate: result.defenderLossRate, units: result.defenderFinalUnits, totalKilled: result.defenderTotalKilled }, loot: { type: 'IMMORTALS', attackerName: 'Immortels', defenderName: full.player.name, cityName: full.name, cityId: full.id, wonderLevel: full.wonderLevel, rounds: result.rounds, ...wallInfo } } });
     let lost = null;
     if (result.attackerWon) lost = await loseLevels(tx, full, 1, 'Une vague d\'Immortels');
     await require('./rankingService').recordCombat(tx, { attackers: [], defenders: [{ playerId: full.playerId, units: 1 }], attackerLosses: result.attackerFinalUnits, defenderLosses: [] });

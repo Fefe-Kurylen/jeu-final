@@ -289,3 +289,66 @@ test('livraison : la ville d\'arrivée d\'abord, puis les autres villes du desti
   assert.match(two.notes.find(n => n.playerId === 'p2').body, /\(toutes vos villes sont pleines : 300 bois repartent\)/);
   assert.match(two.notes.find(n => n.playerId === 'p1').body, /Ville b1 et les autres villes de son joueur n'avaient plus de place pour 300 bois : Convoi les ramène\./);
 });
+
+// ---- ce qu'une armée dépose chez elle sans marcher (armyService.depositCarryTx, simulation de 200 jours, novembre 2026) ----
+// Ville de l'armée d'abord, puis les autres villes du joueur selon la place : avant, tout allait dans la seule ville de
+// l'armée et ce qui n'y tenait pas était perdu. Appelants : rappel sur sa case, renvoi à la capitale depuis sa case,
+// capitale déplacée, sortie qui rentre dans la ville ; chacun verrouille toutes les villes du joueur avant l'armée.
+// Armées de la transaction factice : lues et écrites par id
+function withArmyRows(tx) {
+  tx.army.findUnique = async ({ where }) => tx.armies.find(a => a.id === where.id) || null;
+  tx.army.update = async ({ where, data }) => Object.assign(tx.armies.find(a => a.id === where.id), data);
+  tx.armyUnit = { findMany: async () => [] };
+  return tx;
+}
+const loaded = (wood) => ({ carryWood: wood, carryStone: 0, carryIron: 0, carryFood: 0, carryGold: 0, settlers: 0, woundedCarry: [] });
+
+test('dépôt chez soi : la ville de l\'armée d\'abord, puis les autres selon la place ; villes déjà verrouillées par l\'appelant', async () => {
+  const { depositCarryTx } = require('../../src/services/armyService');
+  const cities = { a1: town('a1', 'p1', 0, { wood: 9500 }, { cap: 10000, isCapital: true }), a2: town('a2', 'p1', 40, { wood: 0 }, { cap: 1000 }), a3: town('a3', 'p1', 80, { wood: 0 }, { cap: 5000 }) };
+  const tx = withArmyRows(stockDb({ cities, armies: [army('k1', 'p1', 'a1', 0, 10, loaded(3000))] }));
+  const locked = await db.lockPlayerCities(tx, 'p1');   // l'appelant : toutes les villes, dans l'ordre des id
+  await depositCarryTx(tx, 'k1', 'a1', locked);
+  assert.deepEqual(tx.locks, ['player:p1'], 'aucun second verrou');
+  assert.deepEqual([cities.a1.wood, cities.a3.wood, cities.a2.wood], [10000, 2500, 0], 'la capitale jusqu\'à son plafond, le reste à la colonie qui a le plus de place');
+  assert.equal(tx.armies[0].carryWood, 0, 'l\'armée est vidée');
+  // sans liste : les villes sont verrouillées ici ; une armée vide ne verrouille rien
+  const again = withArmyRows(stockDb({ cities, armies: [army('k2', 'p1', 'a2', 40, 10, loaded(400)), army('k3', 'p1', 'a2', 40, 10, loaded(0))] }));
+  await depositCarryTx(again, 'k3', 'a2');
+  assert.deepEqual(again.locks, [], 'rien à déposer : aucun verrou');
+  await depositCarryTx(again, 'k2', 'a2');
+  assert.deepEqual(again.locks, ['player:p1']);
+  assert.equal(cities.a2.wood, 400);
+});
+
+test('sortie qui rentre dans sa ville assiégée : toutes les villes du joueur verrouillées, la charge va aux autres quand la ville est pleine', async () => {
+  const { processArmyMovements } = require('../../src/game/processors/armyProcessor');
+  const cities = { a1: town('a1', 'p1', 0, { wood: 9900 }, { cap: 10000, isCapital: true }), a2: town('a2', 'p1', 40, { wood: 0 }, { cap: 5000 }) };
+  // partie de sa ville contre un camp qui a été chassé entre-temps : elle rentre sans combattre, avec sa charge
+  const sortie = army('s1', 'p1', 'a1', 0, 10, { ...loaded(1000), status: 'ATTACKING', missionType: 'BREAK_SIEGE', targetCityId: 'a1', targetX: 0, targetY: 0, arrivalAt: NOW, claimedAt: null, owner: { name: 'César', faction: 'EGYPT' } });
+  const tx = withArmyRows(stockDb({ cities, armies: [sortie] }));
+  await withPrisma({
+    army: { findMany: async ({ where }) => (where.claimedAt === null ? [sortie] : []), updateMany: async () => ({ count: 1 }) },
+    $transaction: async (fn) => fn(tx)
+  }, () => processArmyMovements(NOW));
+  assert.equal(tx.locks[0], 'player:p1', 'toutes les villes du joueur, avant tout le reste');
+  assert.ok(!tx.locks.includes('city:a1'), 'plus le verrou de la seule ville assiégée');
+  assert.deepEqual([cities.a1.wood, cities.a2.wood], [10000, 900], 'rien ne se perd');
+  assert.deepEqual([sortie.status, sortie.carryWood], ['IDLE', 0]);
+});
+
+test('rappel d\'une armée encore sur sa case : sa charge va dans ses villes (la sienne d\'abord), toutes verrouillées avant l\'armée', async () => {
+  const armiesRouter = require('../../src/routes/armies');
+  const cities = { a1: town('a1', 'p1', 0, { wood: 9800 }, { cap: 10000, isCapital: true }), a2: town('a2', 'p1', 40, { wood: 0 }, { cap: 5000 }) };
+  // un envoi (TRANSPORT) parti à l'instant de la capitale : rappelé, il n'a pas quitté sa case
+  const gift = army('g1', 'p1', 'a1', 0, 10, { ...loaded(2000), status: 'TRANSPORTING', missionType: 'TRANSPORT', targetCityId: 'b1', targetX: 12, targetY: 0,
+    departedAt: new Date(Date.now() - 1000), arrivalAt: new Date(Date.now() + 3600000), claimedAt: null, city: cities.a1, owner: { name: 'César', faction: 'EGYPT', technologies: [], alliance: null, cities: [] } });
+  const tx = withArmyRows(stockDb({ cities, armies: [gift] }));
+  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+  await withPrisma({ $transaction: async (fn) => fn(tx) }, () => routeOf(armiesRouter, 'post', '/:id/return')({ params: { id: 'g1' }, user: { playerId: 'p1' } }, res));
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(res.body.message, 'Armée rentrée en ville');
+  assert.equal(tx.locks[0], 'player:p1', 'toutes les villes du joueur, avant l\'armée');
+  assert.deepEqual([cities.a1.wood, cities.a2.wood], [10000, 1800], 'la capitale pleine : le reste dans la colonie');
+  assert.deepEqual([gift.status, gift.carryWood], ['IDLE', 0]);
+});

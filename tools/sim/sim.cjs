@@ -27,6 +27,17 @@
 //   doit partir ou arriver avant la fin du pas (voir pressing(), playTicks()) ;
 // - l'or de la Chambre au Trésor est mesuré à l'étape « gold » du tick (avant et après), plus estimé ;
 // - un événement garde toujours son nom : un champ `kind` des données ne le remplace plus (voir event()).
+// Analyse de la simulation du 2 novembre 2026 (sim-e : le 2e arrêt a tué le processus avant la sauvegarde, la reprise a
+// rejoué 24 h contre une base déjà avancée) :
+// - l'état est enregistré avant et après chaque tick (un tick commencé compte pour joué), après chaque pas, et tout de
+//   suite à l'arrêt (SIGTERM, Ctrl-C) ; le processus ne s'arrête de force qu'après 300 s, en enregistrant d'abord ;
+// - à la reprise, une base en avance sur l'état est lue (./resume.cjs) : horloge, pas et dernier tick sont recalés sur
+//   elle, rien n'est rejoué ; l'horloge repart aussi après le dernier événement du journal ; un événement « resume » le
+//   dit au rapport ;
+// - ctx.cursor(nom, maintenant) : la fenêtre de lecture d'un module qui relit la base depuis sa dernière lecture, gardée
+//   dans l'état (une reprise ne relit rien) ;
+// - le bandeau « Update available » de Prisma n'est plus compté comme une erreur du serveur.
+//   --resync-max-hours=<n> : avance de la base au-delà de laquelle la reprise refuse de se recaler (72 par défaut).
 // ============================================================
 'use strict';
 const path = require('path');
@@ -53,6 +64,7 @@ const OPT = {
   press: ARGS.press !== '0',                                                       // pas qui pressent (voir pressing())
   fullRallies: !!ARGS['full-rallies'],                                             // 50-war.cjs bastionOps : tous les membres rejoignent
   fullGarrison: !!ARGS['full-garrison'],                                           // 20-alliance.cjs garrisonTurn : la plus forte armée de campagne
+  resyncMaxHours: Number(ARGS['resync-max-hours'] || 72),                          // reprise : avance de la base acceptée (./resume.cjs)
   verbose: !!ARGS.verbose
 };
 fs.mkdirSync(OPT.out, { recursive: true });
@@ -99,6 +111,7 @@ process.env.RATE_MAX_API = '1000000';
 process.env.RATE_MAX_AUTH = '1000000';
 process.env.RATE_MAX_REGISTER = '1000000';
 process.env.MAIL_PROVIDER = 'log';
+process.env.PRISMA_HIDE_UPDATE_MESSAGE = '1';   // « npx prisma migrate deploy » du serveur : pas de bandeau de mise à jour
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) process.env.JWT_SECRET = 'simulation-secret-' + 'x'.repeat(40);
 if (!STATE) process.env.WORLD_SEED = String(OPT.seed % 100000);
 
@@ -113,7 +126,9 @@ const toLog = (lvl, a) => { if (logBytes > 200e6) return; const line = `${clock.
 console.log = (...a) => { if (OPT.verbose) toLog('LOG', a); };
 console.info = console.log;
 console.warn = (...a) => toLog('WARN', a);
+const { isNoise } = require('./report.cjs');   // ce qui n'est pas une erreur du jeu (bandeau de mise à jour de Prisma)
 console.error = (...a) => {
+  if (isNoise(fmt(a))) { toLog('INFO', a); return; }
   toLog('ERROR', a);
   const key = fmt(a).split('\n').slice(0, 2).join(' ').replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, '<id>').replace(/\d+/g, 'N').slice(0, 220);
   const e = ERRORS.get(key) || { count: 0, first: clock.iso(), sample: fmt(a).slice(0, 1500) };
@@ -144,11 +159,22 @@ const prisma = require(path.join(ROOT, 'src/config/database'));
   });
 }
 require(path.join(ROOT, 'src/server.js'));
-// arrêt (Ctrl-C, fin de délai) : la simulation finit l'action en cours, enregistre son état et s'arrête ; le serveur
-// ne ferme pas ses connexions sous ses pieds (sinon des « erreurs » d'appels fausseraient le rapport)
+// arrêt (Ctrl-C, fin de délai) : la simulation enregistre son état tout de suite, finit le pas en cours (le tick en
+// cours, puis plus aucun tour de joueur), l'enregistre encore et s'arrête ; le serveur ne ferme pas ses connexions sous
+// ses pieds (sinon des « erreurs » d'appels fausseraient le rapport). Un 2e signal, ou 300 s sans avoir fini (un pas peut
+// durer plus d'une minute) : l'état est enregistré, puis le processus s'arrête (avant : arrêté au bout de 60 s sans rien
+// enregistrer, la reprise rejouait les pas perdus contre une base déjà avancée).
 let STOP = false;
+const STOP_GRACE_MS = 300000;
 process.removeAllListeners('SIGTERM'); process.removeAllListeners('SIGINT');
-const onStop = (sig) => { if (STOP) process.exit(1); STOP = true; origConsole.log(`[sim] ${sig} : arrêt après l'action en cours…`); setTimeout(() => process.exit(1), 60000).unref(); };
+const saveNow = (why) => { try { return saveState(); } catch (e) { origConsole.error(`[sim] enregistrement de l'état (${why}) impossible :`, e.message); return false; } };
+const onStop = (sig) => {
+  if (STOP) { saveNow(sig); process.exit(1); }
+  STOP = true;
+  const saved = saveNow(sig);
+  origConsole.log(`[sim] ${sig} : ${saved ? 'état enregistré, ' : ''}arrêt à la fin du pas en cours…`);
+  setTimeout(() => { const ok = saveNow('délai'); origConsole.log(`[sim] arrêt forcé${ok ? ' : état enregistré' : ''}`); process.exit(1); }, STOP_GRACE_MS).unref();
+};
 process.on('SIGTERM', () => onStop('SIGTERM')); process.on('SIGINT', () => onStop('SIGINT'));
 const { runTickSteps } = require(path.join(ROOT, 'src/game/tick.js'));
 const BASE = `http://127.0.0.1:${OPT.port}`;
@@ -249,6 +275,11 @@ const appendLine = (file, obj) => fs.appendFileSync(file, JSON.stringify(obj) + 
 // gardés sous un autre nom : `kind` (la cible d'un rassemblement) sous `target`, `day` (le jour du monde) sous `worldDay`,
 // `at` sous `dataAt` ; si ce nom est déjà pris, sous `data_<champ>`.
 const RESERVED = { kind: 'target', day: 'worldDay', at: 'dataAt' };
+// le journal des événements à la reprise : ses lignes (gardées dans l'état : celles écrites après la dernière sauvegarde se
+// comptent) et l'heure du dernier (l'horloge reprise repart après lui, voir resumeFromDb)
+const Resume = require('./resume.cjs');
+const JOURNAL = STATE ? Resume.journal(FILES.events) : { lines: 0, lastAt: null };
+let EVENT_LINES = JOURNAL.lines;
 const event = (kind, data = {}) => {
   const e = { at: clock.iso(), day: clock.day(), kind };
   for (const [k, v] of Object.entries(data || {})) {
@@ -258,6 +289,7 @@ const event = (kind, data = {}) => {
     e[to] = v;
   }
   appendLine(FILES.events, e);
+  EVENT_LINES++;
 };
 
 // ---------- modules de comportement ----------
@@ -290,32 +322,50 @@ async function syncTerrain() {
 // Un tick complet du jeu. L'étape « gold » (Chambre au Trésor, seule à verser de l'or pendant qu'elle tourne) est mesurée :
 // l'or des joueurs avant et après va au relevé (ledger.cjs). L'estimation d'avant comptait le niveau du jour entier alors
 // que le jeu paie l'or avant les constructions du tick (« Autres sources » négatives, rapport du 1er novembre 2026).
+// Les étapes « armies » et « rallies » (retours des armées avec l'or des camps, trésor des donjons) sont mesurées de même
+// (ledger.MEASURED, analyse du 2 novembre 2026 : l'or par source, camps compris).
 async function tick(hours, playerIds) {
   const now = new Date();
   const t0 = performance.now();
   await runTickSteps(now, hours, async (name, fn) => {
     try {
-      if (name === 'gold' && playerIds?.length) return await ledger.measureTreasury(prisma, LEDGER, playerIds, fn);
+      if (ledger.MEASURED[name] && playerIds?.length) return await ledger.measureStep(prisma, LEDGER, name, playerIds, fn);
       return await fn();
     } catch (e) { console.error(`[TICK] ${name} error:`, e); }
   });
   return performance.now() - t0;
 }
 
-function saveState(bots, step) {
-  const s = { version: 1, simNow, startMs: STATE?.startMs ?? OPT.start, step, rng: rngState, opt: { stepHours: OPT.stepHours, days: OPT.days, bots: OPT.bots }, bots: bots.map(b => b.toJSON()), calls: CALLS, errors: [...ERRORS.entries()].map(([k, v]) => ({ key: k, ...v })), world: WORLD, ledger: LEDGER, pace: PACE, lastSnapAt, savedAt: new RealDate().toISOString() };
+// L'état de la partie en cours (main le tient à jour) : les joueurs, le pas commencé, le dernier jour dont les contrôles
+// ont tourné, ticked : l'heure du dernier tick joué ou commencé (un pas repris ne rejoue jamais un tick ; état plus ancien
+// sans elle : le tick de la fin de son pas).
+const RUN = { bots: null, step: STATE?.step ?? 0, lastDay: STATE?.lastDay ?? -1, ticked: STATE ? (STATE.tickedTo ?? (STATE.startMs ?? OPT.start) + STATE.step * OPT.stepHours * 3600000) : OPT.start };
+// curseurs de lecture des modules (ctx.cursor, ./resume.cjs)
+const CURSORS = STATE?.cursors || {};
+// Enregistré avant et après chaque tick, après chaque pas, et tout de suite à l'arrêt : un processus tué ne perd que la fin
+// d'un pas.
+// L'écriture passe par un fichier temporaire renommé : un état à moitié écrit n'existe jamais.
+function saveState() {
+  if (!RUN.bots) return false;   // rien encore à enregistrer (joueurs pas encore créés ou relus)
+  const s = { version: 2, simNow, startMs: STATE?.startMs ?? OPT.start, step: RUN.step, tickedTo: RUN.ticked, lastDay: RUN.lastDay, rng: rngState, opt: { stepHours: OPT.stepHours, days: OPT.days, bots: OPT.bots }, bots: RUN.bots.map(b => b.toJSON()), calls: CALLS, errors: [...ERRORS.entries()].map(([k, v]) => ({ key: k, ...v })), world: WORLD, ledger: LEDGER, pace: PACE, lastSnapAt, cursors: CURSORS, eventLines: EVENT_LINES, resumes: RESUMES, savedAt: new RealDate().toISOString() };
   fs.writeFileSync(FILES.state + '.tmp', JSON.stringify(s));
   fs.renameSync(FILES.state + '.tmp', FILES.state);
+  return true;
 }
+const RESUMES = STATE?.resumes || [];   // reprises de la partie (jour, pas, avance de la base recalée)
 const WORLD = STATE?.world || { index: 1, endedAt: null, worlds: [] };
 const LEDGER = STATE?.ledger || ledger.empty();   // relevé de l'or, cumulé (./ledger.cjs)
 if (STATE?.errors) for (const e of STATE.errors) ERRORS.set(e.key, e);
 // rythme : pas qui pressent, ticks en plus, tours en plus des joueurs (cumulés, pour le rapport)
 const PACE = STATE?.pace || { steps: 0, pressed: 0, allPlay: 0, fine: 0, ticks: 0, extraTurns: 0 };
 // heure du dernier relevé de la semaine : la fenêtre du relevé suivant commence là (avant : maintenant − 7 jours, des
-// fenêtres qui se chevauchaient de quelques minutes). Reprise d'un état plus ancien : la dernière ligne des mesures.
-let lastSnapAt = STATE?.lastSnapAt ?? (() => {
-  try { const lines = fs.readFileSync(FILES.metrics, 'utf8').trim().split('\n'); return Date.parse(JSON.parse(lines[lines.length - 1]).at) || null; } catch (e) { return null; }
+// fenêtres qui se chevauchaient de quelques minutes). Reprise : la plus récente de l'état et de la dernière ligne des
+// mesures (un relevé écrit juste avant un arrêt brutal, après la dernière sauvegarde, n'est pas écrit une 2e fois).
+let lastSnapAt = (() => {
+  let fromFile = null;
+  try { const lines = fs.readFileSync(FILES.metrics, 'utf8').trim().split('\n'); fromFile = Date.parse(JSON.parse(lines[lines.length - 1]).at) || null; } catch (e) { /* pas encore de relevé */ }
+  const fromState = STATE?.lastSnapAt ?? null;
+  return fromState === null ? fromFile : fromFile === null ? fromState : Math.max(fromState, fromFile);
 })();
 
 // ---------- pas qui presse (analyse de la simulation du 1er novembre 2026) ----------
@@ -389,36 +439,30 @@ async function nextDue(ctx, from, to, joins) {
   }
   return t.length ? Math.min(...t) : null;
 }
-// Les ticks du pas, de `from` (le tick précédent) à `to`. Pas qui presse (fine) : un tick à la première heure (grille de
-// --subticks ticks par pas) où une échéance est passée, et ainsi de suite tant qu'il en reste avant la fin du pas ; les
-// heures sans rien à jouer sont sautées. Après chaque tick intermédiaire, le crochet subTick(ctx) des modules
-// (60-invasion.cjs : départs anticipés, issues, étage suivant), pas après le dernier : le tour des joueurs suit. Chaque
-// tick compte les heures écoulées depuis le précédent. press : le pas qui presse (pressing()).
-async function playTicks(ctx, from, to, press, playerIds) {
-  let ms = 0, last = from, n = 0;
-  if (press.fine) {
-    const sub = (to - from) / OPT.subTicks;
-    let k = 0;
-    while (!STOP) {
-      const due = await nextDue(ctx, from, to, press.all);
-      if (due === null) break;
-      k = Math.max(k + 1, Math.ceil((due - from) / sub));   // l'heure de la grille où l'échéance est passée
-      if (k >= OPT.subTicks) break;   // le tick de la fin du pas s'en charge
-      const at = from + k * sub;
-      clock.set(at);
-      ms += await tick((at - last) / 3600000, playerIds);
-      last = at; n++;
-      for (const mod of MODULES) if (mod.subTick) { try { await mod.subTick(ctx); } catch (e) { console.error(`[SIM] subTick ${mod.name}:`, e); } }
-    }
-  }
-  clock.set(to);
-  ms += await tick((to - last) / 3600000, playerIds);
-  return { ms, ticks: n + 1 };
+// Les ticks du pas, de `from` (le tick précédent) à `to` (./resume.cjs playTicks). Pas qui presse (fine) : un tick à la
+// première heure (grille de --subticks ticks par pas) où une échéance est passée, et ainsi de suite tant qu'il en reste
+// avant la fin du pas ; les heures sans rien à jouer sont sautées. Après chaque tick intermédiaire, le crochet subTick(ctx)
+// des modules (60-invasion.cjs : départs anticipés, issues, étage suivant), pas après le dernier : le tour des joueurs
+// suit. Chaque tick compte les heures écoulées depuis le précédent (RUN.ticked : à la reprise, un tick déjà joué par la
+// partie d'avant n'est pas rejoué ; les heures d'un pas interrompu au milieu de ses ticks vont au tick suivant). Un tick
+// compte pour joué dès qu'il commence : l'état est enregistré avant (un processus tué au milieu du tick ne le rejoue pas à
+// la reprise : la production de ses étapes déjà jouées compterait deux fois ; au pire, celle des étapes restantes manque)
+// et après lui. press : le pas qui presse (pressing()).
+function playTicks(ctx, from, to, press, playerIds) {
+  return Resume.playTicks({
+    from, to, fine: press.fine, subTicks: OPT.subTicks, run: RUN, stopped: () => STOP, setClock: clock.set, save: () => saveNow('tick'),
+    nextDue: (after, until) => nextDue(ctx, after, until, press.all),
+    tick: (hours) => tick(hours, playerIds),
+    afterSubTick: async () => { for (const mod of MODULES) if (mod.subTick) { try { await mod.subTick(ctx); } catch (e) { console.error(`[SIM] subTick ${mod.name}:`, e); } } }
+  });
 }
 
 // relevé de la semaine (checks.snapshot) : l'activité depuis le relevé précédent, l'état du monde, le relevé de l'or ;
-// final : le dernier, à la fin de la partie
+// final : le dernier, à la fin de la partie. Un relevé de ce jour déjà écrit (reprise après un arrêt brutal) ne s'écrit pas
+// une 2e fois.
 async function weeklySnapshot(bots, day, step, final = false) {
+  const startMs = STATE?.startMs ?? OPT.start;
+  if (!final && lastSnapAt !== null && Math.floor((lastSnapAt - startMs) / 86400000) >= day) return;
   try {
     const at = clock.now();
     const snap = await checks.snapshot(prisma, clock, bots, lastSnapAt);
@@ -448,6 +492,33 @@ async function createBots() {
   return bots;
 }
 
+// Reprise : la base a pu vivre après la dernière sauvegarde (processus tué entre deux sauvegardes, état plus ancien remis
+// en place). Sa dernière heure écrite recale l'horloge, le pas et le dernier tick (./resume.cjs) : rien n'est rejoué (sim-e :
+// 24 h rejouées, ticks doublés, rapports relus). Au-delà de --resync-max-hours d'avance, la reprise refuse : l'état est
+// bien plus vieux que la base, des jours de mémoire des joueurs manqueraient sans qu'on le voie. L'horloge repart aussi
+// après le dernier événement du journal (écrit après la dernière sauvegarde, parfois sans trace dans la base). Un événement
+// « resume » le dit au rapport (linesAfterSave : les événements écrits après la dernière sauvegarde, que la partie reprise
+// peut écrire une 2e fois : report.cjs dropReplays). false : reprise refusée.
+async function resumeFromDb() {
+  const saved = { step: STATE.step, simNow: STATE.simNow, tickedTo: STATE.tickedTo };
+  const stepMs = OPT.stepHours * 3600000;
+  let dbAt = null;
+  try { dbAt = await Resume.dbClock(prisma); } catch (e) { say(`reprise : heure de la base illisible (${e.message}), état repris tel quel`); }
+  const plan = Resume.resync(saved, dbAt, { startMs: STATE.startMs ?? OPT.start, stepMs, subTicks: OPT.subTicks });
+  if (plan.ahead && plan.gapMs > OPT.resyncMaxHours * 3600000) {
+    say(`reprise refusée : la base a ${Math.round(plan.gapMs / 3600000)} h d'avance sur l'état enregistré (pas ${saved.step}, ${new RealDate(saved.simNow).toISOString()}) ; relancer avec --resync-max-hours=${Math.ceil(plan.gapMs / 3600000)} pour repartir de la base quand même, ou --fresh`);
+    return false;
+  }
+  const linesAfterSave = Number.isFinite(STATE.eventLines) ? Math.max(0, JOURNAL.lines - STATE.eventLines) : null;
+  if (plan.ahead) { simNow = plan.simNow; RUN.ticked = plan.tickedTo; RUN.step = plan.step; }
+  if (JOURNAL.lastAt !== null && simNow <= JOURNAL.lastAt) simNow = JOURNAL.lastAt + 1000;
+  const r = { savedStep: saved.step, step: RUN.step, savedAt: new RealDate(saved.simNow).toISOString(), dbAt: dbAt === null ? null : new RealDate(dbAt).toISOString(), resynced: plan.ahead, gapH: Math.round(plan.gapMs / 360000) / 10, linesAfterSave };
+  RESUMES.push({ at: clock.iso(), day: clock.day(), ...r });
+  event('resume', r);
+  say(Resume.describe(plan, saved) + (linesAfterSave ? ` ; ${linesAfterSave} événements écrits après la dernière sauvegarde` : ''));
+  return true;
+}
+
 async function main() {
   say(`démarrage : ${OPT.days} jours, pas de ${OPT.stepHours} h, ${OPT.bots} joueurs, base ${OPT.db}, sortie ${OPT.out}${STATE ? ` (reprise au pas ${STATE.step})` : ''}`);
   await waitServer();
@@ -455,17 +526,23 @@ async function main() {
   try { if (!(await syncTerrain())) say('carte : GET /api/world/info sans réponse, carte du serveur gardée'); } catch (e) { say(`carte : ${e.message}`); }
   let bots, step;
   if (STATE) {
+    // la base a-t-elle vécu après la dernière sauvegarde (processus tué entre deux sauvegardes) ? Recalée, jamais rejouée
+    if (!(await resumeFromDb())) { serverLog.end(); setTimeout(() => process.exit(2), 500); return; }
     bots = STATE.bots.map(o => new Bot(o));
     // chaque joueur relu dès la reprise (villes, armées, fiche) : les modules qui regardent les autres joueurs (conseils de
     // guerre et de la Merveille, aides) ne les voient plus vides jusqu'à leur premier tour
     for (const b of bots) { await b.login(); try { await b.refresh(); } catch (e) { console.error(`[SIM] relecture ${b.name}:`, e); } }
-    step = STATE.step;
+    step = RUN.step;
   } else {
     bots = await createBots();
     step = 0;
     event('start', { bots: bots.length, modules: MODULES.map(m => m.name) });
   }
-  const ctx = { clock, OPT, DATA, prisma, bots, rand, pick, event, say, WORLD, http, record, LEDGER, byGroup: (g) => bots.filter(b => b.group === g) };
+  RUN.bots = bots; RUN.step = step;
+  // ctx.cursor(nom, maintenant, recul) : { since, until }, la fenêtre de lecture d'un module qui relit la base depuis sa
+  // dernière lecture (rapports de bataille) ; le curseur est gardé dans l'état (une reprise ne relit rien, ne saute rien)
+  const cursor = (name, now = clock.now(), backMs = OPT.stepHours * 3600000) => Resume.cursor(CURSORS, name, Number(now), backMs);
+  const ctx = { clock, OPT, DATA, prisma, bots, rand, pick, event, say, WORLD, http, record, LEDGER, cursor, byGroup: (g) => bots.filter(b => b.group === g) };
   // qui joue ce pas-ci : chaque joueur un pas sur deux (décalés, environ 2 connexions par jour avec des pas de 6 h), un
   // joueur « toujours là » chaque pas, et chaque pas aussi quand le pas presse pour lui (pressing()). Les modules lisent
   // ctx.plays(b) (un joueur qui ne joue pas ce pas-ci répond seulement aux notifications) ; ctx.ticks : ticks joués ce pas.
@@ -475,20 +552,20 @@ async function main() {
   ctx.ticks = 1;
   for (const b of bots) b.ctx = ctx;
   if (!STATE) for (const m of MODULES) if (m.setup) for (const b of bots) { try { await m.setup(b, ctx); } catch (e) { console.error(`[SIM] setup ${m.name} ${b.name}:`, e); } }
-  saveState(bots, step);
+  saveState();
 
   const totalSteps = Math.round(OPT.days * 24 / OPT.stepHours);
   const stepMs = OPT.stepHours * 3600000;
   const startMs = STATE?.startMs ?? OPT.start;
-  let lastDay = -1, ran = 0;
+  let ran = 0;
   const t0 = RealDate.now();
   while (step < totalSteps && ran < OPT.maxSteps && !STOP) {
     step++; ran++;
-    ctx.step = step;
+    ctx.step = step; RUN.step = step;
     const from = startMs + (step - 1) * stepMs, to = startMs + step * stepMs;
     try { press = await pressing(from, to); } catch (e) { console.error('[SIM] pas qui presse :', e); press = { all: false, alliances: new Set(), fine: false }; }
     const { ms: tickMs, ticks } = await playTicks(ctx, from, to, press, bots.map(b => b.playerId).filter(Boolean));
-    ctx.ticks = ticks;
+    ctx.ticks = Math.max(1, ticks);
     PACE.steps++; PACE.ticks += ticks;
     if (ticks > 1) PACE.fine++;
     if (press.all || press.alliances.size) PACE.pressed++;
@@ -509,8 +586,8 @@ async function main() {
     }
     for (const m of MODULES) if (m.afterStep) { try { await m.afterStep(ctx); } catch (e) { console.error(`[SIM] afterStep ${m.name}:`, e); } }
     const day = clock.day();
-    if (day !== lastDay) {
-      lastDay = day;
+    if (day !== RUN.lastDay) {
+      RUN.lastDay = day;
       try { await syncTerrain(); } catch (e) { console.error('[SIM] carte :', e); }
       try { const v = await checks.invariants(prisma, clock); if (v.length) for (const x of v) event('violation', x); } catch (e) { console.error('[SIM] contrôles :', e); }
       try { await ledger.daily(prisma, clock, LEDGER, bots); } catch (e) { console.error('[SIM] relevé de l\'or :', e); }
@@ -519,12 +596,12 @@ async function main() {
         const el = (RealDate.now() - t0) / 1000;
         say(`jour ${day}/${OPT.days} · pas ${step}/${totalSteps} · tick ${Math.round(tickMs)} ms · ${CALLS.total} appels · ${CALLS.fails.length} erreurs 5xx · ${[...ERRORS.values()].reduce((t, e) => t + e.count, 0)} erreurs serveur · ${Math.round(el / ran * 1000)} ms/pas · pas pressés ${PACE.pressed}/${PACE.steps}, ${PACE.ticks} ticks`);
       }
-      saveState(bots, step);
     }
+    saveState();   // après chaque pas (avant : seulement au changement de jour, un arrêt brutal perdait jusqu'à 4 pas)
   }
   // fin de la partie : un dernier relevé (le rapport lit l'état de la fin, pas celui du dernier relevé de la semaine)
   if (step >= totalSteps && lastSnapAt !== null && Math.floor((lastSnapAt - startMs) / 86400000) < clock.day()) await weeklySnapshot(bots, clock.day(), step, true);
-  saveState(bots, step);
+  saveState();
   if (step >= totalSteps) { event('end', { step, pace: PACE }); say('simulation terminée'); }
   require('./report.cjs').write(FILES, { CALLS, ERRORS: [...ERRORS.entries()].map(([k, v]) => ({ key: k, ...v })), WORLD, OPT });
   say(`rapport : ${FILES.report}`);

@@ -67,6 +67,27 @@ async function carryWounded(db, armyId, woundedUnits) {
   await db.army.update({ where: { id: armyId }, data: { woundedCarry: Object.entries(merged).map(([unitKey, count]) => ({ unitKey, count })) } });
   return woundedUnits.reduce((s, w) => s + w.count, 0);
 }
+// Blessés de plusieurs armées après un combat loin de leur ville (assaut de Bastion des deux côtés, vague d'Immortels contre
+// une Ville Merveille) : chacune garde les siens (Tente de la capitale de son joueur, sa civilisation, la Médecine de son
+// joueur, le talent de son héros) et les ramène chez elle ; une armée anéantie ne ramène personne. Une armée qui combat
+// dans sa propre ville (`homeCityId`) les y laisse aussitôt. `fallen` : [[armée, [{ key, killed }]]], pertes comptées
+// avant d'écrire les pertes ; les technologies sont lues une fois par joueur (`techOf` : celles déjà lues). Dans `tx`,
+// après les pertes ; une erreur n'arrête pas le combat.
+async function carryArmiesWounded(tx, fallen, { techOf = new Map(), homeCityId = null } = {}) {
+  const { techPct } = require('../utils/techEffects');
+  const { talent } = require('../utils/heroEffects');
+  try {
+    for (const [a, killed] of fallen || []) {
+      if (!a?.cityId || !killed?.length) continue;
+      if (!techOf.has(a.ownerId)) techOf.set(a.ownerId, a.owner?.technologies || await tx.playerTechnology.findMany({ where: { playerId: a.ownerId } }));
+      const wounded = await calculateWoundedUnits(a.cityId, killed, a.owner?.faction, techPct(techOf.get(a.ownerId), 'woundedBonusPct') + talent(a.hero, 'woundedPct'));
+      if (!wounded.length) continue;
+      if (homeCityId && a.cityId === homeCityId) await addWoundedUnits(homeCityId, wounded, tx);
+      else await carryWounded(tx, a.id, wounded);
+    }
+  } catch (e) { console.error('[WOUNDED]', e.message); }
+}
+
 async function depositCarriedWounded(armyId, cityId) {
   const army = await prisma.army.findUnique({ where: { id: armyId }, select: { woundedCarry: true } });
   const carried = (Array.isArray(army?.woundedCarry) ? army.woundedCarry : []).filter(w => w && w.count > 0);
@@ -196,6 +217,6 @@ async function processHealedUnits(now = new Date()) {
 }
 
 module.exports = {
-  calculateWoundedUnits, addWoundedUnits, carryWounded, depositCarriedWounded, processHealedUnits, woundedView, startHealing, healNow,
+  calculateWoundedUnits, addWoundedUnits, carryWounded, carryArmiesWounded, depositCarriedWounded, processHealedUnits, woundedView, startHealing, healNow,
   bedsFor, healCostFor, healSecondsPerUnit, healSecondsFor, healEndsAt, instantHealGold, affordableHeal, woundedRate, NO_HEAL
 };

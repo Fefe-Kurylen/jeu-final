@@ -764,3 +764,21 @@ test('capitale tombée : les offres de la ville verrouillées avant les villes d
     } finally { db.restore(); }
   }
 });
+
+// simulation de 200 jours (novembre 2026) : ce que portaient les armées ramenées allait dans la seule capitale, et ce qui n'y
+// tenait pas était perdu ; maintenant la capitale d'abord, puis les autres villes du joueur selon la place (stock commun, E1)
+test('capitale tombée : ce que portent ses armées ramenées va à la capitale, puis aux autres villes selon la place', async () => {
+  const { relocateCapital } = require('../../src/services/conquestService');
+  Terrain.setWorldSeed(0);
+  const capital = { id: 'cap', playerId: 'p1', name: 'Capitale', isCapital: true, wallStructure: 0, wallMaxHp: 0, x: -150, y: -150, wood: 9000, stone: 0, iron: 0, food: 0, maxStorage: 10000, maxFoodStorage: 10000 };
+  const colony = { id: 'col', playerId: 'p1', name: 'Colonie', isCapital: false, x: -120, y: -150, wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 5000, maxFoodStorage: 5000 };
+  const carry = (wood) => ({ carryWood: wood, carryStone: 0, carryIron: 0, carryFood: 0, carryGold: 0, settlers: 0, woundedCarry: [] });
+  // deux armées en mission qui portent du bois : la seconde voit la place laissée par la première
+  const armies = [marketArmy('m1', 50, { cityId: 'cap', status: 'MOVING', missionType: 'MOVE', x: -140, y: -150, ...carry(1500) }), marketArmy('m2', 50, { cityId: 'cap', status: 'MOVING', missionType: 'MOVE', x: -140, y: -150, ...carry(2000) })];
+  const db = fallDb({ cities: { cap: capital, col: colony }, armies });
+  try {
+    await relocateCapital('cap', null);
+    assert.deepEqual(db.credits.map(c => [c.cityId, c.gain[0]]), [['cap', 1000], ['col', 500], ['col', 2000]], 'la capitale jusqu\'à son plafond, le reste à la colonie, rien de perdu');
+    assert.deepEqual(db.armies.map(a => [a.status, a.carryWood]), [['IDLE', 0], ['IDLE', 0]]);
+  } finally { db.restore(); }
+});

@@ -314,7 +314,7 @@ async function trade(S) {
     bump(m, 'loadFromOthers', Stock.spend(bot, cap, { [plan.sellResource]: plan.sellAmount }));
     markUsed(st2, free.id);
     car.status = 'MARKET'; car.missionType = 'MARKET_OFFER';
-    if (p.data.taxPct !== undefined) m.taxPct = p.data.taxPct;
+    if (p.data.taxPct !== undefined) { m.taxPct = p.data.taxPct; bump(m, 'taxSum', p.data.taxPct); bump(m, 'taxN'); bump(m, `tax_${p.data.taxPct}`); }
     bump(m, 'posted'); bump(m, `posted_${plan.sellResource}`);
   } else bump(m, 'postRefused');
 }
@@ -360,6 +360,20 @@ async function npc(S, markets) {
 // rentre. Les deux stocks sont communs (décision du 1er novembre 2026, E1) : ce que le joueur a en trop dans toutes ses
 // villes, ce qui manque à toutes les villes de l'allié (la livraison remplit sa capitale, puis ses autres villes). Jamais
 // vers ses propres villes (le serveur le refuse).
+// Simulation sim-e : plusieurs alliés envoyaient au même joueur dans le même pas (chacun voyait le même manque), 6 convois en
+// 30 jours ont trouvé toutes ses villes pleines et sont repartis avec 182 069 ressources. L'alliance tient maintenant le
+// compte des envois annoncés à chaque membre (le fil de l'alliance : mémoire du destinataire, bot.mem.aidIn, gardée jusqu'à
+// l'arrivée) ; le manque et la quantité se jugent sur son stock plus ce qui est déjà en route, et la quantité ne dépasse
+// jamais la place qui reste dans ses villes (moins une marge pour la production d'ici l'arrivée).
+const AID_TTL = 12 * 3600000;    // un envoi annoncé sans heure d'arrivée compte 12 h
+const AID_ROOM = 0.9;            // l'envoi tient dans 90 % de la place libre des villes de l'allié
+// ce qui est déjà en route vers ce joueur (envois annoncés par ses alliés), par ressource ; les envois arrivés sont oubliés
+function aidInbound(b, now) {
+  const list = (b.mem ||= {}).aidIn = (b.mem.aidIn || []).filter(x => x.until > now);
+  const out = Object.fromEntries(RES.map(r => [r, 0]));
+  for (const x of list) if (out[x.r] !== undefined) out[x.r] += x.amount;
+  return out;
+}
 async function aid(S) {
   const { bot, ctx, B, m } = S;
   const cap = bot.capital;
@@ -370,19 +384,23 @@ async function aid(S) {
   const all = Stock.pool(bot, cap);
   const rich = RES.filter(r => ratio(all, r) >= 0.8 && (r !== 'food' || spareFood));
   if (!rich.length) return;
-  let best = null;
+  let best = null, crowded = false;
+  const now = ctx.clock?.now?.() ?? Date.now();
   for (const b of ctx.bots) {
     const fc = b.capital;
     if (b === bot || b.me?.alliance?.allianceId !== allianceId || !fc || fc.isSieged || dist(fc, cap) > 100) continue;
     const theirs = Stock.pool(b, fc);
+    const coming = aidInbound(b, now);
     for (const r of rich) {
-      const need = ratio(theirs, r);
-      if (need > 0.35 || ratio(all, r) - need < 0.45) continue;
-      const amount = round10(Math.min((all[r] || 0) - 0.6 * capOf(all, r), 0.6 * capOf(theirs, r) - (theirs[r] || 0)));
+      const have = (theirs[r] || 0) + coming[r];
+      const need = have / capOf(theirs, r);
+      if (need > 0.35 || ratio(all, r) - need < 0.45) { if (coming[r] > 0 && ratio(theirs, r) <= 0.35) crowded = true; continue; }
+      const room = AID_ROOM * (capOf(theirs, r) - have);
+      const amount = round10(Math.min((all[r] || 0) - 0.6 * capOf(all, r), 0.6 * capOf(theirs, r) - have, room));
       if (amount >= 300 && (!best || need < best.need)) best = { b, r, amount, need };
     }
   }
-  if (!best) { bump(m, 'aidNothing'); return; }
+  if (!best) { bump(m, crowded ? 'aidAlreadyComing' : 'aidNothing'); return; }
   const st = await stateOf(S, cap);
   const army = st && (pickArmy(bot, st, best.amount) || tripArmies(bot, st.armies).sort((a, b) => b.capacity - a.capacity)[0]);
   if (!army || army.capacity < 300 || B.left < 1) { bump(m, 'aidNoArmy'); return; }
@@ -391,6 +409,9 @@ async function aid(S) {
   const r = await bot.post('/api/trade/send', { fromCityId: cap.id, armyId: army.id, targetX: best.b.capital.x, targetY: best.b.capital.y, resources: { [best.r]: amount } });
   if (r.ok) {
     bump(m, 'aidSent'); bump(m, 'aidVolume', amount);
+    // annoncé à l'alliance : les envois suivants vers ce joueur le comptent jusqu'à l'arrivée
+    const until = Date.parse(r.data?.arrivalAt) || now + AID_TTL;
+    (best.b.mem.aidIn ||= []).push({ r: best.r, amount, until, from: bot.name });
     bump(m, 'loadFromOthers', Stock.spend(bot, cap, { [best.r]: amount }));
     markUsed(st, army.id);
     const mine = bot.armies.find(x => x.id === army.id);
@@ -473,7 +494,7 @@ async function early(bot, ctx) {
 module.exports = {
   name: 'market',
   early,
-  postPlan, offerValue, pickArmy, tripArmies,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
+  postPlan, offerValue, pickArmy, tripArmies, aid, aidInbound,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
   async act(bot, ctx) {
     if (!bot.me || !Array.isArray(bot.cities) || !bot.cities.length || !Array.isArray(bot.armies)) return;
     // le Marché de la capitale sert toutes les villes du joueur (la Ville Merveille ne fait que recevoir)
