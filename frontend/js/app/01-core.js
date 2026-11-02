@@ -1071,6 +1071,8 @@ function sizeCanvasForDpr(canvas, ctx, cssW, cssH) {
   canvas.style.width = cssW + 'px';
   canvas.style.height = cssH + 'px';
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  // redimensionner un canvas remet son lissage par défaut (grossier) : images réduites nettes, sans crénelage
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
 }
 
 // ========== DIRECTION ARTISTIQUE : sprites peints par IA (painted/) ou rendus 3D (3d/) ==========

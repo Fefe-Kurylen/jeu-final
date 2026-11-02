@@ -98,7 +98,7 @@ async function compose(page, srcPath, size) {
     const k = Math.min(W * (1 - 2 * margin) / img.width, H * (1 - 2 * margin) / img.height);
     const dw = img.width * k, dh = img.height * k, ox = (W - dw) / 2, oy = (H - dh) / 2;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
-    const x = c.getContext('2d'); x.drawImage(img, ox, oy, dw, dh);
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(img, ox, oy, dw, dh);
     const d = x.getImageData(0, 0, W, H).data; let x0 = W, y0 = H, x1 = -1, y1 = -1;
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (d[(j * W + i) * 4 + 3] > 200) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
     return { png: c.toDataURL('image/png').split(',')[1], k, ox, oy, sw: img.width, sh: img.height, bbox: [x0, y0, x1, y1] };
@@ -121,7 +121,7 @@ async function postProcess(page, resultB64, meta, size, align) {
   return page.evaluate(async ({ b64, meta, W, H, align }) => {
     const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
     const c = document.createElement('canvas'); c.width = W; c.height = H;
-    const x = c.getContext('2d'); x.drawImage(img, 0, 0, W, H);
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, W, H);
     const id = x.getImageData(0, 0, W, H); const d = id.data;
     let halo = 0;
     for (let k = 0; k < d.length; k += 4) { const a = d[k + 3]; if (a > 0 && a < 200) { const lum = 0.3 * d[k] + 0.59 * d[k + 1] + 0.11 * d[k + 2]; if (lum > 140 || a < 24) { d[k + 3] = 0; halo++; } else if (a > 110) d[k + 3] = 110; } }   // halo lumineux et poussière → transparents ; ombre portée plafonnée
@@ -139,7 +139,7 @@ async function postProcess(page, resultB64, meta, size, align) {
       }
     }
     const out = document.createElement('canvas'); out.width = meta.sw; out.height = meta.sh;
-    const o = out.getContext('2d');
+    const o = out.getContext('2d'); o.imageSmoothingQuality = 'high';
     o.setTransform(1 / meta.k, 0, 0, 1 / meta.k, -meta.ox / meta.k, -meta.oy / meta.k);   // canevas de génération → cadre du sprite
     o.transform(s, 0, 0, s, tx, ty);                                                      // alignement dans le canevas
     o.drawImage(c, 0, 0);
@@ -195,7 +195,7 @@ async function exportKit(dir) {
     const rel = t.file.replace(/\.webp$/, '');
     const gFile = path.join(dir, 'guides', rel + '.webp'), pFile = path.join(dir, 'prompts', rel + '.txt');
     fs.mkdirSync(path.dirname(gFile), { recursive: true }); fs.mkdirSync(path.dirname(pFile), { recursive: true });
-    const webp = await page.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); return c.toDataURL('image/webp', 0.85).split(',')[1]; }, meta.png);
+    const webp = await page.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); return c.toDataURL('image/webp', 0.9).split(',')[1]; }, meta.png);
     fs.writeFileSync(gFile, Buffer.from(webp, 'base64'));
     const prompt = promptFor(t.file, { bg: BG });
     fs.writeFileSync(pFile, prompt + '\n');
@@ -260,7 +260,7 @@ async function importUserImages(dir) {
     // une animation livrée en une image : bande horizontale ou grille (targets.cjs gridFor)
     const { cols, rows } = new Function('return ' + gridSrc)()(n, img.width, img.height, W, H);
     const cw = img.width / cols, ch = img.height / rows, sx = cw * (i % cols), sy = ch * Math.floor(i / cols);
-    const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
     const k = Math.min(W / cw, H / ch), dw = cw * k, dh = ch * k;
     x.drawImage(img, sx, sy, cw, ch, (W - dw) / 2, anchor === 'bottom' ? H - dh : (H - dh) / 2, dw, dh);
     const id = x.getImageData(0, 0, W, H), d = id.data;
@@ -349,7 +349,7 @@ async function importUserImages(dir) {
           const [W, H] = T.frameSize(t);
           const webp = await page.evaluate(async ({ b64, W, H, opaque }) => {
             const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
-            const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+            const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
             if (opaque) { x.fillStyle = '#808080'; x.fillRect(0, 0, W, H); }
             x.drawImage(img, 0, 0, W, H);
             return c.toDataURL('image/webp', 0.9).split(',')[1];

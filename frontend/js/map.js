@@ -113,6 +113,7 @@ const tileImagePainted = new Set();   // "catégorie/nom" chargés depuis painte
 function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
   const img = tileImages[category]?.[name];
   if (!img) return false;
+  if (ctx.imageSmoothingQuality !== 'high') { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; }
   if (category !== 'fx' && tileImagePainted.has(category + '/' + name)) {
     const k = category === 'units' ? WORLD_ARMY_SCALE : WORLD_SPRITE_SCALE;   // le losange de l'image = une case
     ctx.drawImage(img, destX - destW * k * 0.5, destY - destH * k * WORLD_OBJECT_CENTER_Y, destW * k, destH * k);
@@ -798,7 +799,7 @@ function mapStaticLayerCtx(w, h, scale) {
   const pw = Math.round(w * scale), ph = Math.round(h * scale);
   if (!mapStaticCanvas) mapStaticCanvas = document.createElement('canvas');
   if (mapStaticCanvas.width !== pw || mapStaticCanvas.height !== ph) { mapStaticCanvas.width = pw; mapStaticCanvas.height = ph; }
-  const g = mapStaticCanvas.getContext('2d');
+  const g = mapStaticCanvas.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
   if (!g) { releaseMapStatic(); mapStaticFailUntil = performance.now() + 2000; return null; }   // nouvel essai dans 2 s
   g.setTransform(scale, 0, 0, scale, 0, 0);
   return g;
