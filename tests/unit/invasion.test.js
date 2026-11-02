@@ -235,7 +235,7 @@ test('trésor (recommandation 2) : la capitale d\'abord, le surplus dans les aut
     horde: { update: async () => ({}) }, resourceNode: { delete: async () => ({}) },
     invasion: { update: async () => ({ id: 'i1', ageMult: 1 }) },
     hordeDamage: { findMany: async () => [{ playerId: 'a', points: 100 }] },
-    player: { findMany: async () => [{ id: 'a' }], updateMany: async () => ({ count: 1 }) },
+    player: { findMany: async () => [{ id: 'a' }], updateMany: async () => ({ count: 1 }), update: async () => ({}) },   // update : surplus en points d'alliance (G12)
     $queryRaw: async () => cities.map(c => ({ ...c })),
     $executeRaw: async (sql, ...v) => { credited[v[v.length - 1]] = v[0]; return 1; },
     hero: { findUnique: async () => null }, heroItem: { create: async () => ({}) }
@@ -250,7 +250,10 @@ test('trésor (recommandation 2) : la capitale d\'abord, le surplus dans les aut
   try { H.announceOutcome(null, { destroyed: true, treasure: t, level: 1, x: 3, y: 4 }); await new Promise(r => setTimeout(r, 10)); } finally { restore(); }
   assert.equal(notes.length, 1);
   assert.match(notes[0].body, new RegExp(`${T.wood.toLocaleString('fr-FR')} de chaque ressource, rangées dans votre capitale puis dans vos autres villes`));
-  assert.match(notes[0].body, new RegExp(`plus de place dans vos villes : ${(T.wood - 1500).toLocaleString('fr-FR')} de bois perdus\\.`));
+  // ce qui n'a tenu nulle part devient des points d'alliance (décision du 2 novembre 2026, G12 ; tests/unit/invasion-treasure.test.js)
+  assert.equal(t.shares[0].overflowAp, H.overflowAlliancePoints(t.shares[0].lost, t.shares[0].alliancePoints));
+  assert.ok(notes[0].body.includes(`plus de place dans vos villes : ${(T.wood - 1500).toLocaleString('fr-FR')} de bois`), notes[0].body);
+  assert.ok(notes[0].body.includes(H.treasureLostNote(t.shares[0].lost, t.shares[0].overflowAp)));
 });
 
 test('trésor : les villes d\'un joueur sont verrouillées avant sa ligne (même ordre que les dépenses), joueurs pris par id', async () => {
@@ -278,4 +281,54 @@ test('donjons pour une alliance de 15 à 20 joueurs, une armée par joueur, cell
   assert.ok(players(1) > 1 && players(1) <= 2, String(players(1)));
   assert.ok(players(4) > 9 && players(4) <= 11, String(players(4)));
   assert.ok(players(5) > 17 && players(5) <= 20, String(players(5)));
+});
+
+// ---- combat d'un étage au moteur de bataille (décision du 2 novembre 2026, deuxième simulation de 200 jours, G3) ----
+function hordeTx({ floorUnits, armies, floor = 1 }) {
+  const log = { unitWrites: [], nodeUpdates: [], hordeUpdates: [], reports: [] };
+  const node = { id: 'nh', x: 7, y: 8, resourceType: 'HORDE', defenderUnits: { ...floorUnits } };
+  const floors = [{ name: 'Avant-poste', units: floorUnits, power: H.powerOf(floorUnits) }, { name: 'Remparts', units: { HUN_INF_GARDE: 50 }, power: H.powerOf({ HUN_INF_GARDE: 50 }) }, { name: 'Chef', units: { HUN_INF_VETERAN: 50 }, power: 1 }];
+  const model = (name, extra = {}) => new Proxy(extra, { get: (t, op) => t[op] || (async (q) => (op === 'findMany' ? [] : op === 'updateMany' ? { count: 1 } : op === 'create' ? { id: `${name}-1`, ...q.data } : null)) });
+  const tx = new Proxy({
+    $queryRaw: async () => [{ ...node }],
+    $executeRaw: async () => 1, $executeRawUnsafe: async () => 1,
+    horde: model('horde', { findUnique: async () => ({ id: 'h1', invasionId: 'i1', level: 1, floor, floors, destroyedAt: null }), update: async ({ data }) => { log.hordeUpdates.push(data); return {}; } }),
+    army: model('army', { findMany: async ({ where }) => armies.filter(a => where.id.in.includes(a.id)) }),
+    armyUnit: model('armyUnit', { update: async (q) => { log.unitWrites.push(['update', q.where.id, q.data.count.decrement]); return {}; }, deleteMany: async (q) => { log.unitWrites.push(['delete', q.where.id]); return {}; } }),
+    resourceNode: model('resourceNode', { update: async ({ data }) => { log.nodeUpdates.push(data); return {}; } }),
+    battleReport: model('battleReport', { create: async ({ data }) => { log.reports.push(data); return { id: `r${log.reports.length}` }; } })
+  }, { get: (t, k) => (k in t ? t[k] : (t[k] = model(k))) });
+  return { tx, log };
+}
+const hordeArmy = (id, ownerId, count, faction = 'ROME', unitKey = 'ROM_INF_LEGIONNAIRE') => ({ id, ownerId, name: id, cityId: null, heroId: null, hero: null, owner: { id: ownerId, name: ownerId, faction, alliance: { allianceId: 'A1' } }, units: [{ id: `${id}-u`, unitKey, tier: 'elite', count }] });
+
+test('donjon (G3) : étage au moteur de bataille ; repoussé, la garnison garde ses survivants et les morts de chaque armée viennent des rounds', async () => {
+  const { tx, log } = hordeTx({ floorUnits: { HUN_INF_VETERAN: 600, HUN_ARC_ELITE: 300 }, armies: [hordeArmy('a1', 'p1', 100), hordeArmy('a2', 'p2', 300)] });
+  const restore = stub({ $transaction: async (f) => f(tx), notification: { create: async () => ({ id: 'n' }) } });
+  let r;
+  try { r = await H.attackHordeGroup(['a1', 'a2'], 'nh'); } finally { restore(); }
+  assert.equal(r.won, false);
+  // plus de floor(nombre × 30 %) : la garnison perd ce que le moteur tue, ni tout ni 30 % forfaitaire
+  const left = log.nodeUpdates[0].defenderUnits;
+  const killed = 900 - Object.values(left).reduce((t, n) => t + n, 0);
+  assert.ok(killed > 0 && killed < 900, `garnison tuée : ${killed}`);
+  // morts des légionnaires partagés selon les soldats (1 pour 3), au total exact
+  const lost = r.armies.map(a => a.lost);
+  assert.ok(lost[0] + lost[1] > 0);
+  assert.ok(Math.abs(lost[1] - 3 * lost[0]) <= 3, JSON.stringify(lost));
+  assert.equal(log.reports.length, 2);
+  assert.ok(Array.isArray(log.reports[0].attackerLosses.units), 'pertes par type dans le rapport');
+  assert.equal(log.reports[0].attackerUnits[0].count, 100, 'le rapport garde les soldats d\'avant le combat');
+});
+
+test('donjon (G3) : étage vaincu au moteur, place à l\'étage suivant ; civilisations mêlées dans le rassemblement', async () => {
+  const { tx, log } = hordeTx({ floorUnits: { HUN_INF_NOMADE: 40 }, armies: [hordeArmy('a1', 'p1', 200), hordeArmy('a2', 'p2', 200, 'GAUL', 'GAU_INF_CHAMPION')] });
+  const restore = stub({ $transaction: async (f) => f(tx), notification: { create: async () => ({ id: 'n' }) } });
+  let r;
+  try { r = await H.attackHordeGroup(['a1', 'a2'], 'nh'); } finally { restore(); }
+  assert.equal(r.won, true);
+  assert.equal(r.nextFloor, 2);
+  assert.deepEqual(log.hordeUpdates[0], { floor: 2 });
+  assert.deepEqual(log.nodeUpdates[0].defenderUnits, { HUN_INF_GARDE: 50 });
+  assert.equal(r.points > 0, true);
 });

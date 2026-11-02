@@ -98,16 +98,18 @@ async function recall(playerId, spyId) {
 }
 
 // ---- rapports ----
-// Troupes présentes dans la ville : armées du propriétaire en ville (garnison comprise), ses armées venues d'autres
-// villes, renforts alliés postés
+// Troupes présentes dans la ville : armées du propriétaire en ville, ses armées venues d'autres villes, renforts alliés
+// postés, et sa réserve (la garnison), montrée à part : elle ne défend pas la ville (décision du 2 novembre 2026 (deuxième
+// simulation de 200 jours), G10), `reserve: true`, en dernier
 async function troopsIn(city) {
   const armies = await prisma.army.findMany({ where: { OR: [
     { cityId: city.id, status: 'IDLE', x: city.x, y: city.y },
     { ownerId: city.playerId, cityId: { not: city.id }, status: 'IDLE', x: city.x, y: city.y },
     { status: 'STATIONED', targetCityId: city.id }
   ] }, include: { units: true, owner: { select: { id: true, name: true } } } });
-  return armies.filter(a => a.units.some(u => u.count > 0)).map(a => ({
-    name: a.isGarrison ? 'Garnison' : a.name, owner: a.ownerId === city.playerId ? null : a.owner?.name || '?', support: a.status === 'STATIONED',
+  return armies.filter(a => a.units.some(u => u.count > 0)).sort((a, b) => Number(a.isGarrison) - Number(b.isGarrison)).map(a => ({
+    name: a.isGarrison ? 'Réserve (ne défend pas)' : a.name, owner: a.ownerId === city.playerId ? null : a.owner?.name || '?', support: a.status === 'STATIONED',
+    ...(a.isGarrison ? { reserve: true } : {}),
     units: a.units.filter(u => u.count > 0).map(u => ({ key: u.unitKey, count: u.count }))
   }));
 }

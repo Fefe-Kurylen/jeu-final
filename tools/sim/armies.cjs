@@ -17,6 +17,12 @@
 //   wonder : garde de la Ville Merveille de l'alliance (70-wonder.cjs)
 //   caravan: armée du marché (40-market.cjs : offres, échanges, envois)
 //   hunt   : armée de chasse des invasions, le week-end (60-invasion.cjs)
+//   defense: armée « Défense » de la capitale (30-military.cjs) : seules les armées défendent une ville (décision du
+//            2 novembre 2026 (deuxième simulation de 200 jours), G10 : la réserve, soldats formés dans aucune armée, ne
+//            combat plus) ; elle reste chez elle avec une part des soldats du joueur, ne part jamais en mission. Elle passe
+//            après l'armée de campagne et les gardes des colonies (qui ne prennent une place de la capitale que le temps de
+//            la marche), avant le convoi du Bastion, l'Ost, la garde de la Merveille et la caravane ; une Place de
+//            rassemblement à un seul emplacement la laisse à l'armée de campagne
 // Une armée réservée par une offre du marché (statut MARKET) n'est pas libre : elle attend en ville avec les marchandises.
 'use strict';
 const path = require('path');
@@ -24,8 +30,8 @@ const ROOT = path.join(__dirname, '..', '..');
 const config = require(path.join(ROOT, 'src/config'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 
-const NAMES = { ost: 'Ost', convoy: 'Convoi', caravan: 'Caravane', guard: 'Garde', hunt: 'Chasse aux hordes', wonder: 'Garde de la Merveille' };
-const ORDER = ['field', 'guard', 'convoy', 'ost', 'wonder', 'caravan', 'hunt'];
+const NAMES = { ost: 'Ost', convoy: 'Convoi', caravan: 'Caravane', guard: 'Garde', hunt: 'Chasse aux hordes', wonder: 'Garde de la Merveille', defense: 'Défense' };
+const ORDER = ['field', 'guard', 'defense', 'convoy', 'ost', 'wonder', 'caravan', 'hunt'];
 
 const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
 const colonies = (bot) => (bot.cities || []).filter(c => !c.isCapital && !c.isWonder);
@@ -63,6 +69,13 @@ function reliefsMissing(bot) {
   const has = (id) => !!id && (bot.armies || []).some(a => a.id === id);
   return colonies(bot).filter(c => mil.gr[c.id] !== undefined && has(mil.guard?.[c.id]) && !has(mil.rel?.[c.id])).length;
 }
+// armée « Défense » de la capitale à former (G10) : le module militaire la suit (bot.mem.mil.def) ; seulement quand la
+// Place de rassemblement en permet au moins deux (la première reste à l'armée de campagne)
+function defenseMissing(bot) {
+  const cap = bot.capital, mil = bot.mem?.mil;
+  if (!cap || !mil || fx.maxArmies(cap.buildings || []) < 2) return 0;
+  return named(bot, NAMES.defense).some(a => a.cityId === cap.id) ? 0 : 1;
+}
 // armées rattachées aux colonies du joueur (E2 : leur ville est la colonie), hors garnison
 const attachedArmies = (bot) => { const ids = new Set(colonies(bot).map(c => c.id)); return (bot.armies || []).filter(a => !a.isGarrison && ids.has(a.cityId)); };
 
@@ -74,6 +87,7 @@ function missing(bot, role) {
   switch (role) {
     case 'field': return militaryNeed(bot, cap);
     case 'guard': return bot.mem?.mil ? guardsMissing(bot) + reliefsMissing(bot) : 0;
+    case 'defense': return defenseMissing(bot);
     case 'convoy': return bot.mem?.al?.wantConvoy && !named(bot, NAMES.convoy).length ? 1 : 0;
     case 'ost': return war?.wantOst && !named(bot, NAMES.ost).length ? 1 : 0;
     case 'wonder': return bot.mem?.won?.wantGuard && !named(bot, NAMES.wonder).length ? 1 : 0;
@@ -93,7 +107,7 @@ function mustYield(bot, role) {
   if (!bot.capital) return false;
   return ahead(bot, role) > Math.max(0, freePlaces(bot));
 }
-// armées que les autres rôles attendent encore (gardes des colonies, convoi, Ost, garde de la Merveille, caravane ; la chasse
+// armées que les autres rôles attendent encore (gardes des colonies, Défense, convoi, Ost, garde de la Merveille, caravane ; la chasse
 // du week-end ne prend qu'une place restée libre) : une seconde armée de campagne, hors fondation, leur rend sa place
 const othersWaiting = () => ORDER.filter(r => r !== 'field' && r !== 'hunt');
 const waitingRoles = (bot) => othersWaiting().reduce((t, r) => t + missing(bot, r), 0);
@@ -111,4 +125,4 @@ function freeSlot(bot, role, city = bot.capital) {
   return null;
 }
 
-module.exports = { NAMES, ORDER, atHome, founding, militaryNeed, guardsMissing, reliefsMissing, attachedArmies, missing, freeSlot, mustYield, freePlaces, waitingRoles, named, fieldArmies, colonies };
+module.exports = { NAMES, ORDER, atHome, founding, militaryNeed, guardsMissing, reliefsMissing, defenseMissing, attachedArmies, missing, freeSlot, mustYield, freePlaces, waitingRoles, named, fieldArmies, colonies };

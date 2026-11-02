@@ -15,7 +15,7 @@ const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldB
 const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallLevelOf, wallHpNow, campEnd, engineCount } = require('./siegeProcessor');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
-const { survivalRatio, applyLosses, mergeUnits } = require('../../utils/armyUnits');
+const { survivalRatio, applyLosses, applyEngineLosses, mergeUnits } = require('../../utils/armyUnits');
 const { RES_FR, creditPlayer, plunderCity, lockCity, lockPlayerCities, claimNode, buildingsWithCapital, withDeadlockRetry } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
@@ -124,9 +124,12 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
   await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: homeCity.x, targetY: homeCity.y, targetCityId: null, targetBastionId: null, rallyId: null, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), claimedAt: null, ...extraData } });
 }
 
-// Armies physically standing in the city defend it (allied reinforcements stationed there too); armies away on missions do not
+// Armies physically standing in the city defend it (allied reinforcements stationed there too); armies away on missions do not.
+// Seules les armées défendent une ville (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G10) : la réserve
+// (la garnison, soldats formés mais dans aucune armée) ne combat pas, ni contre une attaque, ni contre un raid, ni contre
+// une vague d'Immortels ; elle n'y perd ni morts ni blessés et reste dans la ville. Sans armée, personne ne défend.
 function defendingArmies(city) {
-  return city.armies.filter(a => (a.status === 'IDLE' || a.status === 'STATIONED') && a.x === city.x && a.y === city.y);
+  return city.armies.filter(a => !a.isGarrison && (a.status === 'IDLE' || a.status === 'STATIONED') && a.x === city.x && a.y === city.y);
 }
 
 // Après un combat dans une ville (attaque, raid, vague d'Immortels) : les défenseurs venus d'ailleurs (renforts alliés
@@ -635,9 +638,6 @@ async function raidedRecently(tx, attackerId, targetCity, now) {
   return !!recent;
 }
 
-// Pertes d'un raid par ligne d'unités, arrondies vers le bas comme applyLossRate : une ligne ne perd jamais plus que le taux
-const raidLosses = (units, rate) => units.map(u => ({ key: u.unitKey, killed: Math.floor(u.count * rate) }));
-
 async function handleRaid(army, now) {
   let loot = { wood: 0, stone: 0, iron: 0, food: 0 };
   const raid = await prisma.$transaction(async (tx) => {
@@ -658,18 +658,25 @@ async function handleRaid(army, now) {
     // qui défend, selon ses soldats (renforts)
     const [raidAtkTech, raidDefTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
     const [atkBonus, defBonus] = await Promise.all([combatPct(tx, army.ownerId, raidAtkTech), combatPct(tx, targetCity.playerId, raidDefTech, defenders)]);
-    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { attackerFaction: army.owner.faction, defenderFaction: targetCity.player.faction, defenseBonusPct, attackerBonusPct: atkBonus.atk, defenderBonusPct: defBonus.def });
+    // moteur de bataille (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G3) : le mur est un bonus de défense,
+    // le raid s'arrête dès qu'un camp a perdu 30 % de ses soldats (règle du GDD) ; sans armée dans la ville, le pillard passe
+    const attackerBefore = attackerUnits.map(u => ({ key: u.unitKey, count: u.count }));
+    const defenderBefore = mergeUnits(defenderUnits).map(u => ({ key: u.unitKey, count: u.count }));
+    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { raid: true, attackerFaction: army.owner.faction, defenderFaction: targetCity.player.faction, defenseBonusPct, attackerPct: atkBonus, defenderPct: defBonus });
 
-    // appliquées, rapport et classements comptent les mêmes pertes
-    const atkLosses = raidLosses(attackerUnits, result.attackerLossRate), defLosses = raidLosses(defenderUnits, result.defenderLossRate);
-    const atkKilled = atkLosses.reduce((t, l) => t + l.killed, 0), defKilled = defLosses.reduce((t, l) => t + l.killed, 0);
-    const survivors = attackerUnits.map((u, i) => ({ ...u, newCount: u.count - atkLosses[i].killed }));
+    // pertes du moteur, type par type : appliquées, rapport et classements comptent les mêmes
+    const RK = require('../../services/rankingService');
+    const sides = { attackers: [{ playerId: army.ownerId, units: RK.unitCount(attackerUnits) }], defenders: RK.sideOf(defenders) };   // avant les pertes
+    const [atkLoss] = await applyEngineLosses(tx, [{ units: attackerUnits }], result.attackerFinalUnits);
+    const defLoss = await applyEngineLosses(tx, defenders, result.defenderFinalUnits);
+    const atkLosses = atkLoss.killed, defLosses = defLoss.flatMap(l => l.killed);
+    const atkKilled = atkLoss.total, defKilled = defLoss.reduce((t, l) => t + l.total, 0);
 
-    // GDD: the loot is at most 30% of what the SURVIVING raiders can carry, split by what the city
-    // still has after the hideout; the stock is taken atomically at resolution time
+    // the loot is at most what the SURVIVING raiders can carry (100 %, décision du 2 novembre 2026 (deuxième simulation de
+    // 200 jours), G4), split by what the city still has after the hideout; the stock is taken atomically at resolution time
     if (result.attackerWon) {
       const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * require('../../services/bastionService').carryMultSync(army.owner?.alliance?.allianceId);   // + Bastion d'alliance
-      const carry = getArmyCarryCapacity(survivors.map(u => ({ unitKey: u.unitKey, count: u.newCount })), unitsData, army.hero) * transportMultiplier * (1 + require('../../utils/heroEffects').talent(army.hero, 'lootPct') / 100);   // talent Pillard
+      const carry = getArmyCarryCapacity(attackerUnits.filter(u => u.count > 0), unitsData, army.hero) * transportMultiplier * (1 + require('../../utils/heroEffects').talent(army.hero, 'lootPct') / 100);   // talent Pillard
       const budget = carry * config.combat.raidLootPctOfCarry;
       // seule la cachette protège : une part du stockage de la ville pour chaque ressource (1,5 % par niveau, décision du
       // 31 octobre 2026) ; un raid emporte au plus raidStealRate de ce qui dépasse
@@ -682,30 +689,18 @@ async function handleRaid(army, now) {
       loot = want;
     }
 
-    for (const unit of survivors) {
-      if (unit.newCount <= 0) await tx.armyUnit.deleteMany({ where: { id: unit.id } });
-      else if (unit.newCount !== unit.count) await tx.armyUnit.update({ where: { id: unit.id }, data: { count: unit.newCount } });
-    }
-    for (const defArmy of defenders) {
-      for (const unit of defArmy.units) {
-        const newCount = unit.count - Math.floor(unit.count * result.defenderLossRate);   // comme raidLosses
-        if (newCount <= 0) await tx.armyUnit.deleteMany({ where: { id: unit.id } });
-        else if (newCount < unit.count) await tx.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } });
-      }
-    }
     if (result.attackerWon) loot = await plunderCity(tx, targetCity.id, loot);
     const raidReportData = {
       x: targetCity.x, y: targetCity.y,
-      attackerUnits: attackerUnits.map(u => ({ key: u.unitKey, count: u.count })),
-      defenderUnits: defenderUnits.map(u => ({ key: u.unitKey, count: u.count })),
-      attackerLosses: { rate: result.attackerLossRate, totalKilled: atkKilled },
-      defenderLosses: { rate: result.defenderLossRate, totalKilled: defKilled },
+      attackerUnits: attackerBefore,
+      defenderUnits: defenderBefore,
+      attackerLosses: { rate: result.attackerLossRate, totalKilled: atkKilled, units: result.attackerFinalUnits },
+      defenderLosses: { rate: result.defenderLossRate, totalKilled: defKilled, units: result.defenderFinalUnits },
       winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
-      loot: { ...loot, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, cityId: targetCity.id, type: 'RAID' }
+      loot: { ...loot, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, cityId: targetCity.id, type: 'RAID', rounds: result.rounds, duration: result.rounds.length }
     };
     // classements : points de combat et pillage (services/rankingService.js)
-    const RK = require('../../services/rankingService');
-    await RK.recordCombat(tx, { attackers: [{ playerId: army.ownerId, units: RK.unitCount(attackerUnits) }], defenders: RK.sideOf(defenders), attackerLosses: atkLosses, defenderLosses: defLosses });
+    await RK.recordCombat(tx, { ...sides, attackerLosses: atkLosses, defenderLosses: defLosses });
     if (result.attackerWon) await RK.recordLoot(tx, army.ownerId, ['wood', 'stone', 'iron', 'food'].reduce((t, k) => t + (Number(loot?.[k]) || 0), 0));
     const atkReport = await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(true, result.attackerWon), playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
     const defReport = await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
@@ -809,4 +804,4 @@ async function handleTransport(army, now) {
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: back.wood, carryStone: back.stone, carryIron: back.iron, carryFood: back.food });
 }
 
-module.exports = { processArmyMovements, sendArmyHome, raidLosses, withGuestDefenders, defendingArmies, sendWipedGuestsHome, defaultColonyName };   // sendArmyHome : rassemblements d'alliance (rallyService), garnisons de Bastion vidées (bastionService) ; défenseurs d'une ville : vagues d'Immortels (wonderService) ; raidLosses, defaultColonyName : tests
+module.exports = { processArmyMovements, sendArmyHome, withGuestDefenders, defendingArmies, sendWipedGuestsHome, defaultColonyName };   // sendArmyHome : rassemblements d'alliance (rallyService), garnisons de Bastion vidées (bastionService) ; défenseurs d'une ville : vagues d'Immortels (wonderService) ; defaultColonyName : tests

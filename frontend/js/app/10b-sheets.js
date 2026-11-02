@@ -222,7 +222,7 @@ function showUnitInfoModal(unitKey) {
           ${sheetKv('Coup et solidité', `${hit} · ${toughness} <small>en bataille : attaque × ${bCoeff} ; endurance + ${String(SHEET_RULES.defenseWeight).replace('.', ',')} × défense × ${bCoeff}</small>`)}
           ${forgeAtk || forgeDef ? sheetKv('Forge de la capitale', `+${fmtTechPct(forgeAtk)} % d'attaque · +${fmtTechPct(forgeDef)} % de défense <small>pour toutes vos troupes, dans tous les combats</small>`) : ''}
           ${sheetKv('Marche', `≈ ${Math.round(tilesPerHour)} cases/h <small>${speedNote ? `${speedNote} ; ` : ''}l'armée va à la vitesse de son unité la plus lente</small>`)}
-          ${sheetKv('Butin transporté', `${transport} <small>ressources par unité</small>`)}
+          ${sheetKv('Butin transporté', `${transport} <small>ressources par unité ; un raid gagné emporte jusqu'à ${typeof RAID_RULES !== 'undefined' && RAID_RULES.lootPctOfCarry < 100 ? `${RAID_RULES.lootPctOfCarry} % de ` : ''}la charge de ses soldats survivants (hors cachette)</small>`)}
           ${sheetKv('Entretien', `${upkeep} <small>céréales par heure</small>`)}
         </div>
       </div>

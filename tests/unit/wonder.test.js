@@ -323,7 +323,7 @@ function groupTx({ node, armies, leader = { id: 'p1', name: 'Aulus' } }) {
     player: { findUnique: async ({ where }) => (leader && where.id === leader.id ? leader : null) },
     playerTechnology: { findMany: async () => [] },
     city: { findMany: async ({ where }) => { log.forgeOf.push(where.playerId); return []; } },   // Forge de la capitale de chaque joueur
-    armyUnit: { delete: async (q) => log.unitWrites.push(['delete', q.where.id]), update: async (q) => log.unitWrites.push(['update', q.where.id, q.data]) },
+    armyUnit: { deleteMany: async (q) => log.unitWrites.push(['delete', q.where.id]), update: async (q) => log.unitWrites.push(['update', q.where.id, q.data]) },
     battleReport: { create: async ({ data }) => { log.reports.push(data); return { id: `r${log.reports.length}` }; } },
     resourceNode: { update: async ({ data }) => { log.nodeUpdates.push(data); return {}; }, delete: async ({ where }) => { log.deleted.push(where.id); return {}; } },
     wonderPlan: { create: async ({ data }) => { log.plans.push(data); return { id: 'plan1', ...data }; } }
@@ -355,8 +355,10 @@ test('rassemblement contre un plan : un seul combat de groupe, le plan revient a
   assert.equal(log.reports.length, 2);   // un rapport par armée
   assert.deepEqual(r.armies.map(a => a.ownerId), ['p1', 'p2']);   // l'armée du lanceur d'abord
   assert.match(log.reports[0].loot.attackerName, /Rassemblement de Aulus \(2 armées\)/);
-  // chaque armée perd la même part de ses soldats
+  // moteur de bataille (G3) : les morts de chaque type se partagent selon les soldats de chaque armée, la même part pour
+  // chacune (16 légionnaires sur 800 : 4 et 12)
   const rate = log.reports[0].attackerLosses.rate;
+  assert.ok(rate > 0);
   assert.equal(log.reports[1].attackerLosses.rate, rate);
   assert.equal(r.armies[0].lost, Math.floor(200 * rate));
   assert.equal(r.armies[1].lost, Math.floor(600 * rate));

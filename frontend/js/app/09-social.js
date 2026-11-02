@@ -285,9 +285,13 @@ function renderBattleReportCard(r, idx, opts = {}) {
   // what an army took from a resource point (tribe camp or point held by other armies) is in r.loot.resources
   const lootRes = r.loot?.resources ? r.loot.resources : isTribe ? {} : (!iAttacked && r.loot?.pillaged) ? r.loot.pillaged : { wood: r.loot?.wood, stone: r.loot?.stone, iron: r.loot?.iron, food: r.loot?.food, gold: r.loot?.gold };
   const lootHtml = ['wood', 'stone', 'iron', 'food', 'gold'].filter(k => lootRes[k]).map(k => `<span><img class="ico" src="assets/images/3d/ui/${k}.webp" alt=""> ${formatNum(lootRes[k])}</span>`).join('');
-  // Mur bouclier : PV au début et à la fin du combat (siège, décision du 25 octobre 2026)
+  // Mur bouclier : PV au début et à la fin du combat (siège, décision du 25 octobre 2026) ; celui d'un Bastion garde ses
+  // dégâts et redevient plein 12 h après le dernier assaut (décision du 2 novembre 2026, deuxième simulation de 200 jours, G2)
   const L = r.loot || {};
-  const wall = L.wallMaxHp ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur ${formatNum(L.wallHpStart)} → ${formatNum(L.wallHpEnd)} PV${L.wallBroken ? ' (brèche)' : ' (a tenu)'}</span>`
+  const bastionWall = L.type === 'BASTION';
+  const wallBroken = L.wallBroken || (bastionWall && Number(L.wallHpEnd) <= 0);
+  const wallFull = bastionWall && L.wallFullAt ? ` · de nouveau plein le ${new Date(L.wallFullAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} s'il n'est plus touché` : '';
+  const wall = L.wallMaxHp ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur ${formatNum(L.wallHpStart)} → ${formatNum(L.wallHpEnd)}${bastionWall ? ` / ${formatNum(L.wallMaxHp)}` : ''} PV${wallBroken ? ' (brèche)' : ' (a tenu)'}${wallFull}</span>`
     : L.wallDamage ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur −${formatNum(L.wallDamage)} PV</span>` : '';
   // Siège : durée du camp, camps alliés réunis, vies de la ville après le combat et sort de la ville quand elle tombe
   const lv = L.lives, ws = L.wallStructure;

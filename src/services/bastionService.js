@@ -7,8 +7,10 @@
 // - Les membres et les alliés y postent leurs armées (garnison, +10 % de défense), 10 armées au plus, celles en route et
 //   en sortie comprises (config.bastion.maxGarrisonArmies, décision du 31 octobre 2026) ; pendant un siège, aucune n'entre.
 // - Les autres l'attaquent avec des engins de siège : camp d'1 h, puis combat contre la garnison derrière un mur bouclier
-//   3 fois plus solide qu'un mur 20 (décision du 31 octobre 2026, 10 fois avant) ; un assaut = un rassemblement ou une
-//   armée seule, comme un fort barbare de Rise of Kingdoms ; chaque assaut gagné lui ôte une vie sur 10. Une vie ne
+//   de 36 000 PV, 1,8 fois un mur 20, qui garde les dégâts de chaque assaut et redevient plein 12 h après le dernier
+//   (décision du 2 novembre 2026, deuxième simulation de 200 jours, G2 ; avant : 3 fois un mur 20, remis à neuf à chaque
+//   assaut) ; un assaut = un rassemblement ou une armée seule, comme un fort barbare de Rise of Kingdoms ; chaque assaut
+//   gagné lui ôte une vie sur 10. Une vie ne
 //   revient qu'après 24 h sans assaut gagné, puis une toutes les 7,2 h (décision du 1er novembre 2026, simulation de
 //   200 jours, E3). À la dernière, il est rasé : plus de bonus, garnison renvoyée, 7 jours avant d'en rebâtir un.
 // - Le camp devant le Bastion se brise comme un siège de ville ; les armées de son alliance et de ses alliés qui
@@ -56,6 +58,26 @@ function regenView(b, now = Date.now()) {
   return { regenPausedUntil: start > now ? new Date(start) : null, nextLifeAt: new Date(start + (next - (b.structure ?? 1)) * B.regenHours * HOUR) };
 }
 
+// Mur du Bastion (décision du 2 novembre 2026, deuxième simulation de 200 jours, G2) : il garde les dégâts d'un assaut et
+// se répare en ligne droite, plein wallRepairHours après le dernier dégât. wallHp = ses PV notés à wallAt (null : plein) ;
+// les vies (structure) n'y entrent plus. Lu par l'assaut, le panneau du Bastion et la carte.
+function wallNow(b, now = Date.now()) {
+  const max = wallMaxHp();
+  if (!b || b.wallHp == null || !b.wallAt) return max;
+  const hp = Math.max(0, Math.min(max, b.wallHp));
+  const done = (Number(now) - new Date(b.wallAt).getTime()) / HOUR / B.wallRepairHours;   // part de la réparation faite
+  return done >= 1 ? max : hp + (max - hp) * Math.max(0, done);
+}
+// Instant où le mur sera de nouveau plein (null s'il l'est déjà)
+function wallFullAt(b, now = Date.now()) {
+  if (!b || b.wallHp == null || !b.wallAt || wallNow(b, now) >= wallMaxHp()) return null;
+  return new Date(new Date(b.wallAt).getTime() + B.wallRepairHours * HOUR);
+}
+// Ce que le panneau et la carte affichent : PV du mur maintenant, PV au plus, fin de la réparation (pas de mur sur un chantier)
+const wallView = (b, now = Date.now()) => (b && ['BUILDING', 'ACTIVE'].includes(b.status)
+  ? { wallHp: Math.round(wallNow(b, now)), wallMaxHp: wallMaxHp(), wallFullAt: wallFullAt(b, now) }
+  : { wallHp: null, wallMaxHp: wallMaxHp(), wallFullAt: null });
+
 // ---- bonus des membres (lus souvent : gardés 30 s) ----
 let activeCache = { at: 0, ids: new Set() };
 async function activeAllianceIds() {
@@ -85,12 +107,12 @@ async function carryMult(playerId) { return (await hasBonus(playerId)) ? 1 + B.b
 const publicBastion = (b, extra = {}) => b && ({
   id: b.id, allianceId: b.allianceId, x: b.x, y: b.y, status: b.status,
   delivered: { wood: b.wood, stone: b.stone, iron: b.iron, food: b.food }, cost: B.cost,
-  buildEndsAt: b.buildEndsAt, structurePct: Math.round(structureNow(b) * 100), lives: livesOf(structureNow(b)), assaults: B.assaults, wallMaxHp: wallMaxHp(),
-  ...regenView(b), maxGarrisonArmies: B.maxGarrisonArmies,
+  buildEndsAt: b.buildEndsAt, structurePct: Math.round(structureNow(b) * 100), lives: livesOf(structureNow(b)), assaults: B.assaults,
+  ...wallView(b), ...regenView(b), maxGarrisonArmies: B.maxGarrisonArmies,
   isSieged: b.isSieged, activatedAt: b.activatedAt, destroyedAt: b.destroyedAt, cooldownUntil: b.cooldownUntil, ...extra
 });
 // règles que le client affiche (onglet Alliance › Bastion, panneau d'un Bastion sur la carte), même sans alliance
-const RULES = { cost: B.cost, buildDays: B.buildDays, cooldownDays: B.cooldownDays, bonuses: B.bonuses, assaults: B.assaults, regenHours: B.regenHours, regenPauseHours: B.regenPauseHours, maxDistance: B.maxDistanceFromMember, wallMultiplier: B.wallMultiplier, wallReferenceLevel: B.wallReferenceLevel, maxGarrisonArmies: B.maxGarrisonArmies, breakGroupSeconds: B.breakGroupSeconds };
+const RULES = { cost: B.cost, buildDays: B.buildDays, cooldownDays: B.cooldownDays, bonuses: B.bonuses, assaults: B.assaults, regenHours: B.regenHours, regenPauseHours: B.regenPauseHours, maxDistance: B.maxDistanceFromMember, wallMultiplier: B.wallMultiplier, wallReferenceLevel: B.wallReferenceLevel, wallMaxHp: wallMaxHp(), wallRepairHours: B.wallRepairHours, maxGarrisonArmies: B.maxGarrisonArmies, breakGroupSeconds: B.breakGroupSeconds };
 
 // Une armée qui a encore des soldats, ou plus aucun (filtres Prisma sur ses lignes d'unités)
 const HAS_UNITS = { units: { some: { count: { gt: 0 } } } };
@@ -319,18 +341,6 @@ async function claimBreakMates(tx, lead, candidates, hostile, b, now) {
   return mates;
 }
 
-// Pertes d'un combat en terrain ouvert : la même part de chaque ligne d'unités (comme armyService.fieldBattle)
-async function takeLosses(tx, units, rate) {
-  let total = 0; const killed = [];
-  for (const u of units) {
-    const l = Math.floor(u.count * rate);
-    if (l <= 0) continue;
-    total += l; killed.push({ key: u.unitKey, killed: l, remaining: Math.max(0, u.count - l) });
-    if (l >= u.count) await tx.armyUnit.deleteMany({ where: { id: u.id } }); else await tx.armyUnit.update({ where: { id: u.id }, data: { count: { decrement: l } } });
-    u.count -= l;
-  }
-  return { total, killed };
-}
 // lignes d'un rapport additionnées par type d'unité (un camp peut compter plusieurs armées)
 function perUnitKey(before, after) {
   const m = {};
@@ -342,8 +352,8 @@ const lossRows = (rows) => rows.filter(e => e.count > e.remaining).map(e => ({ k
 
 // Combat contre le camp, en terrain ouvert comme armyService.fieldBattle, mais à plusieurs armées : `group` (l'armée qui
 // mène d'abord) contre toutes les armées du camp (`holders`). L'armée qui mène donne ses technologies et son héros, chaque
-// joueur garde sa Forge selon ses soldats et chaque armée sa civilisation ; chaque armée perd la même part de ses soldats
-// et garde ses blessés ; les héros gagnent l'XP selon les soldats amenés ; un rapport par joueur. Dans `tx`.
+// joueur garde sa Forge selon ses soldats et chaque armée sa civilisation ; les morts de chaque type d'unité, donnés par le
+// moteur de bataille, se partagent entre les armées selon leurs soldats ; chaque armée garde ses blessés ; les héros gagnent l'XP selon les soldats amenés ; un rapport par joueur. Dans `tx`.
 async function breakBattle(tx, group, holders, place) {
   const HS = require('./heroService');
   const RK = require('./rankingService');
@@ -354,18 +364,20 @@ async function breakBattle(tx, group, holders, place) {
   const atkTech = await tx.playerTechnology.findMany({ where: { playerId: lead.ownerId } });
   const [atkBonus, defBonus] = await Promise.all([combatPct(tx, lead.ownerId, atkTech, group), combatPct(tx, first.ownerId, first.owner?.technologies, holders)]);
   const combat = resolveCombat(attackerUnits, defenderUnits, 0, heroCombatStats(lead.hero), heroCombatStats(HS.leadingHero(holders)), {   // un héros sans soldats ne combat pas
-    fieldBattle: true, attackerFaction: lead.owner?.faction, defenderFaction: first.owner?.faction, attackerBonusPct: atkBonus.atk, defenderBonusPct: defBonus.def
-  });
+    fieldBattle: true, attackerFaction: lead.owner?.faction, defenderFaction: first.owner?.faction, attackerPct: atkBonus, defenderPct: defBonus
+  });   // moteur de bataille (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G3)
   const won = combat.attackerWon;
   const soldiers = group.map(g => RK.unitCount(g.units));
   const allSoldiers = soldiers.reduce((t, n) => t + n, 0) || 1;
   const before = group.flatMap(g => g.units.map(u => ({ unitKey: u.unitKey, count: u.count })));
   const engaged = HS.fought([...group, ...holders]);   // héros des armées qui combattent avec des soldats
   const sides = { attackers: RK.sideOf(group), defenders: RK.sideOf(holders) };   // avant les pertes
-  const lost = [];
-  for (const g of group) lost.push(await takeLosses(tx, g.units, combat.attackerLossRate));
-  let defTotal = 0; const defKilled = [];
-  for (const h of holders) { const r = await takeLosses(tx, h.units, combat.defenderLossRate); defTotal += r.total; defKilled.push([h, r.killed]); }
+  // pertes du moteur, type par type, partagées entre les armées de chaque camp selon leurs soldats
+  const { applyEngineLosses } = require('../utils/armyUnits');
+  const lost = await applyEngineLosses(tx, group, combat.attackerFinalUnits);
+  const holderLosses = await applyEngineLosses(tx, holders, combat.defenderFinalUnits);
+  const defTotal = holderLosses.reduce((t, r) => t + r.total, 0);
+  const defKilled = holders.map((h, i) => [h, holderLosses[i].killed]);
   const atkTotal = lost.reduce((t, l) => t + l.total, 0);
   await HS.fallIfWiped(tx, engaged);   // une armée anéantie perd son héros
   await RK.recordCombat(tx, { ...sides, attackerLosses: lost.flatMap(l => l.killed), defenderLosses: defKilled.flatMap(([, k]) => k) });   // classements
@@ -434,7 +446,7 @@ async function handleBreakArrival(army, now, sendArmyHome) {
       const tag = `[${b.alliance.tag}]`;
       res = await breakBattle(tx, fighters, hostile, { x: b.x, y: b.y, where: `Siège du Bastion ${tag}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', bastionId: b.id, armies: fighters.length } });
       won = res.combat.attackerWon;
-      if (won) for (const h of hostile) await sendArmyHomeTx(tx, h);
+      if (won) for (const h of hostile) await sendArmyHomeTx(tx, h);   // le camp chassé rentre (anéanti : voir wipedCamp)
       await refreshSieged(tx, b.id);
     }
     // le sort de chaque armée : une sortie gagnante (ou sans combat) rentre au Bastion, une armée du dehors gagnante le garde
@@ -448,7 +460,8 @@ async function handleBreakArrival(army, now, sendArmyHome) {
       else if (fought && sortie) home = await capitalHomeTx(tx, g);
       fates.push({ army: g, sortie, fought, fate, home });
     }
-    return { b, tag: b ? `[${b.alliance.tag}]` : '', won, fates, together: fighters.length, owners: [...new Set(hostile.map(h => h.ownerId))], attackerName: res?.attackerName, defenderName: res?.defenderName, reportIds: res?.reportIds || {} };
+    const wipedCamp = won ? hostile.filter(h => !hasMen(h)) : [];   // lignes en mémoire tenues à jour par les pertes du combat
+    return { b, tag: b ? `[${b.alliance.tag}]` : '', won, fates, wipedCamp, together: fighters.length, owners: [...new Set(hostile.map(h => h.ownerId))], attackerName: res?.attackerName, defenderName: res?.defenderName, reportIds: res?.reportIds || {} };
   }, { timeout: 15000 });
   const { b, tag, won, reportIds } = out;
   if (out.together) {
@@ -469,6 +482,11 @@ async function handleBreakArrival(army, now, sendArmyHome) {
     if (fate === 'inside') continue;
     if (fate === 'guard') { notify(a.ownerId, 'battle', '🛡️ Garde devant le Bastion', `${a.name} reste devant le Bastion. Rappelez-la quand vous voulez.`, { to: 'map', x: b.x, y: b.y, armyId: a.id }); continue; }
     await sendArmyHome(home ? { ...a, cityId: home.id } : a, a.targetX ?? a.x, a.targetY ?? a.y, { targetBastionId: null });
+  }
+  // une armée du camp anéantie ne marche plus : elle est posée aussitôt dans sa ville avec ce qu'elle porte, comme toute
+  // armée sans soldats (armyProcessor.sendArmyHome), au lieu de rester vide devant le Bastion
+  for (const h of out.wipedCamp || []) {
+    try { await sendArmyHome(h, h.x, h.y); } catch (e) { console.error(`[BASTION] camp anéanti ${h.id} :`, e.message); }
   }
 }
 
@@ -587,6 +605,15 @@ async function assaultGroup(tx, army, bastionId, now) {
   return { group, rally };
 }
 
+// Phrase des notifications d'assaut sur le mur (G2) : ses PV après l'assaut et dans combien de temps il sera de nouveau plein
+function wallSentence(hp, fullAt, now = Date.now()) {
+  const pv = `${Math.round(hp).toLocaleString('fr-FR')} / ${wallMaxHp().toLocaleString('fr-FR')} PV`;
+  if (!fullAt) return `Mur plein : ${pv}.`;
+  const minutes = Math.max(1, Math.ceil((new Date(fullAt).getTime() - now) / 60000));
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return `Le mur garde ses dégâts : ${pv}, de nouveau plein dans ${h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`} s'il n'est plus touché.`;
+}
+
 // L'heure du camp est passée : assaut contre la garnison derrière le mur bouclier
 async function handleBastionBattle(army, now, sendArmyHome) {
   const outcome = await prisma.$transaction(async (tx) => {
@@ -604,7 +631,8 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     const alive = (a) => a.units.some(u => u.count > 0);
     const defenders = stationed.filter(alive);
     const structure = structureNow(b, now.getTime());
-    const maxHp = wallMaxHp();
+    // le mur tel que les assauts précédents l'ont laissé, réparé depuis (G2)
+    const maxHp = wallMaxHp(), wallStart = wallNow(b, now.getTime());
     const attackerName = [...new Set(group.map(g => g.owner?.name).filter(Boolean))].join(', ');
     const defHero = require('./heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
     // rassemblement : c'est le héros de l'armée qui a lancé le rassemblement qui mène l'assaut (et donne ses bonus) ;
@@ -624,7 +652,7 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     const forge = combatMult(await combatPct(tx, null, null, defenders));
     const result = resolveCombatDetailed(mergeUnits([...rowsOf.values()].flat()), mergeUnits(defenders.flatMap(d => d.units)), B.wallReferenceLevel, attackerName, `Bastion [${b.alliance.tag}]`,
       heroCombatStats(leadHero), heroCombatStats(defHero), (group.find(g => g.ownerId === leadOwnerId) || army).owner?.faction, garrison.faction, B.bonuses.garrisonDefensePct,
-      { attacker: atkBonus, defender: { atk: forge.atk, def: garrison.def * forge.def } }, { hp: maxHp * structure, maxHp });
+      { attacker: atkBonus, defender: { atk: forge.atk, def: garrison.def * forge.def } }, { hp: wallStart, maxHp });
     // pertes de chaque armée par type d'unité, comptées avant de les écrire (blessés ci-dessous)
     const lostOf = (rows, finals) => rows.map(u => ({ key: u.unitKey, killed: u.count - Math.round(u.count * survivalRatio(finals, u.unitKey)) })).filter(k => k.killed > 0);
     const fallen = [...group.map(g => [g, lostOf(rowsOf.get(g.id), result.attackerFinalUnits)]), ...defenders.map(d => [d, lostOf(d.units, result.defenderFinalUnits)])];
@@ -643,30 +671,37 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     await RK.recordCombat(tx, { attackers: group.map(g => ({ playerId: g.ownerId, units: RK.unitCount(rowsOf.get(g.id)) })), defenders: RK.sideOf(defenders), attackerLosses: result.attackerFinalUnits, defenderLosses: result.defenderFinalUnits });   // classements
     const livesBefore = livesOf(structure);
     const destroyed = result.attackerWon && livesBefore - 1 <= 0;
+    // le mur garde ses dégâts, gagné ou repoussé (G2) : ses PV et l'instant sont notés, la réparation de wallRepairHours
+    // repart de maintenant ; un assaut qui ne l'a pas touché n'écrit rien (la réparation en cours continue)
+    const wallEnd = Math.max(0, Math.min(wallStart, result.wallHpEnd ?? wallStart));
+    const wall = wallEnd < wallStart - 0.5 ? { wallHp: wallEnd, wallAt: now } : {};
     // assaut gagné : une vie de moins (la part d'une vie en train de remonter est perdue) et la pause de regenPauseHours
-    // repart de maintenant (structureAt) ; assaut repoussé : rien n'est écrit, la pause et la remontée continuent
+    // repart de maintenant (structureAt) ; assaut repoussé : les vies, la pause et la remontée ne changent pas
     if (destroyed) await tx.bastion.update({ where: { id: b.id }, data: { status: 'DESTROYED', structure: 0, structureAt: now, destroyedAt: now, cooldownUntil: new Date(now.getTime() + B.cooldownDays * 86400000), isSieged: false } });
-    else if (result.attackerWon) await tx.bastion.update({ where: { id: b.id }, data: { structure: Math.max(0, livesBefore - 1) / B.assaults, structureAt: now } });
+    else if (result.attackerWon) await tx.bastion.update({ where: { id: b.id }, data: { structure: Math.max(0, livesBefore - 1) / B.assaults, structureAt: now, ...wall } });
+    else if (wall.wallAt) await tx.bastion.update({ where: { id: b.id }, data: wall });
     const lives = { before: livesBefore, after: result.attackerWon ? Math.max(0, livesBefore - 1) : livesBefore, total: B.assaults, fallen: destroyed };
+    const wallFull = wall.wallAt ? new Date(now.getTime() + B.wallRepairHours * HOUR) : wallFullAt(b, now.getTime());   // de nouveau plein
     const base = {
       x: b.x, y: b.y, attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits,
       attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled },
       defenderLosses: { rate: result.defenderLossRate, units: result.defenderFinalUnits, totalKilled: result.defenderTotalKilled },
       winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
-      loot: { rounds: result.rounds, wallHpStart: Math.round(result.wallHpStart), wallHpEnd: result.wallHpEnd, wallMaxHp: maxHp, lives, attackerName, defenderName: `Bastion [${b.alliance.tag}]`, cityName: `Bastion [${b.alliance.tag}]`, type: 'BASTION', bastionId: b.id }
+      loot: { rounds: result.rounds, wallHpStart: Math.round(wallStart), wallHpEnd: Math.round(wallEnd), wallMaxHp: maxHp, wallFullAt: destroyed ? null : wallFull, lives, attackerName, defenderName: `Bastion [${b.alliance.tag}]`, cityName: `Bastion [${b.alliance.tag}]`, type: 'BASTION', bastionId: b.id }
     };
     const reportIds = {};
     for (const id of new Set(group.map(g => g.ownerId))) reportIds[id] = (await tx.battleReport.create({ data: { ...base, result: result.attackerWon ? 'WIN' : 'LOSE', playerId: id, attackerId: id } })).id;
     for (const id of new Set(defenders.map(d => d.ownerId))) if (!reportIds[id]) reportIds[id] = (await tx.battleReport.create({ data: { ...base, result: result.attackerWon ? 'LOSE' : 'WIN', playerId: id, attackerId: army.ownerId, defenderId: id } })).id;
-    return { b, group, result, destroyed, lives, reportIds, wiped };
+    return { b, group, result, destroyed, lives, reportIds, wiped, wallEnd, wallFull };
   }, { timeout: 15000 });
   if (outcome.gone) { await sendHome(army, sendArmyHome, { rallyId: null }); return; }
   if (outcome.broken) return;
-  const { b, group, result, destroyed, lives, reportIds, wiped } = outcome;
+  const { b, group, result, destroyed, lives, reportIds, wiped, wallEnd, wallFull } = outcome;
   const tag = `[${b.alliance.tag}]`;
-  for (const id of new Set(group.map(g => g.ownerId))) notify(id, 'battle', result.attackerWon ? '⚔️ Assaut réussi' : '⚔️ Assaut repoussé', destroyed ? `Le Bastion ${tag} est rasé !` : result.attackerWon ? `Le Bastion ${tag} perd une vie : il lui en reste ${lives.after} sur ${lives.total}, et aucune ne revient avant ${B.regenPauseHours} h sans assaut gagné.` : `La garnison du Bastion ${tag} a repoussé votre assaut.`, { to: 'report', reportId: reportIds[id], x: b.x, y: b.y });
+  const wallNote = destroyed ? '' : ` ${wallSentence(wallEnd, wallFull, now.getTime())}`;   // le mur garde ses dégâts (G2)
+  for (const id of new Set(group.map(g => g.ownerId))) notify(id, 'battle', result.attackerWon ? '⚔️ Assaut réussi' : '⚔️ Assaut repoussé', destroyed ? `Le Bastion ${tag} est rasé !` : (result.attackerWon ? `Le Bastion ${tag} perd une vie : il lui en reste ${lives.after} sur ${lives.total}, et aucune ne revient avant ${B.regenPauseHours} h sans assaut gagné.` : `La garnison du Bastion ${tag} a repoussé votre assaut.`) + wallNote, { to: 'report', reportId: reportIds[id], x: b.x, y: b.y });
   const members = await prisma.allianceMember.findMany({ where: { allianceId: b.allianceId }, select: { playerId: true } });
-  for (const mm of members) notify(mm.playerId, destroyed ? 'city_fall' : 'battle', destroyed ? '🏰 Bastion rasé' : '🏰 Bastion attaqué', destroyed ? `Le Bastion de l'alliance est tombé : plus de bonus. Un nouveau sera possible dans ${B.cooldownDays} jours.` : result.attackerWon ? `Le Bastion a perdu une vie (${lives.after}/${lives.total}) : aucune ne revient avant ${B.regenPauseHours} h sans assaut gagné.` : 'La garnison du Bastion a tenu.', reportIds[mm.playerId] ? { to: 'report', reportId: reportIds[mm.playerId], x: b.x, y: b.y } : { to: 'map', x: b.x, y: b.y });
+  for (const mm of members) notify(mm.playerId, destroyed ? 'city_fall' : 'battle', destroyed ? '🏰 Bastion rasé' : '🏰 Bastion attaqué', destroyed ? `Le Bastion de l'alliance est tombé : plus de bonus. Un nouveau sera possible dans ${B.cooldownDays} jours.` : (result.attackerWon ? `Le Bastion a perdu une vie (${lives.after}/${lives.total}) : aucune ne revient avant ${B.regenPauseHours} h sans assaut gagné.` : 'La garnison du Bastion a tenu.') + wallNote, reportIds[mm.playerId] ? { to: 'report', reportId: reportIds[mm.playerId], x: b.x, y: b.y } : { to: 'map', x: b.x, y: b.y });
   for (const g of group) await sendArmyHome(g, b.x, b.y);
   for (const d of wiped) await releaseWiped(d, sendArmyHome, `${d.name} a été anéantie au Bastion ${tag} : sa place en garnison est libérée.`);
   if (destroyed) {
@@ -691,7 +726,7 @@ async function processBastions(now = new Date()) {
   await syncSieged().catch(e => console.error('[BASTION] sièges :', e.message));
   const done = await prisma.bastion.findMany({ where: { status: 'BUILDING', buildEndsAt: { lte: now } }, select: { id: true, allianceId: true, x: true, y: true } });
   for (const b of done) {
-    const ok = await prisma.bastion.updateMany({ where: { id: b.id, status: 'BUILDING' }, data: { status: 'ACTIVE', activatedAt: now, structure: 1, structureAt: now } });
+    const ok = await prisma.bastion.updateMany({ where: { id: b.id, status: 'BUILDING' }, data: { status: 'ACTIVE', activatedAt: now, structure: 1, structureAt: now, wallHp: null, wallAt: null } });   // toutes ses vies, mur neuf
     if (ok.count !== 1) continue;
     forgetActive();
     const members = await prisma.allianceMember.findMany({ where: { allianceId: b.allianceId }, select: { playerId: true } });
@@ -752,7 +787,7 @@ async function releaseOrphanGarrisons() {
 async function bastionsIn(x0, x1, y0, y1) {
   const rows = await prisma.bastion.findMany({ where: { x: { gte: x0, lte: x1 }, y: { gte: y0, lte: y1 }, status: { not: 'DESTROYED' } }, include: { alliance: { select: { id: true, tag: true, name: true, leaderId: true } } } });
   const leaders = await prisma.player.findMany({ where: { id: { in: rows.map(r => r.alliance.leaderId).filter(Boolean) } }, select: { id: true, faction: true } });
-  return rows.map(r => ({ id: r.id, x: r.x, y: r.y, status: r.status, allianceId: r.allianceId, allianceTag: r.alliance.tag, allianceName: r.alliance.name, faction: leaders.find(l => l.id === r.alliance.leaderId)?.faction || 'ROME', structurePct: Math.round(structureNow(r) * 100), lives: livesOf(structureNow(r)), ...regenView(r), isSieged: r.isSieged, buildEndsAt: r.buildEndsAt }));
+  return rows.map(r => ({ id: r.id, x: r.x, y: r.y, status: r.status, allianceId: r.allianceId, allianceTag: r.alliance.tag, allianceName: r.alliance.name, faction: leaders.find(l => l.id === r.alliance.leaderId)?.faction || 'ROME', structurePct: Math.round(structureNow(r) * 100), lives: livesOf(structureNow(r)), ...regenView(r), ...wallView(r), isSieged: r.isSieged, buildEndsAt: r.buildEndsAt }));
 }
 
-module.exports = { relationTo, breakSiege, handleBreakArrival, livesOf, regenView, refreshSieged, campingRally, assaultGroup, garrisonWhere, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, releaseOrphanGarrisons, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };
+module.exports = { relationTo, breakSiege, handleBreakArrival, livesOf, regenView, refreshSieged, campingRally, assaultGroup, garrisonWhere, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, releaseOrphanGarrisons, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, wallNow, wallFullAt, wallView, httpError };

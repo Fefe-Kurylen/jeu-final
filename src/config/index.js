@@ -60,7 +60,8 @@ const config = {
 
   // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
   // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
-  // plus dur (mur bouclier 3 fois un mur 20, 10 vies qui remontent en 72 h après 24 h sans assaut gagné) ; 7 jours avant
+  // plus dur (mur bouclier de 36 000 PV qui garde ses dégâts et se répare en 12 h, 10 vies qui remontent en 72 h après 24 h
+  // sans assaut gagné) ; 7 jours avant
   // d'en rebâtir un. Un assaut = un rassemblement ou une armée seule ; garnison de 10 armées au plus (décision du
   // 31 octobre 2026, rapport de vérification)
   // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 2 000 joueurs (31 octobre 2026) ; fin par
@@ -86,6 +87,10 @@ const config = {
     basePower: 15000, levelFactor: 2.5,  // puissance de l'avant-poste au niveau 1, × 2,5 par niveau
     // par ressource, au niveau 1 ; or 200 au niveau 1 (avant 40) : décision du 31 octobre 2026 (rapport de vérification)
     treasure: { resources: 8000, gold: 200, alliancePoints: 30, resourceFactor: 2.5, goldFactor: 2 },
+    // Part du trésor qui ne tient dans aucune ville du joueur (stock commun plein) : 1 point d'alliance par 1 000 ressources
+    // perdues, au plus 2 fois les points d'alliance de la part, pour que rien ne se perde sans rien dire (décision du
+    // 2 novembre 2026 (deuxième simulation de 200 jours), G12 : 322 parts sur 324 perdaient leur bois, pierre et fer, 98 %)
+    treasureOverflow: { resourcesPerAlliancePoint: 1000, maxShareMult: 2 },
     itemChance: [0.15, 0.25, 0.35, 0.5, 0.7],                               // objet rare au dernier coup, par niveau
     itemTier: ['COMMON', 'COMMON', 'RARE', 'EPIC', 'EPIC'],
     manualHours: 48,                      // invasion lancée par l'équipe
@@ -129,7 +134,9 @@ const config = {
     wonderTimeBaseSec: 3600,
     wonderTimeFactor: 1.025,
     wonderLevelsLostPerAssault: 2,
-    immortalWaveHours: 12,       // les Immortels attaquent chaque Ville Merveille toutes les 12 h
+    // les Immortels attaquent chaque Ville Merveille toutes les 24 h, même force (décision du 2 novembre 2026 (deuxième
+    // simulation de 200 jours), G6 ; 12 h avant)
+    immortalWaveHours: 24,
     // Immortels (décision du 30 octobre 2026, rapport économie, recommandation 8) : garnison d'un site, d'un plan, et vague
     // contre une Ville Merveille = immortalWaveBase × niveau^immortalWaveExp. Réglés pour une alliance de 15 à 20 joueurs
     // (décision du 31 octobre 2026, rapport de vérification ; vrai moteur et armées de la simulation, jours 120 à 175) :
@@ -170,8 +177,18 @@ const config = {
     // 300 tirages) : contre une garnison pleine de 10 armées comme les siennes, un rassemblement de 15 / 16 / 17 / 18 / 20
     // armées prend une vie 4 / 19 / 50 / 83 / 100 % des fois (à 17 armées en garnison, 0 % jusqu'à 20 armées) ; sans
     // garnison, 5 armées suffisent (4 sous un chef du Sultanat). Le camp devant le Bastion peut être attaqué par les renforts
-    // (mission « Briser le siège » de l'alliance et de ses alliés, sortie de la garnison), comme un siège de ville
-    wallMultiplier: 3,
+    // (mission « Briser le siège » de l'alliance et de ses alliés, sortie de la garnison), comme un siège de ville.
+    // Mur : 1,8 fois un mur 20, soit 36 000 PV (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G2 : 40 %
+    // de moins que les 60 000 d'avant) ; il garde les dégâts de chaque assaut, gagné ou repoussé, et redevient plein
+    // wallRepairHours après le dernier dégât, en ligne droite (avant, il repartait neuf à chaque assaut) ; les vies n'y
+    // entrent plus. Mesure (vrai moteur, armées de sim_e au jour 200, médiane 3 486 soldats par joueur, 65 engins par
+    // armée, 200 tirages) contre une garnison pleine de 10 armées médianes : un assaut prend une vie avec 13 / 14 / 15 / 16
+    // armées 5 / 36 / 84 / 99 % des fois (avec le mur de 60 000 : 0 / 2 / 9 / 32 %, 75 % à 17) ; un premier assaut repoussé
+    // (le mur y tombe au 3e ou 4e round) en laisse un second de la même taille 6 h plus tard face à 18 000 PV : 33 / 83 / 100 %
+    // avec 12 / 13 / 14 armées contre une garnison remise à neuf, presque toujours si elle n'a pas remplacé ses pertes ;
+    // sans garnison, 3 armées de campagne suffisent (5 avant)
+    wallMultiplier: 1.8,
+    wallRepairHours: 12,
     maxGarrisonArmies: 10,
     sortieSeconds: 30,                          // sortie d'une armée de la garnison contre le camp ennemi : combat 30 s après (décision du 29 octobre 2026)
     // Briser le siège ensemble (décision du 1er novembre 2026 (simulation de 200 jours), E4) : les armées du côté du
@@ -395,10 +412,14 @@ const config = {
     heroXpPerKill: 0.25,         // GDD: XP per enemy unit destroyed
     heroXpPerTribeKill: 1,       // XP per tribe unit destroyed when clearing a resource node
     heroMaxLevel: 30,
-    winnerLossMultiplier: 0.3,
-    tribeLossMultiplier: 0.15,   // winner's losses against a tribe (camp): half of a raid, the camp is a static target (docs/EQUILIBRAGE.md § 9)
-    loserLossRate: 0.30,         // GDD raid rule: the fight stops once a side is below 70%
-    raidLootPctOfCarry: 0.30,    // GDD: a raid carries away at most 30% of the army's capacity
+    // Tous les combats passent par le moteur de bataille, raids compris (décision du 2 novembre 2026 (deuxième simulation de
+    // 200 jours), G3) : plus de comparaison de puissance ni de pertes forfaitaires (winnerLossMultiplier 0,3 et
+    // tribeLossMultiplier 0,15 retirés). Règle du raid du GDD (« arrêt à 70 % effectif ») : un raid s'arrête dès qu'un camp a
+    // perdu 30 % de ses soldats, et ce camp a perdu (combatService.resolveCombat, opts.raid)
+    loserLossRate: 0.30,
+    // un raid emporte jusqu'à 100 % de ce que portent les pillards survivants, la cachette gardant sa part (décision du
+    // 2 novembre 2026 (deuxième simulation de 200 jours), G4 ; 30 % avant)
+    raidLootPctOfCarry: 1.0,
     raidCooldownHours: 24,       // GDD: one raid per target city per attacker per 24h
     // Coefficients de palier. PUISSANCE (pillages, camps, rencontres, hordes, affichage) : (ATK + DEF) × coef, équilibrage
     // d'oct. 2026 (docs/EQUILIBRAGE.md). BATAILLE (combat détaillé) : ceux du GDD, sur ATK et DEF (docs/RAPPORT-UNITES.md, option B)

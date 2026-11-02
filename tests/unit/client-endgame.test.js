@@ -27,9 +27,10 @@ function pick(code, names) {
   assert.deepEqual([...found.keys()].sort(), [...names].sort());
   return [...found.values()].join('\n');
 }
-// règles telles que GET /api/bastion les donne (bastionService.bastionFor)
+// règles telles que GET /api/bastion les donne (bastionService.bastionFor) ; mur de 36 000 PV qui se répare en 12 h (G2)
 const B = config.bastion;
-const RULES = { cost: B.cost, buildDays: B.buildDays, cooldownDays: B.cooldownDays, bonuses: B.bonuses, assaults: B.assaults, regenHours: B.regenHours, regenPauseHours: B.regenPauseHours, maxDistance: B.maxDistanceFromMember, wallMultiplier: B.wallMultiplier, wallReferenceLevel: B.wallReferenceLevel, maxGarrisonArmies: B.maxGarrisonArmies, breakGroupSeconds: B.breakGroupSeconds };
+const WALL_MAX = config.combat.wallHpPerLevel * B.wallReferenceLevel * B.wallMultiplier;   // bastionService.wallMaxHp
+const RULES = { cost: B.cost, buildDays: B.buildDays, cooldownDays: B.cooldownDays, bonuses: B.bonuses, assaults: B.assaults, regenHours: B.regenHours, regenPauseHours: B.regenPauseHours, maxDistance: B.maxDistanceFromMember, wallMultiplier: B.wallMultiplier, wallReferenceLevel: B.wallReferenceLevel, wallMaxHp: WALL_MAX, wallRepairHours: B.wallRepairHours, maxGarrisonArmies: B.maxGarrisonArmies, breakGroupSeconds: B.breakGroupSeconds };
 function makeContext(state, extra = {}) {
   const ctx = {
     console, token: 't', player: { id: 'p1' }, currentCity: null, armies: [], cities: [],
@@ -37,7 +38,7 @@ function makeContext(state, extra = {}) {
     getUnitName: k => k, fetchJson: async () => state, ...extra
   };
   vm.createContext(ctx);
-  vm.runInContext(pick(src('09g-bastion.js'), ['bastionState', 'loadBastion', 'BASTION_RES', 'bastionStatusLabel', 'bastionBonusesHtml', 'bastionRegenHtml', 'renderBastionSection', 'garrisonFullText', 'renderBastionMapPanel', 'openBastionSend']), ctx);
+  vm.runInContext(pick(src('09g-bastion.js'), ['bastionState', 'loadBastion', 'BASTION_RES', 'bastionStatusLabel', 'bastionBonusesHtml', 'bastionRegenHtml', 'frDecimal', 'bastionWallHtml', 'renderBastionSection', 'garrisonFullText', 'renderBastionMapPanel', 'openBastionSend']), ctx);
   return ctx;
 }
 const garrisonArmy = (i) => ({ id: `g${i}`, name: `Armée ${i}`, owner: { id: 'p2', name: 'Bo' }, status: 'STATIONED', units: [{ key: 'ROM_INF_MILICIEN', count: 10 }] });
@@ -68,7 +69,8 @@ test('carte : un Bastion ennemi montre le mur, les vies et la garnison au plus d
   const content = { innerHTML: '', querySelector: () => null };
   await ctx.renderBastionMapPanel({ id: 'b1', name: 'Bastion [ENN]', x: 4, y: 5, status: 'ACTIVE', lives: 7, allianceTag: 'ENN', allianceName: 'Ennemis' }, content);
   assert.match(content.innerHTML, new RegExp(`Vies : 7 / ${B.assaults}`));
-  assert.match(content.innerHTML, new RegExp(`garnison \\(${B.maxGarrisonArmies} armées au plus\\) derrière un mur ${B.wallMultiplier} fois plus solide qu'un mur ${B.wallReferenceLevel}`));
+  assert.match(content.innerHTML, new RegExp(`garnison \\(${B.maxGarrisonArmies} armées au plus\\) derrière un mur de ${WALL_MAX} PV \\(${String(B.wallMultiplier).replace('.', ',')} fois un mur ${B.wallReferenceLevel}\\)`));
+  assert.match(content.innerHTML, new RegExp(`il garde ses dégâts et ne redevient plein que ${B.wallRepairHours} h après le dernier assaut`));
   assert.match(content.innerHTML, /Un assaut, c'est un rassemblement de votre alliance ou une armée seule/);
   assert.doesNotMatch(content.innerHTML, /10 fois plus solide/);
   // envoi en garnison : la limite est dite
@@ -189,7 +191,7 @@ test('fiche de la Merveille : l\'armée est le vrai moyen de la ravitailler (arm
   let modal = '';
   const view = { cityId: 'c1', name: 'Memphis', level: 3, maxLevel: 100, owner: { name: 'Ana' }, alliance: null, mine: true, stock: { wood: 0, stone: 0, iron: 0, food: 0 }, next: { level: 4, cost: W.levelCost(4), seconds: W.levelSeconds(4), needsPlan: false }, hasPlan: false };
   const ctx = makeContext(view, { openSheetModal: (title, html) => { modal = html; }, formatDuration: () => '1 h', showToast() {} });
-  vm.runInContext(pick(src('09i-world.js'), ['openWonderPanel']), ctx);
+  vm.runInContext(pick(src('09i-world.js'), ['IMMORTAL_WAVE_HOURS', 'openWonderPanel']), ctx);
   await ctx.openWonderPanel('c1');
   assert.match(modal, /L'armée est le vrai moyen de ravitailler la Merveille/);
   assert.match(modal, /armée de transport vers la Ville Merveille \(Marché › Envoyer\)/);

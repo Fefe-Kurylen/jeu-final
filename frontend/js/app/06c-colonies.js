@@ -197,16 +197,19 @@ function myCityRowHtml(city, nowMs) {
     : `<span class="mv-idle">${resIconHtml('build')} File vide</span>`;
   const training = recruits.reduce((s, q) => s + (q.count || 0), 0);
   const recruitHtml = recruits.length ? `${resIconHtml('recruit')} ${formatNum(training)} en formation · fin dans ${countdownHtml(lastEndOf(recruits))}` : `${resIconHtml('recruit')} Aucun recrutement`;
-  // armées du joueur posées dans la ville (la garnison de la capitale, celles envoyées défendre une colonie)
-  const here = (armies || []).filter(a => a.status === 'IDLE' && a.x === city.x && a.y === city.y && (a.units || []).length);
+  // armées du joueur posées dans la ville : ce sont elles qui la défendent (décision du 2 novembre 2026, deuxième simulation
+  // de 200 jours, G10) ; la réserve de la ville (sa garnison : soldats dans aucune armée) ne défend pas, comptée à part
+  const here = (armies || []).filter(a => !a.isGarrison && a.status === 'IDLE' && a.x === city.x && a.y === city.y && (a.units || []).length);
   const soldiers = here.reduce((s, a) => s + a.units.reduce((t, u) => t + u.count, 0), 0);
+  const reserve = (armies || []).filter(a => a.isGarrison && a.cityId === city.id).reduce((s, a) => s + (a.units || []).reduce((t, u) => t + u.count, 0), 0);
+  const attack = (incomingAttacks || []).filter(a => a.targetCityId === city.id && (a.type === 'SIEGE' || new Date(a.arrivalAt).getTime() > nowMs))
+    .sort((a, b) => new Date(a.arrivalAt) - new Date(b.arrivalAt))[0];
   // armées rattachées à la colonie (décision du 1er novembre 2026, E2), en ville ou en mission : leurs noms en info-bulle
   const attached = city.isCapital ? [] : (armies || []).filter(a => a.cityId === city.id && !a.isGarrison);
   const attachedHtml = attached.length ? ` · <span title="${escapeHtml(attached.map(a => a.name).join(', '))}">${attached.length} rattachée${attached.length > 1 ? 's' : ''}</span>` : '';
-  const armyHtml = `${resIconHtml('army')} ${here.length ? `${here.length} armée${here.length > 1 ? 's' : ''} · ${formatNum(soldiers)} soldats` : 'Aucune armée'}${attachedHtml}`;
+  const reserveHtml = reserve > 0 ? ` · <span class="mv-warn" title="Vos soldats en réserve ne défendent pas : mettez-les dans une armée.">${formatNum(reserve)} en réserve, ne défend pas</span>` : '';
+  const armyHtml = `${resIconHtml('army')} ${here.length ? `${here.length} armée${here.length > 1 ? 's' : ''} · ${formatNum(soldiers)} soldats` : attack ? '<span class="mv-warn">Aucune armée pour la défendre</span>' : 'Aucune armée'}${attachedHtml}${reserveHtml}`;
   const livesHtml = city.lives ? `<span class="mv-lives${city.lives.left < city.lives.total ? ' mv-warn' : ''}">${resIconHtml('defense')} Vies ${city.lives.left}/${city.lives.total}</span>` : '';
-  const attack = (incomingAttacks || []).filter(a => a.targetCityId === city.id && (a.type === 'SIEGE' || new Date(a.arrivalAt).getTime() > nowMs))
-    .sort((a, b) => new Date(a.arrivalAt) - new Date(b.arrivalAt))[0];
   const attackHtml = attack ? `<span class="mv-attack">${resIconHtml('attack')} ${attack.type === 'SIEGE' ? 'Siège : assaut dans' : 'Attaque dans'} ${countdownHtml(new Date(attack.arrivalAt).getTime())}</span>` : '';
   return `
     <div class="village-list-item mv-row${city.id === currentCity?.id ? ' active' : ''}${attack ? ' mv-threat' : ''}" onclick="selectCity('${city.id}'); closeModal();">

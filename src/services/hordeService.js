@@ -26,10 +26,11 @@ const config = require('../config');
 const { unitsData, itemsData } = require('../config/gamedata');
 const { calculateArmyPower } = require('../utils/calculations');
 const { resolveCombat, heroCombatStats } = require('./combatService');
+const { applyEngineLosses } = require('../utils/armyUnits');
 const { calculateWoundedUnits, carryWounded } = require('./woundedService');
 const { awardHeroXp } = require('./heroXpService');
 const { techPct } = require('../utils/techEffects');
-const { lockPlayerCities, creditPlayer, lostNote } = require('../utils/db');
+const { lockPlayerCities, creditPlayer, lostNote, RESOURCES, RES_FR } = require('../utils/db');
 const { notify } = require('./pushService');
 const Terrain = require('../../frontend/js/shared/terrain.js');
 
@@ -227,9 +228,11 @@ function pickItem(tier) {
   const pool = itemsData.filter(i => i.tier === tier);
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
 }
-// Un rassemblement d'alliance (rallyService) livre un seul combat : toutes ses armées contre la garnison de l'étage.
-// Héros du lanceur en tête (comme le commandant d'un rassemblement de Rise of Kingdoms) ; chaque armée perd la même part
-// de ses soldats ; les dégâts reviennent à chacun selon la puissance qu'il a amenée. armyIds[0] = l'armée du lanceur.
+// Un rassemblement d'alliance (rallyService) livre un seul combat : toutes ses armées contre la garnison de l'étage, au
+// moteur de bataille, rounds complets (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G3). Héros et
+// technologies du lanceur en tête (comme le commandant d'un rassemblement de Rise of Kingdoms), Forge et civilisation de
+// chacun ; les morts de chaque type d'unité se partagent entre les armées selon leurs soldats ; les dégâts reviennent à
+// chacun selon la puissance qu'il a amenée. armyIds[0] = l'armée du lanceur.
 async function attackHordeGroup(armyIds, nodeId) {
   const out = await prisma.$transaction(async (tx) => {
     const node = await tx.$queryRaw`SELECT * FROM "ResourceNode" WHERE id = ${nodeId} FOR UPDATE`.then(r => r[0]);
@@ -245,15 +248,16 @@ async function attackHordeGroup(armyIds, nodeId) {
     const groupBonus = await require('./armyService').combatPct(tx, lead.ownerId, leadTech, armies);   // technologies du lanceur, Forge de chacun
     // civilisation de chaque armée sur ses lignes : « +10 % défense » de Rome compté armée par armée
     const allUnits = armies.flatMap(a => a.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count, faction: a.owner?.faction || null })));
-    const combat = resolveCombat(allUnits, defenders, 0, heroCombatStats(lead.hero), null, { attackerBonusPct: groupBonus.atk, winnerLossMultiplier: config.combat.tribeLossMultiplier });
+    const combat = resolveCombat(allUnits, defenders, 0, heroCombatStats(lead.hero), null, { fieldBattle: true, attackerFaction: lead.owner?.faction, attackerPct: groupBonus });
     // part de chaque armée : la puissance qu'elle amène
     const powers = armies.map(a => calculateArmyPower(a.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), unitsData) || 1);
     const totalPower = powers.reduce((t, p) => t + p, 0) || 1;
-    // la garnison s'use : étage vaincu si l'attaque l'emporte, sinon ses pertes restent
+    // la garnison s'use : étage vaincu si l'attaque l'emporte (ses survivants s'enfuient), sinon elle garde ses survivants
     const killedHorde = [];
     const remaining = {};
     for (const [key, n] of Object.entries(node.defenderUnits || {})) {
-      const l = combat.attackerWon ? n : Math.floor(n * combat.defenderLossRate);
+      const left = combat.defenderFinalUnits.find(u => u.key === key)?.remaining ?? n;
+      const l = combat.attackerWon ? n : n - left;
       if (l > 0) killedHorde.push({ key, killed: l });
       remaining[key] = Math.max(0, n - l);
     }
@@ -262,15 +266,15 @@ async function attackHordeGroup(armyIds, nodeId) {
     const kills = killedHorde.reduce((t, k) => t + k.killed, 0);
     const floorName = I.floors[horde.floor - 1];
     const perArmy = [];
+    const before = armies.map(a => a.units.map(u => ({ key: u.unitKey, count: u.count })));
+    const HS = require('./heroService');
+    const engaged = HS.fought(armies);   // avant les pertes
+    const losses = await applyEngineLosses(tx, armies, combat.attackerFinalUnits);
+    await HS.fallIfWiped(tx, engaged);   // une armée anéantie au moteur perd son héros, comme ailleurs
     for (const [i, a] of armies.entries()) {
       const share = powers[i] / totalPower;
-      let lost = 0; const killedOwn = [];
-      for (const u of a.units) {
-        const l = Math.floor(u.count * combat.attackerLossRate);
-        if (l <= 0) continue;
-        lost += l; killedOwn.push({ key: u.unitKey, killed: l });
-        if (l >= u.count) await tx.armyUnit.delete({ where: { id: u.id } }); else await tx.armyUnit.update({ where: { id: u.id }, data: { count: { decrement: l } } });
-      }
+      const { total: lost, killed: killedOwn } = losses[i];
+      const soldiers = before[i].reduce((t, u) => t + u.count, 0);
       const techRows = i === 0 ? leadTech : await tx.playerTechnology.findMany({ where: { playerId: a.ownerId } });
       if (lost > 0 && a.cityId) {
         try {
@@ -279,16 +283,16 @@ async function attackHordeGroup(armyIds, nodeId) {
         } catch (e) { console.error('[WOUNDED]', e.message); }
       }
       const myPoints = Math.round(points * share);
-      await RK.recordCombat(tx, { attackers: [{ playerId: a.ownerId, units: a.units.reduce((t, u) => t + u.count, 0) }], defenders: [], attackerLosses: killedOwn, defenderLosses: killedHorde.map(k => ({ key: k.key, killed: Math.round(k.killed * share) })) });
+      await RK.recordCombat(tx, { attackers: [{ playerId: a.ownerId, units: soldiers }], defenders: [], attackerLosses: killedOwn, defenderLosses: killedHorde.map(k => ({ key: k.key, killed: Math.round(k.killed * share) })) });
       await tx.hordeDamage.upsert({ where: { hordeId_playerId: { hordeId: horde.id, playerId: a.ownerId } }, update: { points: { increment: myPoints }, attacks: { increment: 1 }, allianceId: a.owner.alliance.allianceId }, create: { hordeId: horde.id, playerId: a.ownerId, allianceId: a.owner.alliance.allianceId, points: myPoints, attacks: 1 } });
       // défi « Chasseurs de hordes » : les dégâts comptent le jour (de Paris) où ils sont infligés
       await require('./questService').bump(a.ownerId, 'horde_points', myPoints, tx);
       if (a.heroId && kills) await awardHeroXp(a.heroId, Math.floor(kills * share * config.combat.heroXpPerTribeKill), tx);
       const report = await tx.battleReport.create({ data: {
         playerId: a.ownerId, attackerId: a.ownerId, x: node.x, y: node.y, result: combat.attackerWon ? 'WIN' : 'LOSE', winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER',
-        attackerUnits: a.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits: defenders,
-        attackerLosses: { totalAttackerLosses: lost, totalKilled: lost, rate: combat.attackerLossRate }, defenderLosses: { totalDefenderLosses: kills, totalKilled: kills, rate: combat.attackerWon ? 1 : combat.defenderLossRate },
-        loot: { attackerName: armies.length > 1 ? `Rassemblement de ${lead.owner?.name} (${armies.length} armées)` : a.owner?.name, defenderName: `Horde barbare · ${floorName}`, cityName: `Donjon barbare niv. ${horde.level} (${node.x}, ${node.y})`, type: 'HORDE', points: myPoints, rallyArmies: armies.length },
+        attackerUnits: before[i], defenderUnits: defenders,
+        attackerLosses: { totalAttackerLosses: lost, totalKilled: lost, rate: soldiers ? lost / soldiers : 0, units: killedOwn }, defenderLosses: { totalDefenderLosses: kills, totalKilled: kills, rate: combat.attackerWon ? 1 : combat.defenderLossRate, units: killedHorde },
+        loot: { attackerName: armies.length > 1 ? `Rassemblement de ${lead.owner?.name} (${armies.length} armées)` : a.owner?.name, defenderName: `Horde barbare · ${floorName}`, cityName: `Donjon barbare niv. ${horde.level} (${node.x}, ${node.y})`, type: 'HORDE', points: myPoints, rallyArmies: armies.length, ...(armies.length === 1 ? { rounds: combat.rounds, duration: combat.rounds.length } : {}) },
         rounds: { type: 'HORDE', level: horde.level, floor: horde.floor, floorName, rally: armies.length > 1 } } });
       perArmy.push({ armyId: a.id, ownerId: a.ownerId, name: a.name, lost, points: myPoints, reportId: report.id });
     }
@@ -315,6 +319,21 @@ async function attackHorde(army, nodeId) {
   return attackHordeGroup([army.id], nodeId);
 }
 
+// Trésor qui ne tient dans aucune ville (décision du 2 novembre 2026, deuxième simulation de 200 jours, G12) : il devient
+// des points d'alliance, 1 par resourcesPerAlliancePoint ressources perdues, au plus maxShareMult fois ceux de la part (pur)
+const lostTotal = (lost) => RESOURCES.reduce((t, r) => t + Math.max(0, Math.floor(lost?.[r] || 0)), 0);
+function overflowAlliancePoints(lost, shareAp) {
+  const O = I.treasureOverflow;
+  return Math.max(0, Math.min(Math.floor(lostTotal(lost) / O.resourcesPerAlliancePoint), Math.floor(shareAp * O.maxShareMult)));
+}
+// Fin de la notification du trésor : ce qui n'a tenu dans aucune ville, et les points d'alliance qu'il a donnés
+function treasureLostNote(lost, overflowAp) {
+  if (!overflowAp) return lostNote(lost);
+  const list = RESOURCES.filter(r => lost?.[r] > 0).map(r => `${Math.ceil(lost[r]).toLocaleString('fr-FR')} de ${RES_FR[r]}`).join(', ');
+  const capped = Math.floor(lostTotal(lost) / I.treasureOverflow.resourcesPerAlliancePoint) > overflowAp;
+  return ` ; plus de place dans vos villes : ${list} changés en ${overflowAp} points d'alliance${capped ? ` (au plus ${I.treasureOverflow.maxShareMult} fois ceux de votre part : le reste est perdu)` : ''}`;
+}
+
 // Donjon détruit : trésor partagé selon les dégâts, objet rare au dernier coup, points d'alliance ; le point disparaît
 async function destroyHorde(tx, horde, node, lastHitterId, lastHeroId) {
   await tx.horde.update({ where: { id: horde.id }, data: { destroyedAt: new Date(), floor: I.floors.length } });
@@ -336,9 +355,12 @@ async function destroyHorde(tx, horde, node, lastHitterId, lastHeroId) {
     const cities = await lockPlayerCities(tx, r.playerId);
     const paid = await tx.player.updateMany({ where: { id: r.playerId }, data: { gold: { increment: gold }, alliancePoints: { increment: ap } } });
     if (!paid.count) continue;   // supprimé entre-temps : pas de part
-    // la capitale d'abord, le surplus dans les autres villes selon leur place ; ce qui ne tient nulle part est perdu
+    // stock commun : la capitale d'abord, le surplus dans les autres villes selon leur place ; ce qui ne tient nulle part
+    // devient des points d'alliance (G12)
     const { lost } = await creditPlayer(tx, r.playerId, cities.find(c => c.isCapital)?.id, gain, cities);
-    shares.push({ playerId: r.playerId, share, gain, lost, gold, alliancePoints: ap });
+    const overflowAp = overflowAlliancePoints(lost, ap);
+    if (overflowAp > 0) await tx.player.update({ where: { id: r.playerId }, data: { alliancePoints: { increment: overflowAp } } });
+    shares.push({ playerId: r.playerId, share, gain, lost, gold, alliancePoints: ap, overflowAp });
   }
   // dernier coup : une chance d'objet pour le héros qui l'a porté (ou le héros du joueur)
   let item = null;
@@ -355,8 +377,9 @@ function announceOutcome(army, r) {
   if (r.destroyed && r.treasure) {
     for (const sh of r.treasure.shares) {
       const pct = Math.round(sh.share * 100);
-      // ressources rangées dans la capitale puis dans les autres villes ; la fin dit ce qui n'a tenu nulle part (lostNote)
-      notify(sh.playerId, 'invasion', '🏆 Donjon barbare détruit', `Le donjon de niveau ${r.level} en (${r.x}, ${r.y}) est tombé. Votre part du trésor (${pct} % des dégâts) : ${sh.gold} or, ${sh.alliancePoints} points d'alliance et ${sh.gain.wood.toLocaleString('fr-FR')} de chaque ressource, rangées dans votre capitale puis dans vos autres villes${lostNote(sh.lost)}.${sh.playerId === r.treasure.lastHitterId && r.treasure.item ? ` Dernier coup : votre héros trouve « ${r.treasure.item.name} ».` : ''}`, { to: 'map', x: r.x, y: r.y });
+      // ressources rangées dans la capitale puis dans les autres villes ; la fin dit ce qui n'a tenu nulle part et les points
+      // d'alliance qu'il a donnés (G12)
+      notify(sh.playerId, 'invasion', '🏆 Donjon barbare détruit', `Le donjon de niveau ${r.level} en (${r.x}, ${r.y}) est tombé. Votre part du trésor (${pct} % des dégâts) : ${sh.gold} or, ${sh.alliancePoints} points d'alliance et ${sh.gain.wood.toLocaleString('fr-FR')} de chaque ressource, rangées dans votre capitale puis dans vos autres villes${treasureLostNote(sh.lost, sh.overflowAp)}.${sh.playerId === r.treasure.lastHitterId && r.treasure.item ? ` Dernier coup : votre héros trouve « ${r.treasure.item.name} ».` : ''}`, { to: 'map', x: r.x, y: r.y });
     }
     return;
   }
@@ -404,3 +427,4 @@ async function hordeView(nodeId, playerId) {
 }
 
 module.exports = { attackHordeGroup, destroyHorde, weekendWindow, nextWindowStart, parisParts, parisToUtc, ageMultFor, levelAgeMult, outpostPower, measuredBasePower, floorsFor, floorPower, treasureFor, garrison, powerOf, placeLevel, startInvasion, endInvasion, processInvasions, attackHorde, announceOutcome, activeInvasion, invasionState, hordeView };
+Object.assign(module.exports, { overflowAlliancePoints, treasureLostNote });   // trésor sans place dans les villes (G12), pour les tests

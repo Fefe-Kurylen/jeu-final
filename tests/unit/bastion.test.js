@@ -18,10 +18,11 @@ test('règles décidées : 15 membres, coût, 3 jours, 7 jours de répit, 10 ass
   assert.deepEqual(B.bonuses, { productionPct: 10, armySpeedPct: 5, carryPct: 10, garrisonDefensePct: 10 });
 });
 
-test('mur bouclier : 3 fois un mur de niveau 20 (décision du 31 octobre 2026, 10 avant), garnison de 10 armées au plus', () => {
-  assert.equal(config.bastion.wallMultiplier, 3);
-  assert.equal(bastion.wallMaxHp(), config.combat.wallHpPerLevel * 20 * 3);
-  assert.equal(bastion.wallMaxHp(), 60000);
+test('mur bouclier : 1,8 fois un mur de niveau 20, réparé en 12 h (décision du 2 novembre 2026, G2 ; 3 fois avant), garnison de 10 armées au plus', () => {
+  assert.equal(config.bastion.wallMultiplier, 1.8);
+  assert.equal(bastion.wallMaxHp(), config.combat.wallHpPerLevel * 20 * 1.8);
+  assert.equal(bastion.wallMaxHp(), 36000);
+  assert.equal(config.bastion.wallRepairHours, 12);
   assert.equal(config.bastion.maxGarrisonArmies, 10);
 });
 
@@ -97,6 +98,7 @@ function matches(row, where = {}) {
       if ('not' in v) return (row[k] ?? null) !== v.not;
       if ('gt' in v) return row[k] > v.gt;
       if ('lt' in v) return row[k] < v.lt;
+      if ('lte' in v) return row[k] <= v.lte;
       // filtres sur une relation (lignes d'unités d'une armée)
       if ('some' in v) return (row[k] || []).some(x => matches(x, v.some));
       if ('none' in v) return !(row[k] || []).some(x => matches(x, v.none));
@@ -321,6 +323,14 @@ test('briser le siège : renforts de l\'alliance du Bastion et de ses alliés, s
   }
 });
 
+// Un camp chassé rentre : en marche s'il lui reste des soldats ; anéanti (le moteur de bataille va souvent jusqu'au bout,
+// décision du 2 novembre 2026, G3), il ne marche plus et sendArmyHome le pose aussitôt dans sa ville. Jamais vide devant le Bastion.
+function chased(db, id, sentHome) {
+  const a = db.army(id);
+  const men = (a.units || []).some(u => u.count > 0);
+  return a.rallyId === null && a.targetBastionId === null && (men ? a.status === 'RETURNING' && a.missionType === 'RETURN' : a.status === 'IDLE' && sentHome.includes(id));
+}
+
 test('briser le siège gagné : le camp (rassemblement de plusieurs joueurs ou armée seule) rentre, le Bastion n\'est plus assiégé, l\'assaut n\'a pas lieu', async () => {
   require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
   for (const camp of [[siegeCamp('lead', 'p7', 30, 'r1'), siegeCamp('mate', 'p8', 30, 'r1'), siegeCamp('mate2', 'p9', 30, 'r1')], [siegeCamp('solo', 'p7', 30)]]) {
@@ -330,17 +340,15 @@ test('briser le siège gagné : le camp (rassemblement de plusieurs joueurs ou a
     try {
       const stale = camp.map(c => ({ ...c }));   // lus par le tick avant le combat
       await bastion.handleBreakArrival(army, new Date(), async (a) => { sentHome.push(a.id); });
-      for (const c of camp) {
-        const row = db.army(c.id);
-        assert.deepEqual([row.status, row.missionType, row.rallyId, row.targetBastionId], ['RETURNING', 'RETURN', null, null], `${c.id} rentre, sorti du rassemblement`);
-      }
+      for (const c of camp) assert.ok(chased(db, c.id, sentHome), `${c.id} rentre, sorti du rassemblement : ${JSON.stringify(db.army(c.id))}`);
       assert.equal((await db.tx.bastion.findUnique({ where: { id: 'b1' } })).isSieged, false, 'plus de camp : plus de siège');
       assert.deepEqual([db.army('a-p2').status, db.army('a-p2').x, db.army('a-p2').targetBastionId], ['IDLE', 4, null], 'le vainqueur garde le Bastion devant ses murs');
-      assert.deepEqual(sentHome, []);
+      assert.ok(sentHome.every(id => camp.some(c => c.id === id)), 'seules les armées anéanties du camp sont posées chez elles');
+      const homeCount = sentHome.length;
       assert.equal(db.reports.length, 1 + camp.length, 'un rapport par joueur');
       // l'heure du camp passée, le tick (qui l'avait lu avant) n'en tire aucun assaut : le Bastion ne perd rien
       for (const c of stale) await bastion.handleBastionBattle(c, new Date(), async (a) => { sentHome.push(a.id); });
-      assert.deepEqual(sentHome, [], 'aucune armée renvoyée une seconde fois');
+      assert.equal(sentHome.length, homeCount, 'aucune armée renvoyée une seconde fois');
       assert.equal(db.reports.length, 1 + camp.length, 'aucun rapport d\'assaut');
       assert.equal((await db.tx.bastion.findUnique({ where: { id: 'b1' } })).structure, 1, 'aucune vie perdue');
       assert.ok(db.notes.some(n => n.playerId === 'p1' && n.title === '🏰 Siège du Bastion brisé'), 'l\'alliance du Bastion est prévenue');
@@ -515,20 +523,20 @@ test('briser le siège ensemble (E4) : une armée et une sortie alliée dans la 
   const sentHome = [];
   try {
     await bastion.handleBreakArrival({ ...lead }, now, async (a) => { sentHome.push(a.id); });
-    for (const c of ['lead', 'mate', 'mate2']) assert.equal(db.army(c).status, 'RETURNING', `${c} chassé`);
+    for (const c of ['lead', 'mate', 'mate2']) assert.ok(chased(db, c, sentHome), `${c} chassé`);
     assert.equal((await db.tx.bastion.findUnique({ where: { id: 'b1' } })).isSieged, false);
     assert.deepEqual([db.army('a-p1').status, db.army('a-p1').x, db.army('a-p1').targetBastionId], ['IDLE', 4, null], 'l\'armée du dehors garde le Bastion');
     assert.deepEqual([db.army('g-p2').status, db.army('g-p2').missionType, db.army('g-p2').targetBastionId], ['STATIONED', 'BASTION_GARRISON', 'b1'], 'la sortie rentre au Bastion');
     assert.deepEqual([db.army('late').status, db.army('late').claimedAt], ['ATTACKING', null], 'arrivée 2 min après : elle se battra seule');
     assert.deepEqual([db.army('n-p6').status, db.army('n-p6').claimedAt], ['ATTACKING', null], 'un joueur d\'une alliance neutre se bat seul');
-    assert.deepEqual(sentHome, []);
+    assert.ok(sentHome.every(id => ['lead', 'mate', 'mate2'].includes(id)), 'seules les armées anéanties du camp sont posées chez elles');
     // un seul combat : un rapport par joueur (les deux du groupe, les trois du camp) ; chaque armée perd la même part
     assert.equal(db.reports.length, 5);
     assert.equal(db.reports[0].loot.armies, 2);
     assert.equal(db.reports[0].attackerUnits[0].count, 100, 'les soldats des deux armées ensemble');
     const left = unitsOf(db, 'a-p1');
     assert.ok(left > 0 && left < 50);
-    assert.equal(unitsOf(db, 'g-p2'), left, 'la même part de pertes');
+    assert.ok(Math.abs(unitsOf(db, 'g-p2') - left) <= 1, 'la même part de pertes (les morts d\'un type se partagent au plus fort reste, G3)');
     for (const id of ['p1', 'p2']) assert.ok(db.notes.some(n => n.playerId === id && n.title === '⚔️ Siège brisé' && n.body.includes('(2 armées ensemble)')), id);
   } finally { db.restore(); }
 });
@@ -622,4 +630,110 @@ test('assaut : blessés des deux camps, ramenés par chaque armée (Tente de la 
       }
     } finally { db.restore(); }
   }
+});
+
+// ---- G2 (décision du 2 novembre 2026, deuxième simulation de 200 jours) : mur de 36 000 PV qui garde ses dégâts et
+// redevient plein 12 h après le dernier, en ligne droite ; lu par l'assaut, le panneau et la carte ----
+test('mur (G2) : il garde ses dégâts et se répare en ligne droite, plein 12 h après le dernier dégât', () => {
+  const max = bastion.wallMaxHp(), at = new Date('2026-11-02T00:00:00Z').getTime();
+  assert.equal(bastion.wallNow({ status: 'ACTIVE', wallHp: null, wallAt: null }, at), max, 'jamais touché : plein');
+  const b = { status: 'ACTIVE', wallHp: 6000, wallAt: new Date(at) };
+  assert.equal(bastion.wallNow(b, at), 6000);
+  assert.equal(bastion.wallNow(b, at + 6 * H), 21000, '6 h : la moitié des 30 000 PV manquants');
+  assert.equal(bastion.wallNow(b, at + 12 * H), max);
+  assert.equal(bastion.wallNow(b, at + 40 * H), max);
+  assert.equal(bastion.wallNow({ ...b, wallHp: 0 }, at + 3 * H), 9000, 'abattu : un quart en 3 h');
+  assert.equal(bastion.wallNow({ ...b, wallHp: 99999 }, at), max, 'jamais au-delà du plein (multiplicateur baissé depuis)');
+  assert.equal(bastion.wallFullAt(b, at + H).getTime(), at + 12 * H);
+  assert.equal(bastion.wallFullAt(b, at + 12 * H), null);
+  assert.deepEqual(bastion.wallView(b, at + 6 * H), { wallHp: 21000, wallMaxHp: max, wallFullAt: new Date(at + 12 * H) });
+  assert.deepEqual(bastion.wallView({ status: 'ACTIVE' }, at), { wallHp: max, wallMaxHp: max, wallFullAt: null });
+  assert.deepEqual(bastion.wallView({ ...b, status: 'FUNDING' }, at), { wallHp: null, wallMaxHp: max, wallFullAt: null }, 'un chantier n\'a pas de mur');
+});
+
+test('assaut (G2) : repoussé ou gagné, le mur garde ses dégâts (PV et instant notés) ; les vies ne changent qu\'avec un assaut gagné', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const before = new Date(Date.now() - 10 * H);
+  for (const [won, atk, rams, guards] of [[false, 5, 1, 500], [true, 2000, 1000, 2]]) {
+    const units = [{ id: 'u-s', armyId: 'solo', unitKey: 'GAU_INF_GUERRIER', tier: 'base', count: atk }, { id: 'r-s', armyId: 'solo', unitKey: 'GAU_SIEGE_BELIER', tier: 'base', count: rams },
+      { id: 'u-g', armyId: 'g', unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: guards }];
+    const attacker = siegeCamp('solo', 'p7', 0);
+    delete attacker.units;
+    withUnits(attacker, units);
+    const db = breakDb({ armies: [attacker, garrisonRow('g', 'p1', units)], bastions: [{ ...BASTION, structure: 0.5, structureAt: before, wallHp: null, wallAt: null }], members: MEMBERS, diplomacy: DIPLOMACY, units });
+    const now = new Date();
+    try {
+      await bastion.handleBastionBattle(db.army('solo'), now, async () => {});
+      await new Promise(r => setImmediate(r));
+      const b = await db.tx.bastion.findUnique({ where: { id: 'b1' } });
+      const loot = db.reports[0].loot;
+      assert.equal(db.reports[0].winner, won ? 'ATTACKER' : 'DEFENDER');
+      assert.equal(loot.wallHpStart, 36000, 'un mur jamais touché part plein (les vies n\'y entrent plus)');
+      assert.ok(loot.wallHpEnd < 36000, `mur abîmé : ${loot.wallHpEnd}`);
+      if (won) assert.equal(loot.wallHpEnd, 0, 'abattu');
+      assert.deepEqual([Math.round(b.wallHp), b.wallAt], [loot.wallHpEnd, now], 'ses PV et l\'instant du dégât sont notés');
+      assert.equal(loot.wallFullAt.getTime(), now.getTime() + 12 * H, 'de nouveau plein 12 h après');
+      assert.deepEqual([b.structure, b.structureAt], won ? [0.4, now] : [0.5, before], 'une vie de moins seulement si l\'assaut est gagné');
+      for (const id of ['p7', 'p1']) assert.ok(db.notes.some(n => n.playerId === id && n.body.includes(`Le mur garde ses dégâts : ${loot.wallHpEnd.toLocaleString('fr-FR')} / 36\u202f000 PV, de nouveau plein dans 12 h s'il n'est plus touché.`)), JSON.stringify(db.notes.map(n => n.body)));
+    } finally { db.restore(); }
+  }
+});
+
+test('assaut (G2) : le suivant part du mur réparé depuis ; un assaut sans engin ne l\'abîme pas et n\'arrête pas la réparation', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const now = new Date(), hitAt = new Date(now.getTime() - 6 * H);   // 10 000 PV il y a 6 h : 23 000 maintenant
+  for (const rams of [1, 0]) {
+    const units = [{ id: 'u-s', armyId: 'solo', unitKey: 'GAU_INF_GUERRIER', tier: 'base', count: 5 }, ...(rams ? [{ id: 'r-s', armyId: 'solo', unitKey: 'GAU_SIEGE_BELIER', tier: 'base', count: rams }] : []),
+      { id: 'u-g', armyId: 'g', unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 500 }];
+    const attacker = siegeCamp('solo', 'p7', 0);
+    delete attacker.units;
+    withUnits(attacker, units);
+    const db = breakDb({ armies: [attacker, garrisonRow('g', 'p1', units)], bastions: [{ ...BASTION, wallHp: 10000, wallAt: hitAt }], members: MEMBERS, diplomacy: DIPLOMACY, units });
+    try {
+      await bastion.handleBastionBattle(db.army('solo'), now, async () => {});
+      await new Promise(r => setImmediate(r));
+      const b = await db.tx.bastion.findUnique({ where: { id: 'b1' } });
+      const loot = db.reports[0].loot;
+      assert.equal(loot.wallHpStart, 23000, 'la moitié des 26 000 PV manquants réparée en 6 h');
+      if (rams) {
+        assert.ok(loot.wallHpEnd < 23000);
+        assert.deepEqual([Math.round(b.wallHp), b.wallAt], [loot.wallHpEnd, now], 'la réparation repart de cet assaut');
+      } else {
+        assert.equal(loot.wallHpEnd, 23000, 'les soldats ne frappent pas le mur');
+        assert.deepEqual([b.wallHp, b.wallAt], [10000, hitAt], 'rien n\'est écrit : la réparation commencée il y a 6 h continue');
+        assert.equal(loot.wallFullAt.getTime(), hitAt.getTime() + 12 * H);
+      }
+    } finally { db.restore(); }
+  }
+});
+
+test('vue du Bastion et carte (G2) : PV du mur maintenant, au plus, et heure où il sera plein ; règles avec la réparation', async () => {
+  const hitAt = new Date(Date.now() - 6 * H);
+  const b = { id: 'b1', allianceId: 'A1', status: 'ACTIVE', isSieged: false, x: 5, y: 5, structure: 1, structureAt: new Date(), wallHp: 6000, wallAt: hitAt, alliance: { id: 'A1', tag: 'DEF', name: 'Défenseurs', leaderId: 'p1' } };
+  const db = fakeDb({ bastions: [b], members: [{ playerId: 'p1', allianceId: 'A1', role: 'MEMBER', alliance: { bastion: b, _count: { members: 16 } } }] });
+  const savedPlayer = prisma.player;
+  prisma.player = { findMany: async () => [{ id: 'p1', faction: 'ROME' }] };
+  try {
+    const v = await bastion.bastionFor('p1');
+    assert.ok(Math.abs(v.bastion.wallHp - 21000) <= 1, String(v.bastion.wallHp));
+    assert.equal(v.bastion.wallMaxHp, 36000);
+    assert.equal(v.bastion.wallFullAt.getTime(), hitAt.getTime() + 12 * H);
+    assert.equal(v.rules.wallRepairHours, 12);
+    assert.equal(v.rules.wallMaxHp, 36000);
+    const [tile] = await bastion.bastionsIn(0, 10, 0, 10);
+    assert.ok(Math.abs(tile.wallHp - 21000) <= 1);
+    assert.deepEqual([tile.wallMaxHp, tile.wallFullAt.getTime()], [36000, hitAt.getTime() + 12 * H]);
+  } finally { prisma.player = savedPlayer; db.restore(); }
+});
+
+test('chantier achevé (G2) : toutes ses vies et un mur neuf, même abîmé pendant le chantier', async () => {
+  const b = { id: 'b1', allianceId: 'A1', status: 'BUILDING', buildEndsAt: new Date(Date.now() - 1000), structure: 0.3, structureAt: new Date(0), wallHp: 100, wallAt: new Date(), isSieged: false, x: 1, y: 1 };
+  const db = fakeDb({ bastions: [b], members: [{ playerId: 'p1', allianceId: 'A1' }] });
+  const saved = prisma.$executeRaw;
+  prisma.$executeRaw = async () => 0;   // drapeaux de siège recalculés (syncSieged)
+  try {
+    await bastion.processBastions(new Date());
+    assert.deepEqual([b.status, b.structure, b.wallHp, b.wallAt], ['ACTIVE', 1, null, null]);
+    assert.equal(bastion.wallNow(b), bastion.wallMaxHp());
+  } finally { prisma.$executeRaw = saved; db.restore(); }
 });

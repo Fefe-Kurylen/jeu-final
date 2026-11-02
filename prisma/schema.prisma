@@ -933,6 +933,10 @@ model Bastion {
   buildEndsAt   DateTime?
   structure     Float     @default(1) // vies restantes (1 = toutes), remontent avec le temps
   structureAt   DateTime  @default(now()) // instant de la dernière valeur de structure
+  // Mur qui garde ses dégâts (décision du 2 novembre 2026, deuxième simulation de 200 jours, G2) : PV notés au dernier
+  // dégât (null : plein), réparés peu à peu jusqu'au plein config.bastion.wallRepairHours après wallAt
+  wallHp        Float?
+  wallAt        DateTime?
   isSieged      Boolean   @default(false)
   activatedAt   DateTime?
   destroyedAt   DateTime?

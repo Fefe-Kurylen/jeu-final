@@ -30,23 +30,22 @@ const unitCost = base.reduce((s, u) => s + sumCost(u.recruitCost), 0) / 3;
 const unitPower = calculateArmyPower(army(3), unitsData) / 3;
 const unitCarry = getArmyCarryCapacity(army(3), unitsData) / 3;
 const woundedRate = (tent) => Math.min(config.wounded.maxRate, config.wounded.baseRate + tent * config.wounded.bonusPerHealingLevel);
-const lossMult = args.loss || config.combat.tribeLossMultiplier || config.combat.winnerLossMultiplier;
 
-console.log(`Unité de base type : ${n(unitCost)} ressources, puissance ${unitPower.toFixed(0)}, transport ${unitCarry}. Pertes du vainqueur contre un camp = ${lossMult} × (puissance tribu / puissance armée) (pillage de ville : ${config.combat.winnerLossMultiplier}) ; perdant ${Math.round(config.combat.loserLossRate * 100)} %. Camp d'or : +${campBonusPct('GOLD')} % au combat comme à l'affichage. Une part des pertes revient blessée (Tente de soins : 30 % + 3 %/niv., Grèce, Médecine).`);
+// moteur de bataille, rounds complets (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G3)
+console.log(`Unité de base type : ${n(unitCost)} ressources, puissance ${unitPower.toFixed(0)}, transport ${unitCarry}. Pertes des deux camps données par le moteur de bataille (rounds complets). Camp d'or : +${campBonusPct('GOLD')} % au combat comme à l'affichage. Une part des pertes revient blessée (Tente de soins : 30 % + 3 %/niv., Grèce, Médecine).`);
 console.log(`\nniveau | soldats | puissance | armée de base pour gagner (×1,2) | camps battus par cette armée | pertes moyennes (unités / ressources) | blessés tente 1 / 10 | butin immédiat | stock max du point (régén./h) | remboursement des pertes en tenant le point | XP héros | réapparition   (moyennes sur ${SAMPLES} camps tirés)`);
 for (const gold of [false, true]) for (const level of [1, 2, 3]) {
   const tribes = Array.from({ length: SAMPLES }, () => generateTribeDefenders(level, gold, 1));
   const soldiers = tribes.reduce((s, t) => s + Object.values(t.units).reduce((a, b) => a + b, 0), 0) / SAMPLES;
   const power = tribes.reduce((s, t) => s + t.power, 0) / SAMPLES;
   const needed = Math.ceil(power * 1.2 / unitPower);
-  // chaque camp tiré contre la même armée : pertes moyennes (le perdant perd loserLossRate) et part des camps battus
-  let lossRate = 0, wins = 0;
+  // chaque camp tiré contre la même armée : pertes moyennes des deux camps et part des camps battus
+  let lossRate = 0, wins = 0, kills = 0;
   for (const t of tribes) {
-    const r = resolveCombat(army(needed), campUnits(t.units), 0, null, null, { defenseBonusPct: campBonusPct(gold ? 'GOLD' : null), winnerLossMultiplier: lossMult });
-    lossRate += r.attackerLossRate / SAMPLES; if (r.attackerWon) wins++;
+    const r = resolveCombat(army(needed), campUnits(t.units), 0, null, null, { fieldBattle: true, defenderPct: { atk: campBonusPct(gold ? 'GOLD' : null), def: campBonusPct(gold ? 'GOLD' : null) } });
+    lossRate += r.attackerLossRate / SAMPLES; kills += r.defenderTotalKilled / SAMPLES; if (r.attackerWon) wins++;
   }
   const lost = needed * lossRate;
-  const kills = soldiers * config.combat.loserLossRate;
   const amount = (gold ? GOLD_AMOUNT : AMOUNT)[level];
   const loot = Math.min(amount, (needed - lost) * unitCarry);
   const maxStock = gold ? amount : amount * MAXF, perHour = gold ? amount / config.map.goldNode.intervalHours : amount * MAXF / REGEN_H;
@@ -62,4 +61,4 @@ for (const [label, x] of [['bord de carte', config.map.maxCoord], ['à mi-chemin
   const c1 = camp(1), c3 = camp(3);
   console.log(`${label.padEnd(14)} difficulté ×${d.toFixed(2)} : niveau 1 ≈ ${n(c1.soldiers)} soldats (${n(c1.needed)} unités de base pour gagner), niveau 3 ≈ ${n(c3.soldiers)} soldats (${n(c3.needed)} unités) ; ± ${config.map.camps.variationPct} % d'un camp à l'autre`);
 }
-console.log('\nLecture : les pertes ne dépendent pas de la taille de l\'armée (≈ ' + lossMult + ' × puissance de la tribu / puissance d\'une unité), donc le coût d\'un camp est fixe ; le butin immédiat est borné par le transport des survivants, le reste du point se récolte à ' + (config.tick.harvestPerTick * 60000 / config.tick.intervalMs) + ' par minute en restant sur place (le point se régénère en ' + REGEN_H + ' h, ' + config.map.goldNode.intervalHours + ' h pour l\'or).');
+console.log('\nLecture : au moteur de bataille, une armée juste assez forte (×1,2) perd beaucoup plus qu\'une armée bien plus grosse, qui écrase le camp en un ou deux rounds ; le butin immédiat est borné par le transport des survivants, le reste du point se récolte à ' + (config.tick.harvestPerTick * 60000 / config.tick.intervalMs) + ' par minute en restant sur place (le point se régénère en ' + REGEN_H + ' h, ' + config.map.goldNode.intervalHours + ' h pour l\'or).');

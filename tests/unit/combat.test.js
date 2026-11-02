@@ -50,12 +50,120 @@ test('empty sides are handled without exceptions', () => {
   assert.equal(r2.attackerWon, false);
 });
 
-test('raid resolution: the loser never loses more than the GDD rate, the winner less than the loser', () => {
-  const r = resolveCombat([group(romeInf, 100)], [group(hunInf, 40)], 0);
+// ---- tous les combats au moteur de bataille (décision du 2 novembre 2026, deuxième simulation de 200 jours, G3) ----
+test('G3 : plus de comparaison de puissance ni de pertes forfaitaires dans la config', () => {
+  assert.equal(config.combat.winnerLossMultiplier, undefined);
+  assert.equal(config.combat.tribeLossMultiplier, undefined);
+  assert.equal(config.combat.loserLossRate, 0.3, 'règle du raid du GDD : arrêt à 70 % d\'effectif');
+});
+
+test('raid (G3) : le moteur s\'arrête dès qu\'un camp a perdu 30 % de ses soldats, ce camp a perdu', () => {
+  const r = resolveCombat([group(romeInf, 100)], [group(hunInf, 40)], 0, null, null, { raid: true });
   assert.equal(r.attackerWon, true);
-  assert.equal(r.defenderLossRate, config.combat.loserLossRate);
-  assert.ok(r.attackerLossRate < r.defenderLossRate);
-  assert.ok(r.attackerLossRate >= 0);
+  assert.equal(r.stopped, true);
+  assert.equal(r.defenderTotalKilled, 12, '30 % de 40, ni plus (le round est coupé à ce moment-là)');
+  assert.ok(r.attackerLossRate < config.combat.loserLossRate);
+  // pertes par type d'unité, données par les rounds (plus de floor(nombre × 30 %))
+  assert.equal(r.defenderFinalUnits[0].remaining, 28);
+  assert.equal(r.attackerFinalUnits[0].killed, r.attackerTotalKilled);
+  // un petit pillard contre une grosse garde : c'est lui qui atteint 30 % le premier
+  const weak = resolveCombat([group(romeInf, 30)], [group(hunInf, 300)], 0, null, null, { raid: true });
+  assert.equal(weak.attackerWon, false);
+  assert.equal(weak.attackerTotalKilled, 9);
+  assert.ok(weak.defenderLossRate < config.combat.loserLossRate);
+});
+
+test('raid (G3) : une ligne de 1 à 3 soldats n\'est plus immortelle (le seuil se compte sur tout le camp, soldat par soldat)', () => {
+  for (const [n, dead] of [[1, 1], [2, 1], [3, 1], [4, 2], [10, 3]]) {
+    const r = resolveCombat([group(romeInf, 385)], [group(hunInf, n)], 10, null, null, { raid: true });
+    assert.equal(r.attackerWon, true);
+    assert.equal(r.defenderTotalKilled, dead, `garde de ${n}`);
+  }
+});
+
+test('G3 / G10 : sans défenseur, l\'attaquant gagne sans combat ; le mur reste un bouclier dans un siège', () => {
+  const raid = resolveCombat([group(romeInf, 50)], [], 15, null, null, { raid: true });
+  assert.equal(raid.attackerWon, true);
+  assert.equal(raid.attackerTotalKilled, 0);
+  assert.equal(raid.rounds.length, 0);
+  // siège d'une ville vide : sans engin, le mur tient et la ville ne perd rien ; avec assez d'engins, il tombe et l'attaquant gagne
+  const wall = { hp: 2000, maxHp: 2000 };
+  const noEngine = resolveCombatDetailed([group(romeInf, 500)], [], 10, 'A', 'B', null, null, null, null, 0, null, { ...wall });
+  assert.equal(noEngine.attackerWon, false);
+  assert.equal(noEngine.wallHpEnd, 2000);
+  assert.equal(noEngine.attackerTotalKilled, 0);
+  const engines = resolveCombatDetailed([group(romeInf, 500), group(romeSiege, 200)], [], 10, 'A', 'B', null, null, null, null, 0, null, { ...wall });
+  assert.equal(engines.wallHpEnd, 0);
+  assert.equal(engines.attackerWon, true);
+  assert.equal(engines.attackerTotalKilled, 0);
+});
+
+test('G3 : un combat hors raid joue tous ses rounds (camp, donjon, terrain ouvert) et tue au-delà de 30 %', () => {
+  const camp = resolveCombat([group(romeInf, 400)], [group(hunInf, 100)], 0, null, null, { fieldBattle: true });
+  assert.equal(camp.attackerWon, true);
+  assert.equal(camp.stopped, false);
+  assert.equal(camp.defenderLossRate, 1, 'le camp vaincu est anéanti');
+  // un camp qui repousse l'attaque garde ses survivants (pertes par type données par le moteur)
+  const lost = resolveCombat([group(romeInf, 60)], [group(hunInf, 100)], 0, null, null, { fieldBattle: true });
+  assert.equal(lost.attackerWon, false);
+  assert.ok(lost.defenderFinalUnits[0].remaining > 0 && lost.defenderFinalUnits[0].remaining < 100);
+});
+
+test('G3 : technologies et Forge { atk, def } des deux camps passent au moteur, la puissance affichée garde la forme courte', () => {
+  const atk = [group(romeInf, 300)], dfd = [group(hunInf, 300)];
+  const plain = resolveCombat(atk, dfd, 0, null, null, { fieldBattle: true });
+  const strong = resolveCombat(atk, dfd, 0, null, null, { fieldBattle: true, attackerPct: { atk: 10, def: 10 } });
+  const tough = resolveCombat(atk, dfd, 0, null, null, { fieldBattle: true, defenderPct: { atk: 10, def: 10 } });
+  assert.ok(strong.defenderTotalKilled > plain.defenderTotalKilled && strong.attackerTotalKilled < plain.attackerTotalKilled);
+  assert.ok(tough.attackerTotalKilled > plain.attackerTotalKilled && tough.defenderTotalKilled < plain.defenderTotalKilled);
+  assert.ok(Math.abs(strong.attackerPower / plain.attackerPower - 1.1) < 1e-9);
+  assert.ok(Math.abs(tough.defenderPower / plain.defenderPower - 1.1) < 1e-9);
+});
+
+test('moteur : bonus de siège (Huns, Rome) dans les sièges seulement, défense chez soi (Gaule, Sultanat) dans sa ville seulement', () => {
+  const gauInf = unit('GAUL', 'INFANTRY', 'base'), sulInf = unit('SULTAN', 'INFANTRY', 'base');
+  const firstKills = (r) => r.rounds[0].attackerKills[0].killed;
+  const firstLosses = (r) => r.rounds[0].defenderKills[0].killed;
+  const big = (u) => [group(u, 100000)];
+  // Huns +10 % d'attaque lors des sièges : pas dans un raid ni en terrain ouvert
+  const hunSiege = resolveCombatDetailed([group(hunInf, 1000)], big(romeInf), 0, 'A', 'B', null, null, 'HUN', null);
+  const hunRaid = resolveCombatDetailed([group(hunInf, 1000)], big(romeInf), 0, 'A', 'B', null, null, 'HUN', null, 0, null, null, { siege: false });
+  const nobody = resolveCombatDetailed([group(hunInf, 1000)], big(romeInf), 0, 'A', 'B');
+  assert.ok(firstKills(hunSiege) > firstKills(nobody));
+  assert.equal(firstKills(hunRaid), firstKills(nobody));
+  // Gaule +20 % de défense dans ses villes : pas en terrain ouvert
+  const gaulHome = resolveCombatDetailed([group(romeInf, 1000)], big(gauInf), 0, 'A', 'B', null, null, null, 'GAUL', 0, null, null, { siege: false });
+  const gaulField = resolveCombatDetailed([group(romeInf, 1000)], big(gauInf), 0, 'A', 'B', null, null, null, 'GAUL', 0, null, null, { siege: false, atHome: false });
+  const plainGaul = resolveCombatDetailed([group(romeInf, 1000)], big(gauInf), 0, 'A', 'B', null, null, null, null, 0, null, null, { siege: false });
+  assert.ok(firstKills(gaulHome) < firstKills(gaulField));
+  assert.equal(firstKills(gaulField), firstKills(plainGaul));
+  // Sultanat +15 % d'attaque en défendant une de ses villes
+  const sulHome = resolveCombatDetailed(big(romeInf), [group(sulInf, 1000)], 0, 'A', 'B', null, null, null, 'SULTAN', 0, null, null, { siege: false });
+  const sulField = resolveCombatDetailed(big(romeInf), [group(sulInf, 1000)], 0, 'A', 'B', null, null, null, 'SULTAN', 0, null, null, { siege: false, atHome: false });
+  assert.ok(firstLosses(sulHome) > firstLosses(sulField));
+});
+
+test('moteur : dans un rassemblement à civilisations mêlées, chaque ligne a les bonus de sa civilisation (Rome +10 % de défense)', () => {
+  const legion = unit('ROME', 'INFANTRY', 'elite');
+  const hits = (line) => resolveCombat(big(hunInf), [line], 0, null, null, { fieldBattle: true }).rounds[0].attackerKills[0].killed;
+  function big(u) { return [group(u, 2000)]; }
+  const romeLine = { ...group(legion, 100000), faction: 'ROME' };
+  const plainLine = group(legion, 100000);
+  assert.ok(hits(romeLine) < hits(plainLine), 'la ligne romaine est plus solide');
+  // côté attaquant aussi : la civilisation de la ligne passe avant celle du camp
+  const atkRome = resolveCombat([{ ...group(legion, 2000), faction: 'ROME' }], [group(hunInf, 5000)], 0, null, null, { fieldBattle: true, attackerFaction: 'HUN' });
+  const atkHun = resolveCombat([group(legion, 2000)], [group(hunInf, 5000)], 0, null, null, { fieldBattle: true, attackerFaction: 'HUN' });
+  assert.ok(atkRome.rounds[0].defenderKills[0].killed < atkHun.rounds[0].defenderKills[0].killed);
+});
+
+test('pertes du moteur réparties entre armées (splitLosses) : total exact par type, au plus fort reste, type absent épargné', () => {
+  const { splitLosses } = require('../../src/utils/armyUnits');
+  const armies = [{ units: [{ unitKey: 'A', count: 1 }, { unitKey: 'B', count: 5 }] }, { units: [{ unitKey: 'A', count: 1 }] }, { units: [{ unitKey: 'A', count: 1 }, { unitKey: 'C', count: 4 }] }];
+  const out = splitLosses(armies, [{ key: 'A', initial: 3, remaining: 2, killed: 1 }, { key: 'B', initial: 5, remaining: 5, killed: 0 }]);
+  assert.equal(out.flat().filter(l => l.unit.unitKey === 'A').reduce((t, l) => t + l.killed, 0), 1, 'trois lignes de 1 : un mort, pas zéro');
+  assert.equal(out.flat().filter(l => l.unit.unitKey === 'C').length, 0, 'C n\'a pas combattu');
+  const big = splitLosses([{ units: [{ unitKey: 'X', count: 200 }] }, { units: [{ unitKey: 'X', count: 600 }] }], [{ key: 'X', initial: 800, remaining: 784, killed: 16 }]);
+  assert.deepEqual(big.map(l => l.map(x => x.killed)), [[4], [12]]);
 });
 
 test('raid resolution: Rome\'s +10 % unit defence counts on the defence share only, when attacking as when defending', () => {

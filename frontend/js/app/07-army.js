@@ -29,10 +29,11 @@ function forgeNoteHtml() {
 
 // ---- Armées rattachées aux colonies (décision du 1er novembre 2026, simulation de 200 jours, E2) ----
 // Une armée à l'arrêt dans une de vos colonies peut lui être rattachée : elle prend une place d'armée de la colonie (autant
-// que la Place de rassemblement de la capitale en permet), la défend comme une garnison et y rentre après chaque mission.
-// Pas de garnison en colonie : on n'y ajoute ni n'y retire de troupes ; « Renvoyer à la capitale » la ramène (il faut une
-// place libre dans la capitale). La Ville Merveille n'est pas une colonie (serveur : config.army.colonyArmies).
-const COLONY_ARMY_RULE = 'Rattachée à une colonie, une armée la défend (attaques, raids, sièges) et y rentre après chaque mission. Pas de garnison en colonie : on n\'y ajoute ni n\'y retire de troupes. Renvoyez-la à la capitale pour changer ses troupes.';
+// que la Place de rassemblement de la capitale en permet), la défend et y rentre après chaque mission. Pas de réserve en
+// colonie : on n'y prend ni n'y pose de soldats ; une armée de la capitale posée dans la colonie lui en donne par
+// « Échanger » (décision du 2 novembre 2026, deuxième simulation de 200 jours, G9) ; « Renvoyer à la capitale » la ramène
+// (il faut une place libre dans la capitale). La Ville Merveille n'est pas une colonie (serveur : config.army.colonyArmies).
+const COLONY_ARMY_RULE = 'Rattachée à une colonie, une armée la défend (attaques, raids, sièges) et y rentre après chaque mission. Pas de réserve en colonie : on n\'y prend ni n\'y pose de soldats. Pour la renforcer, amenez une armée de la capitale dans la colonie et échangez leurs soldats (onglet Armée › Échanger), ou renvoyez-la à la capitale.';
 // Colonie (ou Ville Merveille) de l'armée, null pour une armée de la capitale (attachedColony de GET /api/armies)
 function armyColonyOf(army) {
   if (!army || army.isGarrison) return null;
@@ -80,17 +81,56 @@ function colonyGuestsHtml(city, freeSlots) {
   const rows = guests.map(a => {
     const home = (cities || []).find(c => c.id === a.cityId);
     const soldiers = (a.units || []).reduce((s, u) => s + u.count, 0);
+    // la garde déjà rattachée, à l'arrêt ici : on lui donne des soldats sans prendre de place (G9)
+    const guard = (typeof exchangePartners === 'function' ? exchangePartners(a) : []).find(p => p.cityId === city.id);
     return `<div class="colony-guest-row">
         <span class="cg-name">${escapeHtml(a.name)}${home ? ` <small>(${escapeHtml(home.name)})</small>` : ''}</span>
         <span class="cg-units">${resIconHtml('army')} ${formatNum(soldiers)} soldats</span>
         <button type="button" class="army-btn primary" ${freeSlots > 0 ? '' : 'disabled title="Aucune place d\'armée libre dans la colonie"'} onclick="attachArmyToColony('${a.id}')">${resIconHtml('defense')} Rattacher à cette colonie</button>
+        ${guard ? `<button type="button" class="army-btn secondary" onclick="openArmyExchange('${a.id}', '${guard.id}')" title="Donner des soldats à ${escapeHtml(guard.name)}, la garde de la colonie, sans prendre de place d'armée">${resIconHtml('army')} Échanger avec ${escapeHtml(guard.name)}</button>` : ''}
       </div>`;
   }).join('');
   return `<div class="colony-guests">
       <div class="column-header"><h3>${resIconHtml('defense')} Armées posées dans la colonie</h3></div>
-      <p class="hint-small">${escapeHtml(COLONY_ARMY_RULE)} Rattacher une armée libère sa place dans la capitale.</p>
+      <p class="hint-small">${escapeHtml(COLONY_ARMY_RULE)} Rattacher une armée libère sa place dans la capitale ; échanger avec la garde ne prend aucune place.</p>
       ${rows || '<p class="hint-small">Aucune armée à rattacher ici : déplacez une armée de la capitale jusqu\'à la colonie, puis rattachez-la.</p>'}
     </div>`;
+}
+
+// ---- Seules les armées défendent une ville (décision du 2 novembre 2026, deuxième simulation de 200 jours, G10) ----
+// La réserve d'une ville (les soldats formés mais dans aucune armée : son armée « garnison ») ne combat plus quand la ville
+// est attaquée, pillée ou assiégée : ni tuée ni blessée, elle reste en ville. Défendent : les armées de la ville à la maison,
+// celles du joueur venues d'une autre de ses villes, les armées rattachées à une colonie et les renforts alliés postés
+// (armyProcessor.defendingArmies du serveur). Le héros ne combat que dans une armée : joint à la réserve, il ne défend pas.
+const RESERVE_NOTICE = 'Vos soldats en réserve ne défendent pas : mettez-les dans une armée.';
+const reserveNoticeText = (n) => n > 0 ? `Vos ${formatNum(n)} soldats en réserve ne défendent pas : mettez-les dans une armée.` : RESERVE_NOTICE;
+const armySoldiers = (army) => (army?.units || []).reduce((t, u) => t + (u.count || 0), 0);
+// Ce qui défend une ville du joueur : ses armées à l'arrêt dans la ville (hors réserve), et sa réserve comptée à part
+function cityDefenceOf(city) {
+  if (!city) return { armies: [], soldiers: 0, reserve: 0 };
+  const here = (armies || []).filter(a => !a.isGarrison && a.status === 'IDLE' && a.x === city.x && a.y === city.y && armySoldiers(a) > 0);
+  const reserve = (armies || []).filter(a => a.isGarrison && a.cityId === city.id).reduce((t, a) => t + armySoldiers(a), 0);
+  return { armies: here, soldiers: here.reduce((t, a) => t + armySoldiers(a), 0), reserve };
+}
+// Résumé de la défense d'une ville (onglet Armée, panneau de sa ville sur la carte, siège)
+function cityDefenceHtml(city) {
+  const d = cityDefenceOf(city);
+  const who = d.armies.length ? `${d.armies.length} armée${d.armies.length > 1 ? 's' : ''} · ${formatNum(d.soldiers)} soldats` : 'aucune armée';
+  return `<p class="city-defence${d.armies.length ? '' : ' warning-text'}">${resIconHtml('defense')} Seules les armées défendent la ville : <strong>${who}</strong> ici, plus les renforts alliés postés.${d.reserve > 0 ? ` <strong>${reserveNoticeText(d.reserve)}</strong>` : ''}</p>`;
+}
+// Ce qui défendra la ville visée par une attaque (texte de l'alerte d'attaque)
+function attackDefenceNote(cityId) {
+  const city = (cities || []).find(c => c.id === cityId);
+  if (!city) return '';
+  const d = cityDefenceOf(city);
+  const who = d.armies.length ? `Défendront : ${d.armies.length} armée${d.armies.length > 1 ? 's' : ''} (${formatNum(d.soldiers)} soldats) et les renforts alliés postés.` : 'Aucune armée dans la ville : seules les armées défendent.';
+  return d.reserve > 0 ? `${who} ${reserveNoticeText(d.reserve)}` : who;
+}
+// Avertissement d'une attaque contre une ville où des soldats attendent en réserve ('' sinon) : affiché une fois par attaque
+function reserveAttackWarning(attack) {
+  const city = (cities || []).find(c => c.id === attack?.targetCityId);
+  if (!city || cityDefenceOf(city).reserve <= 0) return '';
+  return `${attack.type === 'SIEGE' ? 'Siège' : 'Attaque'} contre ${attack.targetCity || city.name} : ${attackDefenceNote(city.id)}`;
 }
 
 function renderArmies() {
@@ -106,9 +146,9 @@ function renderArmies() {
   const inColony = !!currentCity && !currentCity.isCapital;   // ses armées sont rattachées (E2)
   const freeColonySlots = ARMY_SLOTS.filter(n => n <= maxArmies && !cityArmies.some(a => a.slot === n)).length;
   const heroData = player?.hero;
-  // le héros ne combat que joint à une armée (la garnison comprise), depuis le panneau de l'armée (décision du 29 octobre 2026)
+  // le héros ne combat que joint à une armée, depuis le panneau de l'armée (décision du 29 octobre 2026) ; joint à la
+  // réserve, il ne défend plus (G10)
   const heroAssignedToArmy = armies.find(a => a.heroId && a.heroId === heroData?.id);
-  const cityGarrison = armies.find(a => a.cityId === currentCity?.id && a.isGarrison);
   const heroCityName = (cities || []).find(c => c.id === heroData?.cityId)?.name;
 
   // Rally Point info (celle de la capitale)
@@ -135,9 +175,10 @@ function renderArmies() {
         ${forgeNoteHtml()}
       </div>
       <div class="header-right-info">
-        <span class="garrison-badge-compact"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> ${totalGarrison} en garnison</span>
+        <span class="garrison-badge-compact" title="${escapeHtml(RESERVE_NOTICE)}"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> ${formatNum(totalGarrison)} en réserve (ne défend pas)</span>
       </div>
     </div>
+    ${currentCity ? cityDefenceHtml(currentCity) : ''}
   `;
   
   // Build main content - Two column layout
@@ -178,23 +219,23 @@ function renderArmies() {
           </div>
           <div class="hero-assign-status">
             ${heroAssignedToArmy
-              ? `<span class="assigned-to">→ ${escapeHtml(heroAssignedToArmy.name)}${heroAssignedToArmy.cityId !== currentCity?.id ? ` <small>(${escapeHtml((cities || []).find(c => c.id === heroAssignedToArmy.cityId)?.name || '')})</small>` : ''}</span>
+              ? `<span class="assigned-to">→ ${heroAssignedToArmy.isGarrison ? 'Réserve : il ne combat pas, joignez-le à une armée' : escapeHtml(heroAssignedToArmy.name)}${heroAssignedToArmy.cityId !== currentCity?.id ? ` <small>(${escapeHtml((cities || []).find(c => c.id === heroAssignedToArmy.cityId)?.name || '')})</small>` : ''}</span>
                  ${heroAssignedToArmy.status === 'IDLE' && heroAssignedToArmy.cityId === currentCity?.id ? `<button class="btn-unassign-small" onclick="unassignHero('${heroAssignedToArmy.id}')">Retirer</button>` : ''}`
               : heroData?.diedAt
                 ? `<span class="hero-available">Tombé : ressuscitez-le au Domus</span>`
-                : `<span class="hero-free">En ville${heroCityName ? ` à ${escapeHtml(heroCityName)}` : ''}, joint à aucune armée : il ne combat pas.</span>
-                   ${cityGarrison && (!heroData?.cityId || heroData.cityId === currentCity?.id || (currentCity?.isCapital && !(cities || []).some(c => c.id === heroData.cityId))) ? `<button class="btn-unassign-small" onclick="assignHeroToArmy('${cityGarrison.id}')">Joindre à la garnison</button>` : ''}`
+                : `<span class="hero-free">En ville${heroCityName ? ` à ${escapeHtml(heroCityName)}` : ''}, joint à aucune armée : il ne combat pas. Joignez-le à une armée (« + Ajouter héros » sur sa carte).</span>`
             }
           </div>
         </div>
         
-        <!-- Garrison Panel -->
+        <!-- Réserve : soldats formés dans aucune armée, qui ne défendent pas la ville (G10) -->
         <div class="garrison-panel-compact">
           <div class="garrison-header-compact">
-            <span><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Garnison</span>
-            <span class="garrison-count-compact">${totalGarrison} unités</span>
+            <span title="${escapeHtml(RESERVE_NOTICE)}"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Réserve (ne défend pas)</span>
+            <span class="garrison-count-compact">${formatNum(totalGarrison)} unités</span>
           </div>
           ${garrisonUnits.length > 0 ? `
+            <p class="hint-small reserve-notice">${resIconHtml('defense')} ${reserveNoticeText(totalGarrison)} Touchez « Composer » sur une armée de la ville pour les y mettre.</p>
             <div class="garrison-units-grid">
               ${garrisonUnits.map(u => {
                 const unit = unitsData.find(ud => ud.key === u.unitKey);
@@ -209,8 +250,8 @@ function renderArmies() {
             </div>
           ` : `
             <div class="garrison-empty-compact">
-              <p>Aucune unité</p>
-              <p class="hint-small">${inColony ? 'Pas de garnison en colonie : rattachez-y une armée de la capitale' : 'Recrutez via bâtiments militaires'}</p>
+              <p>Aucun soldat en réserve</p>
+              <p class="hint-small">${inColony ? 'Pas de réserve en colonie : rattachez-y une armée de la capitale' : 'Les soldats formés arrivent ici : mettez-les dans une armée, seules les armées défendent'}</p>
             </div>
           `}
         </div>
@@ -427,6 +468,13 @@ function showArmyActionsMenu(armyId) {
           <span class="action-icon">${resIconHtml('defense')}</span>
           <span class="action-label">Rattacher à ${escapeHtml(attachTo.name)}</span>
         </button>` : '');
+  // échanger des soldats avec une autre de vos armées au même endroit (G9)
+  const partners = exchangePartners(army);
+  const exchangeCard = `
+        <button class="action-card ${partners.length ? '' : 'disabled'}" ${partners.length ? `onclick="openArmyExchange('${armyId}')"` : 'disabled title="Aucune autre de vos armées à l\'arrêt au même endroit"'}>
+          <span class="action-icon">${resIconHtml('army')}</span>
+          <span class="action-label">Échanger</span>
+        </button>`;
 
   const modal = document.getElementById('modal');
   document.getElementById('modal-body').innerHTML = `
@@ -434,7 +482,7 @@ function showArmyActionsMenu(armyId) {
       <h3><img class="ico" src="assets/images/3d/ui/settings.webp" alt=""> Actions - ${escapeHtml(army.name)}</h3>
       ${!canMove ? `<p class="warning-text" style="color:#ff6b6b;text-align:center;margin-bottom:10px">${disabledReason}</p>` : ''}
       ${colony ? `<p class="hint-small">${resIconHtml('defense')} Rattachée à ${escapeHtml(colony.name)}. ${escapeHtml(COLONY_ARMY_RULE)}</p>` : ''}
-      <div class="actions-grid">${colonyCards}
+      <div class="actions-grid">${colonyCards}${exchangeCard}
         <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showMoveModal('${armyId}')"` : 'disabled'}>
           <span class="action-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
           <span class="action-label">Déplacer</span>
@@ -572,8 +620,8 @@ function openArmyComposition(armyId) {
           </div>
         ` : `
           <div class="comp-no-units">
-            <p>Aucune unité disponible</p>
-            <p class="hint">Recrutez des troupes dans vos bâtiments militaires!</p>
+            <p>Aucun soldat en réserve</p>
+            <p class="hint">Recrutez des troupes dans vos bâtiments militaires : elles arrivent dans la réserve, puis mettez-les dans une armée pour qu'elles défendent.</p>
           </div>
         `}
       </div>
@@ -584,8 +632,8 @@ function openArmyComposition(armyId) {
           <span class="summary-item" id="comp-total-units">
             <strong>${army.units?.reduce((s, u) => s + u.count, 0) || 0}</strong> unités dans l'armée
           </span>
-          <span class="summary-item" id="comp-garrison-left">
-            <strong>${garrisonUnits.reduce((s, u) => s + u.count, 0)}</strong> en garnison
+          <span class="summary-item" id="comp-garrison-left" title="${escapeHtml(RESERVE_NOTICE)}">
+            <strong>${garrisonUnits.reduce((s, u) => s + u.count, 0)}</strong> en réserve (ne défend pas)
           </span>
         </div>
         <button class="btn-done" onclick="closeModal(); renderArmies();">✓ Terminé</button>
@@ -620,7 +668,7 @@ function renderCompositionUnitRow(armyId, unitData) {
       
       <div class="comp-unit-controls">
         <div class="comp-available">
-          <span class="available-label">Garnison:</span>
+          <span class="available-label">Réserve :</span>
           <span class="available-count" id="garrison-${unitKey}">${garrison}</span>
         </div>
         
@@ -752,7 +800,7 @@ function updateCompositionSummary() {
   });
   
   totalUnitsSpan.innerHTML = `<strong>${totalInArmy}</strong> unités dans l'armée`;
-  garrisonLeftSpan.innerHTML = `<strong>${totalGarrison}</strong> en garnison`;
+  garrisonLeftSpan.innerHTML = `<strong>${totalGarrison}</strong> en réserve (ne défend pas)`;
   if (powerSpan) powerSpan.textContent = `${formatNum(totalPower)}`;
   const siegeEl = document.getElementById('comp-siege-count');
   if (siegeEl) {
@@ -811,9 +859,9 @@ async function unassignHeroFromComposition(armyId) {
   openArmyComposition(armyId);
 }
 
-// Unités en garnison de la ville affichée (hors armées) : celles de son armée « Garnison ». Une colonie n'en a pas
-// (décision du 30 octobre 2026 : pas de troupes propres en colonie, toute unité formée arrive dans la capitale) ; ses
-// armées ne sont jamais comptées comme garnison
+// Réserve de la ville affichée (soldats dans aucune armée) : les unités de son armée « Garnison », qui ne défend plus la
+// ville (G10). Une colonie n'en a pas (décision du 30 octobre 2026 : pas de troupes propres en colonie, toute unité formée
+// arrive dans la capitale) ; ses armées ne sont jamais comptées dans la réserve
 function getGarrisonUnits() {
   return armies.find(a => a.cityId === currentCity?.id && a.isGarrison)?.units || [];
 }
@@ -952,7 +1000,7 @@ function confirmDisbandArmy(armyId) {
   document.getElementById('modal-body').innerHTML = `
     <div class="disband-confirm">
       <h3>Dissoudre l'armée ?</h3>
-      <p>Les unités retourneront en garnison.</p>
+      <p>Ses soldats retournent dans la réserve de sa ville, qui ne défend pas : mettez-les ensuite dans une autre armée.</p>
       <p class="warning">Cette action est irréversible!</p>
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
@@ -1025,13 +1073,23 @@ async function moveArmy(armyId) {
   }
 }
 
-// Attaque ou raid d'une ville par ses coordonnées, pour n'importe quelle armée à l'arrêt (même envoi que l'onglet Envoyer).
-// Le raid est un harcèlement, pas un revenu (rapport économie, recommandation 11) : petit butin, un raid par jour sur une même ville
+// Règles du raid du serveur, reprises pour les textes (config.combat, config.hideout) : le combat passe par le moteur de
+// bataille et s'arrête dès qu'un camp a perdu stopLossPct % de ses soldats (G3) ; vainqueur, le raid emporte jusqu'à
+// lootPctOfCarry % de ce que portent ses soldats survivants (décision du 2 novembre 2026 (deuxième simulation de 200 jours),
+// G4 ; 30 % avant), pris sur au plus stealPctOutsideHideout % de ce qui dépasse la cachette ; un raid par jour sur une ville
+const RAID_RULES = { stopLossPct: 30, lootPctOfCarry: 100, stealPctOutsideHideout: 50, cooldownHours: 24 };
+function raidRuleText() {
+  const R = RAID_RULES;
+  const carry = R.lootPctOfCarry >= 100 ? 'tout ce que ses soldats survivants peuvent porter' : `${R.lootPctOfCarry} % de ce que ses soldats survivants peuvent porter`;
+  return `Un raid pille sans assiéger : le combat s'arrête dès qu'un camp a perdu ${R.stopLossPct} % de ses soldats. Vainqueur, il emporte jusqu'à ${carry}, pris sur ${R.stealPctOutsideHideout} % au plus de ce qui dépasse la cachette de la ville. Un seul raid toutes les ${R.cooldownHours} h de votre part sur une même ville. Seules les armées de la ville se défendent : sa réserve ne combat pas.`;
+}
+
+// Attaque ou raid d'une ville par ses coordonnées, pour n'importe quelle armée à l'arrêt (même envoi que l'onglet Envoyer)
 function showArmyMissionModal(armyId, mission) {
   const raid = mission === 'RAID';
   document.getElementById('modal-body').innerHTML = `
     <h3>${raid ? 'Raid sur une ville' : 'Attaquer une ville'}</h3>
-    ${raid ? '<p class="diplo-help">Un raid harcèle l\'ennemi : un combat court qui use ses troupes. Le butin reste petit (au plus une part de ce que vos soldats peuvent porter, hors cachette) et vous ne lancez qu\'un raid par jour sur une même ville : ce n\'est pas une source de revenus.</p>' : ''}
+    ${raid ? `<p class="diplo-help">${raidRuleText()}</p>` : ''}
     <p style="margin-bottom:10px;color:var(--text-muted)">Coordonnées de la ville cible</p>
     <input type="number" id="mission-x" placeholder="X" style="width:48%;display:inline-block">
     <input type="number" id="mission-y" placeholder="Y" style="width:48%;display:inline-block">
@@ -1091,6 +1149,209 @@ async function returnArmy(armyId) {
 }
 
 
+// ========== ÉCHANGER DES SOLDATS (décision du 2 novembre 2026, deuxième simulation de 200 jours, G9) ==========
+// Deux de vos armées au même endroit (même ville ou même case), toutes deux à l'arrêt, ou toutes deux en garnison dans le
+// même Bastion, s'échangent des soldats dans les deux sens : POST /api/army/:id/exchange { toArmyId, units, back } (`units`
+// passe de l'armée de gauche à celle de droite, `back` dans l'autre sens, en une fois). Ni la réserve, ni une armée réservée
+// par le marché, ni une armée prise dans un combat. Le héros reste dans son armée. Une armée vidée dans sa ville y reste (on
+// peut l'y dissoudre) ; vidée ailleurs, elle rentre aussitôt chez elle, sauf celle du héros, qui doit garder un soldat. Une
+// armée de la capitale posée dans une colonie remplit ainsi la garde rattachée sans place d'armée à la capitale (E2).
+// État de l'écran : les deux armées choisies et, pour chaque unité, les soldats qui finiront à gauche
+let armyExchange = { fromId: null, toId: null, left: {}, busy: false };
+// Endroit où une armée peut échanger (null sinon) : la case d'une armée à l'arrêt, ou son Bastion pour une garnison
+function exchangePlaceKey(army) {
+  if (!army || army.isGarrison || army.claimedAt) return null;
+  if (army.status === 'IDLE') return `${army.x}:${army.y}`;
+  if (army.status === 'STATIONED' && army.targetBastionId) return `B:${army.targetBastionId}`;
+  return null;
+}
+// Vos autres armées au même endroit qu'une armée
+function exchangePartners(army) {
+  const key = exchangePlaceKey(army);
+  return key ? (armies || []).filter(a => a.id !== army.id && exchangePlaceKey(a) === key) : [];
+}
+// Ville de l'armée (celle où elle rentre) et si elle s'y tient (isHome du serveur)
+const exchangeHomeOf = (army) => (cities || []).find(c => c.id === army?.cityId) || army?.city || null;
+function isArmyHome(army) {
+  const home = exchangeHomeOf(army);
+  return !!home && army.x === home.x && army.y === home.y;
+}
+// Nom de l'endroit : la garnison du Bastion, votre ville, ou la case
+function exchangePlaceLabel(army) {
+  if (army.status === 'STATIONED') return `Garnison du Bastion (${army.x}, ${army.y})`;
+  const city = (cities || []).find(c => c.x === army.x && c.y === army.y);
+  return city ? city.name : `Case (${army.x}, ${army.y})`;
+}
+// Endroits où au moins deux de vos armées peuvent échanger : [{ key, label, armies }]
+function exchangePlaces() {
+  const groups = new Map();
+  for (const a of armies || []) {
+    const key = exchangePlaceKey(a);
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, { key, label: exchangePlaceLabel(a), armies: [] });
+    groups.get(key).armies.push(a);
+  }
+  return [...groups.values()].filter(g => g.armies.length >= 2);
+}
+// Une ligne par unité de l'une ou l'autre armée : ce qu'ont la gauche (a) et la droite (b), triée comme la composition
+function exchangeRows(from, to) {
+  const count = (army, key) => (army?.units || []).find(u => u.unitKey === key)?.count || 0;
+  const keys = [...new Set([...(from?.units || []), ...(to?.units || [])].filter(u => u.count > 0).map(u => u.unitKey))];
+  const classOrder = { INFANTRY: 0, ARCHER: 1, CAVALRY: 2, SIEGE: 3 }, tierOrder = { base: 0, intermediate: 1, elite: 2, siege: 3 };
+  return keys.map(unitKey => {
+    const unit = (unitsData || []).find(u => u.key === unitKey);
+    const a = count(from, unitKey), b = count(to, unitKey);
+    return { unitKey, unit, a, b, total: a + b };
+  }).sort((x, y) => (classOrder[x.unit?.class] ?? 99) - (classOrder[y.unit?.class] ?? 99) || (tierOrder[x.unit?.tier] ?? 99) - (tierOrder[y.unit?.tier] ?? 99));
+}
+// Soldats d'une unité qui finiront à gauche (le choix du joueur, borné ; sinon rien ne bouge)
+const exchangeKeep = (row, left) => Math.max(0, Math.min(row.total, Math.floor(Number(left?.[row.unitKey] ?? row.a)) || 0));
+// Ce que donnerait l'échange, comme le serveur le vérifie : la requête, le refus éventuel, les soldats déplacés et ce qui
+// arrive à une armée vidée
+function exchangePreview(from, to, left) {
+  const units = [], back = [];
+  for (const r of exchangeRows(from, to)) {
+    const keep = exchangeKeep(r, left);
+    if (keep < r.a) units.push({ unitKey: r.unitKey, count: r.a - keep });
+    else if (keep > r.a) back.push({ unitKey: r.unitKey, count: keep - r.a });
+  }
+  const sum = (list) => list.reduce((t, l) => t + l.count, 0);
+  const gave = sum(units), took = sum(back);
+  const request = { toArmyId: to?.id, units, back };
+  const out = { request, gave, took, refusal: null, notes: [] };
+  if (!from || !to) { out.refusal = 'Choisissez deux armées'; return out; }
+  if (from.id === to.id) { out.refusal = 'Choisissez deux armées différentes'; return out; }
+  if (from.isGarrison || to.isGarrison) { out.refusal = 'Les soldats en réserve ne sont pas une armée : ajoutez-les depuis la composition d\'une armée de la capitale'; return out; }
+  const market = [from, to].find(a => a.status === 'MARKET');
+  if (market) { out.refusal = `${market.name} attend avec les marchandises d'une offre du marché : annulez l'offre pour la libérer`; return out; }
+  if (!exchangePlaceKey(from) || exchangePlaceKey(from) !== exchangePlaceKey(to)) { out.refusal = 'Les deux armées doivent être à l\'arrêt au même endroit (même ville ou même case), ou toutes deux en garnison dans le même Bastion'; return out; }
+  if (!gave && !took) { out.refusal = 'Choisissez au moins un soldat à échanger'; return out; }
+  const after = [[from, armySoldiers(from) - gave + took], [to, armySoldiers(to) + gave - took]];
+  for (const [a, n] of after) {
+    if (n > 0) continue;
+    const home = exchangeHomeOf(a);
+    if (a.heroId && !isArmyHome(a)) { out.refusal = `Le héros reste avec son armée : laissez au moins un soldat à ${a.name} pour qu'elle puisse rentrer`; return out; }
+    out.notes.push(isArmyHome(a)
+      ? `${a.name} n'aura plus de soldats : elle reste à ${home.name}, où vous pourrez la dissoudre.`
+      : `${a.name} n'aura plus de soldats : elle rentrera aussitôt à ${home?.name || 'sa ville'}${a.status === 'STATIONED' ? ' et libérera sa place au Bastion' : ''}.`);
+  }
+  return out;
+}
+
+// Onglet Armée › Échanger
+function renderArmyExchange() {
+  const container = document.getElementById('armies-management');
+  if (!container) return;
+  const intro = `<div class="column-header"><h3>${resIconHtml('army')} Échanger des soldats</h3></div>
+    <p class="hint-small">Choisissez deux de vos armées au même endroit (même ville ou même case), toutes deux à l'arrêt, ou toutes deux en garnison dans le même Bastion, puis faites passer des soldats d'une armée à l'autre, dans un sens ou dans l'autre. Le héros reste dans son armée. Une armée de la capitale posée dans une colonie peut ainsi renforcer la garde rattachée, sans place d'armée à la capitale.</p>`;
+  const places = exchangePlaces();
+  if (!places.length) {
+    armyExchange = { fromId: null, toId: null, left: {}, busy: false };
+    container.innerHTML = `<div class="army-exchange">${intro}<p class="empty-state">Aucun endroit où deux de vos armées se tiennent ensemble. Amenez deux armées au même endroit (« Déplacer »), par exemple une armée de la capitale dans une colonie, à côté de sa garde, puis revenez ici.</p></div>`;
+    return;
+  }
+  // armées choisies : celles de l'écran si elles sont encore ensemble, sinon les deux premières du premier endroit
+  let from = armies.find(a => a.id === armyExchange.fromId), to = armies.find(a => a.id === armyExchange.toId);
+  const place = places.find(p => p.armies.includes(from)) || places[0];
+  if (!place.armies.includes(from)) from = place.armies[0];
+  if (!place.armies.includes(to) || to === from) to = place.armies.find(a => a !== from);
+  if (armyExchange.fromId !== from.id || armyExchange.toId !== to.id) armyExchange = { fromId: from.id, toId: to.id, left: {}, busy: false };
+  const preview = exchangePreview(from, to, armyExchange.left);
+  const option = (a, selected) => `<option value="${a.id}" ${a.id === selected ? 'selected' : ''}>${escapeHtml(a.name)} (${formatNum(armySoldiers(a))} soldats${a.heroId ? ', héros' : ''})</option>`;
+  const rows = exchangeRows(from, to).map(r => {
+    const keep = exchangeKeep(r, armyExchange.left), name = r.unit?.name || r.unitKey;
+    return `<div class="exchange-row" data-unit="${r.unitKey}" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.12)">
+        <span class="comp-unit-name" style="flex:1 1 140px">${unitIconHtml(r.unitKey, 'unit-ico-sm')} ${escapeHtml(name)} ${infoBtnHtml('unit', r.unitKey, 'info-btn-sm')}</span>
+        <input type="number" class="comp-input" style="width:72px" min="0" max="${r.total}" value="${keep}" aria-label="${escapeHtml(name)} dans ${escapeHtml(from.name)}" onchange="setExchangeLeft('${r.unitKey}', this.value)">
+        <span class="exchange-arrows">
+          <button type="button" class="comp-btn-adjust" onclick="shiftExchange('${r.unitKey}', -${r.total})" title="Tout dans ${escapeHtml(from.name)}">«</button>
+          <button type="button" class="comp-btn-adjust" onclick="shiftExchange('${r.unitKey}', -1)" title="Un de plus dans ${escapeHtml(from.name)}">‹</button>
+          <button type="button" class="comp-btn-adjust" onclick="shiftExchange('${r.unitKey}', 1)" title="Un de plus dans ${escapeHtml(to.name)}">›</button>
+          <button type="button" class="comp-btn-adjust" onclick="shiftExchange('${r.unitKey}', ${r.total})" title="Tout dans ${escapeHtml(to.name)}">»</button>
+        </span>
+        <strong class="exchange-right" style="min-width:56px;text-align:right">${formatNum(r.total - keep)}</strong>
+      </div>`;
+  }).join('');
+  const moves = [preview.gave ? `${formatNum(preview.gave)} soldat${preview.gave > 1 ? 's' : ''} de ${escapeHtml(from.name)} vers ${escapeHtml(to.name)}` : '', preview.took ? `${formatNum(preview.took)} soldat${preview.took > 1 ? 's' : ''} de ${escapeHtml(to.name)} vers ${escapeHtml(from.name)}` : ''].filter(Boolean);
+  const nothing = !preview.gave && !preview.took;
+  container.innerHTML = `<div class="army-exchange">${intro}
+      <div class="form-row"><label for="exchange-place">Endroit</label>
+        <select id="exchange-place" onchange="pickExchangePlace(this.value)">${places.map(p => `<option value="${escapeHtml(p.key)}" ${p === place ? 'selected' : ''}>${escapeHtml(p.label)} · ${p.armies.length} armées</option>`).join('')}</select></div>
+      <div class="exchange-armies" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <label>À gauche <select id="exchange-from" onchange="pickExchangeArmy('from', this.value)">${place.armies.map(a => option(a, from.id)).join('')}</select></label>
+        <label>À droite <select id="exchange-to" onchange="pickExchangeArmy('to', this.value)">${place.armies.filter(a => a !== from).map(a => option(a, to.id)).join('')}</select></label>
+      </div>
+      <div class="exchange-head" style="display:flex;justify-content:space-between;font-size:12px;margin-top:8px"><span>Unité · soldats dans ${escapeHtml(from.name)}</span><span>dans ${escapeHtml(to.name)}</span></div>
+      <div class="exchange-rows">${rows || '<p class="empty-state">Ces deux armées n\'ont aucun soldat.</p>'}</div>
+      <p class="exchange-summary">${nothing ? 'Aucun soldat ne change d\'armée : utilisez les flèches ou tapez combien en garder à gauche.' : `Passent : ${moves.join(' ; ')}.`}</p>
+      ${!nothing && preview.refusal ? `<p class="warning-text">${escapeHtml(preview.refusal)}</p>` : ''}
+      ${preview.notes.map(n => `<p class="hint-small">${escapeHtml(n)}</p>`).join('')}
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="resetArmyExchange()" ${nothing ? 'disabled' : ''}>Remettre comme avant</button>
+        <button type="button" class="btn btn-primary" onclick="submitArmyExchange()" ${preview.refusal || armyExchange.busy ? 'disabled' : ''}>${resIconHtml('army')} Échanger</button>
+      </div>
+    </div>`;
+}
+// Ouvre l'écran avec cette armée à gauche et un partenaire (donné, ou le premier au même endroit) à droite
+function openArmyExchange(armyId, partnerId) {
+  const army = (armies || []).find(a => a.id === armyId);
+  const partner = (armies || []).find(a => a.id === partnerId) || exchangePartners(army)[0];
+  armyExchange = { fromId: armyId, toId: partner?.id || null, left: {}, busy: false };
+  closeModal();
+  if (!document.getElementById('tab-army')?.classList.contains('active')) showTab('army');
+  showArmyTab('exchange');
+}
+function pickExchangePlace(key) {
+  const group = exchangePlaces().find(p => p.key === key);
+  if (group) armyExchange = { fromId: group.armies[0].id, toId: group.armies[1].id, left: {}, busy: false };
+  renderArmyExchange();
+}
+function pickExchangeArmy(side, armyId) {
+  const other = side === 'from' ? armyExchange.toId : armyExchange.fromId;
+  if (side === 'from') armyExchange = { fromId: armyId, toId: other === armyId ? null : other, left: {}, busy: false };
+  else armyExchange = { ...armyExchange, toId: armyId, left: {} };
+  renderArmyExchange();
+}
+// Soldats d'une unité gardés à gauche (saisie), ou `n` soldats passés à droite (n > 0) ou à gauche (n < 0)
+function setExchangeLeft(unitKey, value) {
+  armyExchange.left[unitKey] = Math.max(0, Math.floor(Number(value)) || 0);
+  renderArmyExchange();
+}
+function shiftExchange(unitKey, n) {
+  const from = armies.find(a => a.id === armyExchange.fromId), to = armies.find(a => a.id === armyExchange.toId);
+  const row = exchangeRows(from, to).find(r => r.unitKey === unitKey);
+  if (!row) return;
+  armyExchange.left[unitKey] = Math.max(0, Math.min(row.total, exchangeKeep(row, armyExchange.left) - n));
+  renderArmyExchange();
+}
+function resetArmyExchange() {
+  armyExchange.left = {};
+  renderArmyExchange();
+}
+async function submitArmyExchange() {
+  if (armyExchange.busy) return;
+  const from = armies.find(a => a.id === armyExchange.fromId), to = armies.find(a => a.id === armyExchange.toId);
+  const preview = exchangePreview(from, to, armyExchange.left);
+  if (preview.refusal) { showToast(preview.refusal, 'error'); return; }
+  armyExchange.busy = true;
+  renderArmyExchange();
+  try {
+    const res = await fetch(`${API}/api/army/${from.id}/exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(preview.request)
+    });
+    const data = await res.json().catch(() => ({}));
+    showToast(res.ok ? (data.message || 'Échange fait') : (data.error || 'Échange impossible'), res.ok ? 'success' : 'error');
+    if (res.ok) armyExchange.left = {};
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
+  }
+  armyExchange.busy = false;
+  await loadArmies();
+  if (document.querySelector('#armies-management .army-exchange')) renderArmyExchange();   // l'écran est encore ouvert
+}
+
 // ========== SIÈGES ==========
 // Une attaque arrivée campe 1 h devant la ville, puis le combat démarre (le mur sert de bouclier). Pendant l'heure, la
 // ville vit normalement et n'importe quel joueur peut attaquer le camp (décision du 25 octobre 2026).
@@ -1116,10 +1377,13 @@ async function openBreakSiege(cityId) {
     ? `<p>Mur niveau ${siege.wallLevel} : <strong>${formatNum(siege.wallHp)} / ${formatNum(siege.wallMaxHp)} PV</strong> au prochain combat. Tant qu'il tient, les coups de l'attaquant tombent sur lui et seuls les engins l'abîment ; une fois tombé, le combat dure encore au moins 5 rounds.</p>`
     : '<p>Pas de mur : rien ne protège les défenseurs au combat.</p>';
   const lives = siege.livesLeft, livesTotal = siege.livesTotal;
+  // sa propre ville : seules ses armées défendent, pas la réserve (G10)
+  const ownCity = (cities || []).find(c => c.id === siege.cityId);
   document.getElementById('modal-body').innerHTML = `
     <div class="siege-modal">
       <h3>${resIconHtml('attack')} Siège de ${escapeHtml(siege.cityName)}</h3>
       ${wall}
+      ${ownCity ? cityDefenceHtml(ownCity) : ''}
       <p>Vies de la ville : <strong>${lives} / ${livesTotal}</strong> avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait détruite'}). Chaque combat gagné par l'attaquant ôte une vie, la même part des PV du mur et pille un quart du stock hors cachette (dans la limite de ce que l'armée porte) ; tout remonte en 48 h.</p>
       <ul class="siege-camp" style="margin:6px 0 10px;padding-left:18px">${siege.besiegers.map(b => `<li><strong>${escapeHtml(b.owner || '?')}</strong>, ${escapeHtml(b.name || 'Armée')} : ${formatNum(b.soldiers)} soldats dont ${formatNum(b.engines)} engins de siège${b.assaultAt ? ` · combat dans <strong>${siegeTimeLeft(new Date(b.assaultAt) - now)}</strong>` : ''}</li>`).join('')}</ul>
       <p style="font-size:12px;opacity:.85">Le camp attend 1 h avant le combat ; la ville vit normalement mais ses armées ne sortent que pour attaquer le camp. N'importe quel joueur peut attaquer le camp (sauf ceux de son alliance ou d'une alliance alliée) : il combat tous les camps à la fois, et s'il gagne il reste devant la ville pour la garder.</p>
@@ -1128,7 +1392,7 @@ async function openBreakSiege(cityId) {
         <select id="break-army">${ready.map(a => `<option value="${a.id}">${escapeHtml(a.name || 'Armée')} (force ${formatNum(a.power ?? calculateArmyPower(a))})</option>`).join('')}</select>
         <button class="btn btn-danger" onclick="confirmBreakSiege('${siege.cityId}')">${resIconHtml('attack')} Attaquer l'armée qui assiège</button>
       ` : idle.length ? '<p class="warning-text">Vos armées disponibles ne peuvent pas attaquer ce camp : il est de votre alliance ou d\'une alliance alliée.</p>'
-        : '<p class="warning-text">Aucune armée disponible : formez une armée au point de ralliement avec les troupes présentes.</p>') : ''}
+        : `<p class="warning-text">Aucune armée disponible : mettez vos soldats en réserve dans une armée (onglet Armée › Composer). ${RESERVE_NOTICE}</p>`) : ''}
       <button class="btn btn-secondary" onclick="closeModal()">Fermer</button>
     </div>`;
   document.getElementById('modal').style.display = 'flex';

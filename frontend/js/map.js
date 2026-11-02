@@ -567,7 +567,9 @@ async function loadMap() {
         x: b.x, y: b.y, type: 'BASTION', id: b.id, name: `Bastion [${b.allianceTag}]`, allianceId: b.allianceId, allianceTag: b.allianceTag,
         allianceName: b.allianceName, faction: b.faction || 'ROME', status: b.status, structurePct: b.structurePct ?? 100, lives: b.lives ?? null,
         isSieged: !!b.isSieged, buildEndsAt: b.buildEndsAt || null, cityTier: 3, isCapital: true,
-        regenPausedUntil: b.regenPausedUntil || null, nextLifeAt: b.nextLifeAt || null   // vies qui reviennent (décision du 1er novembre 2026)
+        regenPausedUntil: b.regenPausedUntil || null, nextLifeAt: b.nextLifeAt || null,   // vies qui reviennent (décision du 1er novembre 2026)
+        // mur qui garde ses dégâts et se répare en 12 h (décision du 2 novembre 2026, deuxième simulation de 200 jours, G2)
+        wallHp: b.wallHp ?? null, wallMaxHp: b.wallMaxHp ?? null, wallFullAt: b.wallFullAt || null
       }));
 
       // Add resource nodes with tribe defenders info
@@ -1602,11 +1604,16 @@ function drawIsoBastion(x, y, tw, th, tile) {
     const border = typeof DIPLO_STYLE !== 'undefined' && DIPLO_STYLE[rel] ? DIPLO_STYLE[rel].color : '#6a4a2a';
     const px = Math.max(9, 10.5 * mapZoomLevel);
     drawMapNamePlate(x, y + size * 0.35, tile.name + (site ? ' · chantier' : ''), px, border, true, 'gold');
-    if (!site && mapZoomLevel > 0.7) {   // vies restantes du Bastion
+    if (!site && mapZoomLevel > 0.7) {   // vies restantes du Bastion, puis son mur (G2 : il garde ses dégâts 12 h)
       const w = size * 0.8, bx = x - w / 2, by = y + size * 0.35 + px * 1.7;
       mapCtx.fillStyle = 'rgba(30,20,10,0.75)'; mapCtx.fillRect(bx, by, w, 4);
       mapCtx.fillStyle = tile.structurePct > 50 ? '#4caf50' : tile.structurePct > 20 ? '#e0a030' : '#d9443a';
       mapCtx.fillRect(bx, by, w * tile.structurePct / 100, 4);
+      if (tile.wallMaxHp > 0 && tile.wallHp != null) {
+        const wallPct = Math.max(0, Math.min(1, tile.wallHp / tile.wallMaxHp));
+        mapCtx.fillStyle = 'rgba(30,20,10,0.75)'; mapCtx.fillRect(bx, by + 6, w, 3);
+        mapCtx.fillStyle = '#8fb3d9'; mapCtx.fillRect(bx, by + 6, w * wallPct, 3);
+      }
     }
   };
   if (mapLabelQueue) mapLabelQueue.push(plates); else plates();
@@ -2896,6 +2903,7 @@ function showMapInfoPanel(x, y, tile) {
         <p style="color:#4caf50">Votre ville</p>
         ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
         ${mapProtectionLine(tile)}
+        ${typeof cityDefenceHtml === 'function' ? cityDefenceHtml((cities || []).find(c => c.id === tile.id) || tile) : ''}
         <div class="panel-actions">
           <button class="btn btn-primary" onclick="goToCity('${tile.id}')">${resIconHtml('home')} Visiter</button>
           ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
@@ -3378,7 +3386,7 @@ function raidFromMap(cityId) {
     document.getElementById('modal-body').innerHTML = `
       <h3>Confirmer le raid</h3>
       <p>Envoyer <strong>${escapeHtml(army.name)}</strong> en raid sur cette ville ?</p>
-      <p class="diplo-help">Un raid harcèle l'ennemi : petit butin (une part de ce que vos soldats portent, hors cachette), et un seul raid par jour de votre part sur une même ville.</p>
+      <p class="diplo-help">${typeof raidRuleText === 'function' ? raidRuleText() : ''}</p>
       <button onclick="confirmRaidFromMap('${army.id}', '${cityId}')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">${resIconHtml('bolt')} Lancer le raid</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     `;

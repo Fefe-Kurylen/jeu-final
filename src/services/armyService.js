@@ -15,6 +15,7 @@ const { takeFromNode, creditPlayer, capitalBuildingsOf } = require('../utils/db'
 const { techPct } = require('../utils/techEffects');
 const { getRelation } = require('./diplomacyService');
 const { campUnits, campPower, campBonusPct } = require('../utils/tribeDefenders');
+const { applyEngineLosses } = require('../utils/armyUnits');
 
 // Irrigation égyptienne : bâtiment « capitale seulement » (décision du 30 octobre 2026), elle accélère toutes les armées,
 // tous les convois et tous les espions du joueur, d'où qu'ils partent (une requête ; `db` = prisma ou la transaction)
@@ -54,7 +55,9 @@ async function combatPct(db, playerId, technologies, armies = null) {
 const combatMult = (pct) => ({ atk: 1 + pct.atk / 100, def: 1 + pct.def / 100 });
 
 // Fight against the tribe guarding a resource node. Runs inside `tx` so that two concurrent
-// raids on the same node from the same army cannot both be resolved.
+// raids on the same node from the same army cannot both be resolved. Moteur de bataille, rounds complets (décision du
+// 2 novembre 2026 (deuxième simulation de 200 jours), G3) : les pertes des deux camps viennent des rounds ; le camp garde
+// ses survivants, vaincu comme vainqueur.
 async function resolveTribeCombat(army, node, playerId, tx = prisma) {
   // chaque défenseur porte son palier (tribu, Immortels d'élite), comme dans la puissance affichée sur la carte
   const defenderUnits = node.hasDefenders ? campUnits(node.defenderUnits) : [];
@@ -63,34 +66,25 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
     return { success: true, combatResult: { winner: 'attacker', attackerLosses: 0, defenderLosses: 0 }, loot: null, message: 'Tribu absente - démarrage de la récolte' };
   }
 
-  // Art de la guerre (technologie) et Forge de la capitale : bonus d'attaque du joueur
+  // Art de la guerre, Discipline (technologies) et Forge de la capitale : attaque et défense du joueur
   const techRows = await tx.playerTechnology.findMany({ where: { playerId } });
   const bonus = await combatPct(tx, playerId, techRows);
-  // A camp is a static target: the winner loses less than in a raid on a city (config.combat.tribeLossMultiplier)
-  // camp d'or : +40 % (config.map.camps.goldDefenseBonusPct) comme sa puissance affichée (campPower)
-  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), null, { attackerFaction: army.owner?.faction, attackerBonusPct: bonus.atk, defenseBonusPct: campBonusPct(node.resourceType), winnerLossMultiplier: config.combat.tribeLossMultiplier });
+  const atkBefore = army.units.map(u => ({ key: u.unitKey, count: u.count }));
+  // camp d'or : +40 % d'attaque et de défense (config.map.camps.goldDefenseBonusPct), comme dans sa puissance affichée
+  // (campPower : (ATK + DEF) × 1,4)
+  const gold = campBonusPct(node.resourceType);
+  const combat = resolveCombat(army.units, defenderUnits, 0, heroCombatStats(army.hero), null, { fieldBattle: true, attackerFaction: army.owner?.faction, attackerPct: bonus, defenderPct: { atk: gold, def: gold } });
 
-  let totalAttackerLosses = 0;
-  const killed = [];
-  for (const unit of army.units) {
-    const losses = Math.floor(unit.count * combat.attackerLossRate);
-    totalAttackerLosses += losses;
-    if (losses <= 0) continue;
-    killed.push({ key: unit.unitKey, killed: losses });
-    if (losses >= unit.count) { await tx.armyUnit.delete({ where: { id: unit.id } }); }
-    else { await tx.armyUnit.update({ where: { id: unit.id }, data: { count: { decrement: losses } } }); }
-  }
-
-  let totalDefenderLosses = 0;
-  const newDefenderUnits = {};
-  for (const [unitType, count] of Object.entries(node.defenderUnits)) {
-    const losses = Math.floor(count * combat.defenderLossRate);
-    totalDefenderLosses += losses;
-    newDefenderUnits[unitType] = Math.max(0, count - losses);
-  }
+  const engaged = require('./heroService').fought([army]);   // avant les pertes
+  const [{ total: totalAttackerLosses, killed }] = await applyEngineLosses(tx, [army], combat.attackerFinalUnits);
+  await require('./heroService').fallIfWiped(tx, engaged);   // anéantie au moteur : son héros tombe, comme ailleurs
+  // le camp garde ses survivants (clés anciennes converties par campUnits)
+  const newDefenderUnits = Object.fromEntries(combat.defenderFinalUnits.map(u => [u.key, u.remaining]));
+  const defKilled = combat.defenderFinalUnits.filter(u => u.killed > 0).map(u => ({ key: u.key, killed: u.killed, remaining: u.remaining }));
+  const totalDefenderLosses = combat.defenderTotalKilled;
 
   // classements : la tribu tuée donne des points d'attaque (comme les animaux d'une oasis Travian)
-  await require('./rankingService').recordCombat(tx, { attackers: [{ playerId, units: army.units.reduce((t, u) => t + u.count, 0) }], defenders: [], attackerLosses: killed, defenderLosses: Object.entries(node.defenderUnits || {}).map(([key, count]) => ({ key, killed: Math.floor(count * combat.defenderLossRate) })) });
+  await require('./rankingService').recordCombat(tx, { attackers: [{ playerId, units: atkBefore.reduce((t, u) => t + u.count, 0) }], defenders: [], attackerLosses: killed, defenderLosses: defKilled });
   if (combat.attackerWon) {
     await tx.resourceNode.update({ where: { id: node.id }, data: { hasDefenders: false, defenderUnits: newDefenderUnits, defenderPower: 0, lastDefeat: new Date() } });
     if (army.heroId) await awardHeroXp(army.heroId, Math.floor(totalDefenderLosses * config.combat.heroXpPerTribeKill), tx);
@@ -109,7 +103,7 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
   }
 
   const report = await tx.battleReport.create({
-    data: { playerId, attackerId: playerId, x: node.x, y: node.y, result: combat.attackerWon ? 'WIN' : 'LOSE', winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER', attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits, attackerLosses: { totalAttackerLosses, totalKilled: totalAttackerLosses, rate: combat.attackerLossRate }, defenderLosses: { totalDefenderLosses, totalKilled: totalDefenderLosses, rate: combat.defenderLossRate }, loot: { attackerName: army.owner?.name, defenderName: 'Tribu locale', cityName: `${node.resourceType} (${node.x}, ${node.y})`, type: 'TRIBE' }, rounds: { type: 'TRIBE_RAID', resourceType: node.resourceType } }
+    data: { playerId, attackerId: playerId, x: node.x, y: node.y, result: combat.attackerWon ? 'WIN' : 'LOSE', winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER', attackerUnits: atkBefore, defenderUnits, attackerLosses: { totalAttackerLosses, totalKilled: totalAttackerLosses, rate: combat.attackerLossRate, units: killed }, defenderLosses: { totalDefenderLosses, totalKilled: totalDefenderLosses, rate: combat.defenderLossRate, units: defKilled }, loot: { attackerName: army.owner?.name, defenderName: 'Tribu locale', cityName: `${node.resourceType} (${node.x}, ${node.y})`, type: 'TRIBE', rounds: combat.rounds, duration: combat.rounds.length }, rounds: { type: 'TRIBE_RAID', resourceType: node.resourceType } }
   });
   // Immortels vaincus (site de Merveille, plan) : décision du 28 octobre 2026, services/wonderService.js
   if (combat.attackerWon && require('./wonderService').isSpecial(node)) await require('./wonderService').onImmortalsBeaten(tx, node, playerId);
@@ -139,19 +133,6 @@ async function collectResourceLoot(army, node, playerId, tx = prisma, reportId =
   return { [node.resourceType]: taken };
 }
 
-// Loses `rate` of every unit group of an army (rows deleted at zero); returns what was killed
-async function applyLossRate(tx, units, rate) {
-  let total = 0; const killed = [];
-  for (const u of units) {
-    const l = Math.floor(u.count * rate);
-    if (l <= 0) continue;
-    total += l; killed.push({ key: u.unitKey, killed: l, remaining: Math.max(0, u.count - l) });
-    if (l >= u.count) await tx.armyUnit.deleteMany({ where: { id: u.id } }); else await tx.armyUnit.update({ where: { id: u.id }, data: { count: { decrement: l } } });
-    u.count -= l;
-  }
-  return { total, killed };
-}
-
 // An army beaten on a node or before a besieged city goes home (idle on the spot when it has no city or no unit left)
 async function sendArmyHomeTx(tx, army) {
   const city = army.city || (army.cityId ? await tx.city.findUnique({ where: { id: army.cityId } }) : null);
@@ -164,9 +145,10 @@ async function sendArmyHomeTx(tx, army) {
   await tx.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: city.x, targetY: city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
 }
 
-// Open-field battle between one army and the armies standing on a spot (resource node held, siege camp): resolved
-// by power (no wall, no « défense chez soi »), the loser's losses follow the raid rule; wounded on both sides travel
-// with their army, hero XP as in a city battle, one report for the attacker and one per defending player.
+// Open-field battle between one army and the armies standing on a spot (resource node held, siege camp, encounter):
+// battle engine with full rounds (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G3), no wall, no
+// « défense chez soi » ; each type's losses come from the engine; wounded on both sides travel with their army, hero XP
+// as in a city battle, one report for the attacker and one per defending player.
 // Runs inside `tx`. The caller decides what happens to the armies afterwards.
 async function fieldBattle(tx, army, holders, playerId, place) {
   const defenderUnits = holders.flatMap(h => h.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })));
@@ -174,16 +156,17 @@ async function fieldBattle(tx, army, holders, playerId, place) {
   const atkTech = await tx.playerTechnology.findMany({ where: { playerId } });
   // l'attaque de l'attaquant (technologies et Forge) ; la défense des défenseurs : technologies du premier, Forge de chacun
   const [atkBonus, defBonus] = await Promise.all([combatPct(tx, playerId, atkTech), combatPct(tx, lead.ownerId, lead.owner?.technologies, holders)]);
-  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), heroCombatStats(require('./heroService').leadingHero(holders)), {   // un héros sans soldats ne combat pas
-    fieldBattle: true, attackerFaction: army.owner?.faction, defenderFaction: lead.owner?.faction, attackerBonusPct: atkBonus.atk, defenderBonusPct: defBonus.def
+  const combat = resolveCombat(army.units, defenderUnits, 0, heroCombatStats(army.hero), heroCombatStats(require('./heroService').leadingHero(holders)), {   // un héros sans soldats ne combat pas
+    fieldBattle: true, attackerFaction: army.owner?.faction, defenderFaction: lead.owner?.faction, attackerPct: atkBonus, defenderPct: defBonus
   });
   const atkBefore = army.units.map(u => ({ unitKey: u.unitKey, count: u.count }));
   const engaged = require('./heroService').fought([army, ...holders]);   // héros des armées qui combattent avec des soldats
   const RK = require('./rankingService');
   const sides = { attackers: [{ playerId, units: RK.unitCount(army.units) }], defenders: RK.sideOf(holders) };   // avant les pertes
-  const atk = await applyLossRate(tx, army.units, combat.attackerLossRate);
-  let defTotal = 0; const defKilled = [];
-  for (const h of holders) { const r = await applyLossRate(tx, h.units, combat.defenderLossRate); defTotal += r.total; defKilled.push([h, r.killed]); }
+  const [atk] = await applyEngineLosses(tx, [army], combat.attackerFinalUnits);
+  const holderLosses = await applyEngineLosses(tx, holders, combat.defenderFinalUnits);
+  const defTotal = holderLosses.reduce((t, r) => t + r.total, 0);
+  const defKilled = holders.map((h, i) => [h, holderLosses[i].killed]);
   await require('./heroService').fallIfWiped(tx, engaged);   // une armée anéantie perd son héros
   await RK.recordCombat(tx, { ...sides, attackerLosses: atk.killed, defenderLosses: defKilled.flatMap(([, k]) => k) });   // classements
 
@@ -213,7 +196,7 @@ async function fieldBattle(tx, army, holders, playerId, place) {
     defenderUnits: D.map(e => ({ key: e.key, count: e.count })),
     attackerLosses: { totalKilled: atk.total, rate: combat.attackerLossRate, units: lossRows(A) },
     defenderLosses: { totalKilled: defTotal, rate: combat.defenderLossRate, units: lossRows(D) },
-    loot: { attackerName: army.owner?.name, defenderName, cityName: place.where, type: place.type, attackerPower: Math.round(combat.attackerPower), defenderPower: Math.round(combat.defenderPower) },
+    loot: { attackerName: army.owner?.name, defenderName, cityName: place.where, type: place.type, attackerPower: Math.round(combat.attackerPower), defenderPower: Math.round(combat.defenderPower), rounds: combat.rounds, duration: combat.rounds.length },
     rounds: place.rounds
   };
   const report = await tx.battleReport.create({ data: { ...base, playerId, attackerId: playerId, defenderId: lead.ownerId, result: combat.attackerWon ? 'WIN' : 'LOSE' } });
@@ -224,8 +207,8 @@ async function fieldBattle(tx, army, holders, playerId, place) {
   return { combat, report, reportIds, defenderName, attackerLosses: atk.total, defenderLosses: defTotal };
 }
 
-// Fight against the army (or allied armies) holding a resource node, as on a Travian oasis: an open-field battle resolved
-// by power (no wall, no « défense chez soi »), the loser's losses follow the raid rule, the holders go home when beaten and
+// Fight against the army (or allied armies) holding a resource node, as on a Travian oasis: an open-field battle (battle
+// engine, no wall, no « défense chez soi »), the holders go home when beaten and
 // the node is released for the attacker. Runs inside `tx`. Returns the same shape as resolveTribeCombat.
 async function resolveNodeHolderCombat(army, node, playerId, tx = prisma) {
   const holders = await tx.army.findMany({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: node.id, NOT: { ownerId: playerId } }, include: { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, city: true } });

@@ -4,7 +4,9 @@
 // un assaut = un rassemblement ou une armée seule, garnison de rules.maxGarrisonArmies armées au plus, mur bouclier
 // rules.wallMultiplier fois un mur 20. Depuis le 1er novembre 2026 (simulation de 200 jours) : une vie ne revient qu'après
 // rules.regenPauseHours sans assaut gagné (E3, fin de la pause affichée), les armées qui brisent un siège dans la même
-// minute se battent ensemble (E4), un convoi se paie sur le stock de toutes ses villes (E1).
+// minute se battent ensemble (E4), un convoi se paie sur le stock de toutes ses villes (E1). Depuis le 2 novembre 2026
+// (deuxième simulation de 200 jours, G2) : mur de rules.wallMaxHp PV (1,8 fois un mur 20) qui garde les dégâts de chaque
+// assaut et redevient plein rules.wallRepairHours après le dernier, montré sur le panneau et la carte.
 // Serveur : src/services/bastionService.js, routes /api/bastion.
 // ============================================================
 let bastionState = null, bastionLoadedAt = 0;
@@ -35,6 +37,22 @@ function bastionRegenHtml(v, rules) {
   if (v?.regenPausedUntil) return `<p class="diplo-help">${resIconHtml('clock')} Aucune vie ne revient pendant encore <span class="qd-timer" data-ends-at="${v.regenPausedUntil}">${formatTime(v.regenPausedUntil)}</span> (${pause} h sans assaut gagné), puis une toutes les ${every}.</p>`;
   if (v?.nextLifeAt) return `<p class="diplo-help">${resIconHtml('clock')} Prochaine vie dans <span class="qd-timer" data-ends-at="${v.nextLifeAt}">${formatTime(v.nextLifeAt)}</span>, puis une toutes les ${every}. Un assaut gagné arrête la remontée ${pause} h.</p>`;
   return `<p class="diplo-help">Toutes les vies sont là. Un assaut gagné en ôte une, et aucune ne revient avant ${pause} h sans assaut gagné.</p>`;
+}
+
+// Mur du Bastion (décision du 2 novembre 2026, deuxième simulation de 200 jours, G2) : il garde les dégâts de chaque assaut,
+// gagné ou repoussé, et se répare en ligne droite jusqu'à être plein rules.wallRepairHours après le dernier dégât. `v` : le
+// Bastion (wallHp, wallMaxHp, wallFullAt donnés par le serveur, bastionService.wallView) ; rien sur un chantier
+const frDecimal = (n) => String(n).replace('.', ',');
+function bastionWallHtml(v, rules) {
+  const max = Number(v?.wallMaxHp ?? rules?.wallMaxHp) || 0;
+  if (v?.wallHp == null || !max) return '';
+  const hp = Math.max(0, Math.min(max, Math.round(v.wallHp))), repair = rules?.wallRepairHours ?? 12;
+  const damaged = hp < max && v.wallFullAt;
+  return `<p class="bastion-wall">${resIconHtml('defense')} Mur : <strong>${formatNum(hp)} / ${formatNum(max)} PV</strong>${damaged
+      ? `, de nouveau plein dans <span class="qd-timer" data-ends-at="${v.wallFullAt}">${formatTime(v.wallFullAt)}</span> s'il n'est plus touché`
+      : ' (plein)'}</p>
+    <div class="bastion-bar"><i style="width:${Math.round(100 * hp / max)}%"></i></div>
+    <p class="diplo-help">Le mur garde les dégâts de chaque assaut, gagné ou repoussé : il se répare peu à peu et redevient plein ${repair} h après le dernier coup. Seuls les engins de siège l'abîment.</p>`;
 }
 
 // Onglet Alliance › Bastion
@@ -74,7 +92,7 @@ async function renderBastionSection(box) {
       ${b.status === 'FUNDING' ? `${progress}<p class="diplo-help">${b.convoys} convoi${b.convoys > 1 ? 's' : ''} en route. Envoyez une armée chargée depuis la carte : touchez le Bastion puis « Ravitailler ».</p>
         <button class="btn btn-primary" onclick="openBastionSend('${chatSafeId(b.id)}', 'SUPPLY')">${resIconHtml('item_crate')} Ravitailler</button>` : ''}
       ${b.status === 'BUILDING' ? `<p>Toutes les ressources sont là : achevé dans <span class="qd-timer" data-ends-at="${b.buildEndsAt}">${formatTime(b.buildEndsAt)}</span>.</p>` : ''}
-      ${b.status === 'ACTIVE' || b.status === 'BUILDING' ? `<p>${resIconHtml('defense')} Vies : <strong>${lives} / ${b.assaults}</strong>${b.isSieged ? ` · <span class="bastion-sieged">${resIconHtml('attack')} assiégé</span>` : ''}</p>${bastionRegenHtml(b, r)}` : ''}
+      ${b.status === 'ACTIVE' || b.status === 'BUILDING' ? `<p>${resIconHtml('defense')} Vies : <strong>${lives} / ${b.assaults}</strong>${b.isSieged ? ` · <span class="bastion-sieged">${resIconHtml('attack')} assiégé</span>` : ''}</p>${bastionRegenHtml(b, r)}${bastionWallHtml(b, r)}` : ''}
     </div>
     ${b.status !== 'FUNDING' ? `<h4>${resIconHtml('army')} Garnison <small>${b.garrison.length} / ${b.maxGarrisonArmies} armées</small></h4>
       ${b.garrison.length ? `<div class="bastion-garrison">${b.garrison.map(g => `<div class="member-row"><span class="member-name">${escapeHtml(g.name)} <small>${escapeHtml(g.owner?.name || '')}${g.status === 'SUPPORTING' ? ' · en route' : g.status === 'ATTACKING' ? ' · en sortie' : ''}</small></span>
@@ -134,8 +152,8 @@ async function renderBastionMapPanel(tile, content) {
     <h3>${resIconHtml('defense')} ${escapeHtml(tile.name)}</h3>
     <p>Position : (${tile.x}, ${tile.y}) · ${typeof diploBadge === 'function' ? diploBadge(rel === 'SELF' ? 'SAME_ALLIANCE' : rel) : ''}</p>
     <p>${escapeHtml(tile.allianceName || '')} — ${bastionStatusLabel(tile.status)}</p>
-    ${lives !== null ? `<p>${resIconHtml('defense')} Vies : ${lives}${rules ? ` / ${rules.assaults}` : ''}${tile.isSieged ? ` · <span class="bastion-sieged">assiégé</span>` : ''}</p>${bastionRegenHtml(tile, rules)}` : '<p class="diplo-help">Un chantier sans murs ne peut pas être attaqué.</p>'}
-    ${!friendly && tile.status !== 'FUNDING' && rules ? `<p class="diplo-help">Il faut au moins un engin de siège. Camp d'1 h, puis assaut contre la garnison (${rules.maxGarrisonArmies} armées au plus) derrière un mur ${rules.wallMultiplier} fois plus solide qu'un mur ${rules.wallReferenceLevel}, que seuls les engins abîment ; ${rules.assaults} assauts gagnés le rasent ; ses vies ne reviennent qu'après ${rules.regenPauseHours ?? 24} h sans assaut gagné. Un assaut, c'est un rassemblement de votre alliance ou une armée seule : chaque camp livre le sien.</p>` : ''}
+    ${lives !== null ? `<p>${resIconHtml('defense')} Vies : ${lives}${rules ? ` / ${rules.assaults}` : ''}${tile.isSieged ? ` · <span class="bastion-sieged">assiégé</span>` : ''}</p>${bastionRegenHtml(tile, rules)}${bastionWallHtml(tile, rules)}` : '<p class="diplo-help">Un chantier sans murs ne peut pas être attaqué.</p>'}
+    ${!friendly && tile.status !== 'FUNDING' && rules ? `<p class="diplo-help">Il faut au moins un engin de siège. Camp d'1 h, puis assaut contre la garnison (${rules.maxGarrisonArmies} armées au plus) derrière un mur${rules.wallMaxHp ? ` de ${formatNum(rules.wallMaxHp)} PV` : ''} (${frDecimal(rules.wallMultiplier)} fois un mur ${rules.wallReferenceLevel}), que seuls les engins abîment ; il garde ses dégâts et ne redevient plein que ${rules.wallRepairHours ?? 12} h après le dernier assaut : enchaînez les assauts pour l'user. ${rules.assaults} assauts gagnés le rasent ; ses vies ne reviennent qu'après ${rules.regenPauseHours ?? 24} h sans assaut gagné. Un assaut, c'est un rassemblement de votre alliance ou une armée seule : chaque camp livre le sien.</p>` : ''}
     <div class="panel-actions">${actions.join('')}${typeof mapShareButton === 'function' ? mapShareButton(tile.x, tile.y) : ''}</div>
     <div class="bastion-rallies"></div>`;
   if (!friendly && typeof bastionRalliesHtml === 'function') { const box = content.querySelector('.bastion-rallies'); bastionRalliesHtml(tile.id).then(h => { if (box) box.innerHTML = h; }); }

@@ -6,7 +6,7 @@
 // ========== WOUNDED UNITS ==========
 // Décision du 30 octobre 2026 (services/woundedService.js) : une seule Tente de soins, dans la capitale, pour les blessés de
 // toutes les villes. Un blessé attend (il mange comme un soldat) jusqu'à ce que le joueur paie son soin ; au lit, il guérit
-// après les soins déjà lancés, puis rejoint la garnison de la capitale (§ 1 bis). Prix, durées et nombre soignable (lits
+// après les soins déjà lancés, puis rejoint la réserve de la capitale (§ 1 bis). Prix, durées et nombre soignable (lits
 // libres, stock de toutes les villes) viennent du serveur.
 function healingTabHtml(level) {
   const W = player?.economy?.wounded || {};
@@ -323,9 +323,12 @@ function renderUnits(filter) {
     units = units.filter(u => u.class === filter);
   }
   
-  // § 1 bis (décision du 30 octobre 2026) : une colonie n'a pas de garnison propre, ses recrues rejoignent la capitale
-  const colonyNote = currentCity.isCapital ? '' : '<p class="recruit-hint" style="grid-column:1/-1">Les unités formées ici rejoignent la garnison de la capitale ; envoyez une armée pour défendre cette ville.</p>';
-  grid.innerHTML = colonyNote + units.map(u => `
+  // § 1 bis (décision du 30 octobre 2026) : une colonie n'a pas de réserve propre, ses recrues rejoignent la capitale ; la
+  // réserve ne défend pas, seules les armées défendent (décision du 2 novembre 2026, deuxième simulation de 200 jours, G10)
+  const recruitNote = `<p class="recruit-hint" style="grid-column:1/-1">${currentCity.isCapital
+    ? 'Les unités formées arrivent dans la réserve de la capitale, qui ne défend pas : mettez-les dans une armée (onglet Armée › Composer).'
+    : 'Les unités formées ici rejoignent la réserve de la capitale, qui ne défend pas : mettez-les dans une armée et envoyez-la défendre cette ville.'}</p>`;
+  grid.innerHTML = recruitNote + units.map(u => `
     <div class="unit-card" onclick="showUnitDetail('${u.key}')">
       <div class="unit-card-header" style="border-color: ${TIER_COLORS[u.tier]}">
         <span class="unit-class-icon">${unitFigureHtml(u.key, 'unit-figure', u.name)}</span>

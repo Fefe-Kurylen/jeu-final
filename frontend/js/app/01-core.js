@@ -564,7 +564,7 @@ function logout() {
   if (typeof mapAnimTimer !== 'undefined' && mapAnimTimer) { clearTimeout(mapAnimTimer); mapAnimTimer = null; }
   if (typeof mapReloadTimeout !== 'undefined' && mapReloadTimeout) { clearTimeout(mapReloadTimeout); mapReloadTimeout = null; }
   if (typeof Store !== 'undefined' && typeof Store.logOut === 'function') Store.logOut();
-  player = null; currentCity = null; cities = []; armies = []; incomingAttacks = [];
+  player = null; currentCity = null; cities = []; armies = []; incomingAttacks = []; warnedAttacks.clear();
   window._emailBannerDismissed = false;
   setConnectOverlay(null);
   const banner = document.getElementById('email-banner'); if (banner) banner.style.display = 'none';
@@ -854,9 +854,22 @@ async function checkIncomingAttacks() {
     });
     if (resp.ok) {
       incomingAttacks = await resp.json();
+      warnReserveOnAttacks(incomingAttacks);
     }
   } catch (e) {
     // Silently ignore
+  }
+}
+// Seules les armées défendent (décision du 2 novembre 2026, deuxième simulation de 200 jours, G10) : une attaque contre une
+// ville où des soldats attendent en réserve le dit une fois (reserveAttackWarning, 07-army.js), une fois les armées connues
+const warnedAttacks = new Set();
+function warnReserveOnAttacks(list) {
+  if (!Array.isArray(armies) || !armies.length || typeof reserveAttackWarning !== 'function') return;
+  for (const attack of list || []) {
+    if (!attack?.id || warnedAttacks.has(attack.id)) continue;
+    warnedAttacks.add(attack.id);
+    const warning = reserveAttackWarning(attack);
+    if (warning) showToast(warning, 'warning');
   }
 }
 
@@ -887,9 +900,11 @@ function updateAttackNotification() {
   const timerEl = document.getElementById('attack-timer');
   if (timerEl) {
     timerEl.textContent = timerStr;
-    timerEl.title = earliest.type === 'SIEGE'
+    // ce qui défendra la ville : seules ses armées, jamais sa réserve (G10)
+    const defence = typeof attackDefenceNote === 'function' ? attackDefenceNote(earliest.targetCityId) : '';
+    timerEl.title = (earliest.type === 'SIEGE'
       ? `${earliest.attacker || 'Une armée'} campe devant ${earliest.targetCity} : combat dans ce délai. Touchez pour attaquer le camp.`
-      : earliest.attacker ? `${earliest.attacker} marche sur ${earliest.targetCity}${earliest.units ? ' avec ' + earliest.units + ' soldats' : ''}` : `Armée inconnue en approche de ${earliest.targetCity}`;
+      : earliest.attacker ? `${earliest.attacker} marche sur ${earliest.targetCity}${earliest.units ? ' avec ' + earliest.units + ' soldats' : ''}.` : `Armée inconnue en approche de ${earliest.targetCity}.`) + (defence ? ` ${defence}` : '');
   }
   // A siege in progress: the alert opens the siege window (break it with an army of the city or of an ally)
   const siege = active.find(a => a.type === 'SIEGE');

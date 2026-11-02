@@ -552,6 +552,122 @@ router.post('/:id/detach-colony', auth, async (req, res) => {
   } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
 
+// ---- Échanger des soldats entre deux armées (décision du 2 novembre 2026, deuxième simulation de 200 jours, G9) ----
+// POST /api/army/:id/exchange { toArmyId, units: [{ unitKey, count, tier? }], back?: [{ unitKey, count, tier? }] } :
+// `units` passe de l'armée :id à l'armée toArmyId, `back` dans l'autre sens, en une seule fois. Deux armées du même joueur
+// au même endroit (même ville ou même case), toutes deux à l'arrêt (IDLE) ou toutes deux en garnison dans le même Bastion,
+// ni réservées par le marché, ni prises dans un combat. Le héros reste dans son armée. Une armée rattachée à une colonie
+// reçoit et donne comme les autres (E2) : une armée de la capitale posée dans la colonie remplit sa garde sans prendre
+// d'emplacement à la capitale. Une armée vidée dans sa ville y reste (on peut l'y dissoudre) ; vidée ailleurs, elle ne
+// peut plus marcher : elle est posée aussitôt dans sa ville avec ce qu'elle porte, comme toute armée sans soldats (sa place
+// au Bastion est libérée). Une armée qui porte le héros n'est jamais vidée hors de sa ville.
+const EXCHANGE_MAX_LINES = 40;
+const unitNameOf = (key) => unitsData.find(u => u.key === key)?.name || key;
+// Corps de la requête lu et vérifié (pur) : { toArmyId, give, take } (lignes { unitKey, tier, count }) ou { error }
+function parseExchange(body, fromId) {
+  const { toArmyId, units = [], back = [] } = body || {};
+  if (!isId(toArmyId)) return { error: 'Choisissez l\'armée qui reçoit (toArmyId)' };
+  if (toArmyId === fromId) return { error: 'Choisissez deux armées différentes' };
+  if (!Array.isArray(units) || !Array.isArray(back)) return { error: 'units et back : des listes de { unitKey, count }' };
+  if (!units.length && !back.length) return { error: 'Choisissez au moins un soldat à échanger' };
+  if (units.length + back.length > EXCHANGE_MAX_LINES) return { error: `${EXCHANGE_MAX_LINES} lignes au plus` };
+  const read = (list) => {
+    const out = new Map();
+    for (const line of list) {
+      const unit = line && isId(line.unitKey) ? unitsData.find(u => u.key === line.unitKey) : null;
+      if (!unit) return { error: 'Unité inconnue' };
+      if (line.tier != null && line.tier !== unit.tier) return { error: `${unit.name} : palier ${unit.tier}, pas ${line.tier}` };
+      if (!Number.isInteger(line.count) || line.count <= 0) return { error: `${unit.name} : nombre entier positif attendu` };
+      const sum = (out.get(unit.key)?.count || 0) + line.count;
+      if (sum > config.limits.maxAmount) return { error: `${unit.name} : nombre trop grand` };
+      out.set(unit.key, { unitKey: unit.key, tier: unit.tier, count: sum });
+    }
+    return { lines: [...out.values()] };
+  };
+  const give = read(units), take = read(back);
+  if (give.error || take.error) return { error: give.error || take.error };
+  if (give.lines.some(g => take.lines.some(t => t.unitKey === g.unitKey))) return { error: 'Une même unité ne passe que dans un sens à la fois' };
+  return { toArmyId, give: give.lines, take: take.lines };
+}
+// Refus d'un échange (message) ou null (pur). `from`, `to` : les armées avec leurs unités et leur ville
+function exchangeRefusal(from, to) {
+  if (!from || !to || from.ownerId !== to.ownerId) return 'Armée non trouvée';
+  if (from.id === to.id) return 'Choisissez deux armées différentes';
+  if (from.isGarrison || to.isGarrison) return 'Les soldats en réserve ne sont pas une armée : ajoutez-les depuis la composition d\'une armée de la capitale';
+  for (const a of [from, to]) {
+    if (a.status === 'MARKET') return MARKET_BUSY;
+    if (a.claimedAt) return `${a.name} est prise dans un combat ou une arrivée : réessayez dans quelques secondes`;
+  }
+  const atRest = from.status === 'IDLE' && to.status === 'IDLE';
+  const sameBastion = from.status === 'STATIONED' && to.status === 'STATIONED' && !!from.targetBastionId && from.targetBastionId === to.targetBastionId;
+  if (!atRest && !sameBastion) return 'Les deux armées doivent être à l\'arrêt, ou toutes deux en garnison dans le même Bastion';
+  if (from.x !== to.x || from.y !== to.y) return 'Les deux armées doivent se trouver au même endroit (même ville ou même case)';
+  return null;
+}
+// Soldats d'une armée après l'échange (pur) : `give` sort de `from`, `take` y entre
+const soldiersOf = (army) => army.units.reduce((t, u) => t + Math.max(0, u.count), 0);
+const movedCount = (lines) => lines.reduce((t, l) => t + l.count, 0);
+// `n` soldats d'un type passent d'une armée à l'autre, par incréments gardés (comme transferUnits)
+async function moveSoldiers(tx, fromId, toId, line) {
+  const taken = await tx.armyUnit.updateMany({ where: { armyId: fromId, unitKey: line.unitKey, count: { gte: line.count } }, data: { count: { decrement: line.count } } });
+  if (taken.count !== 1) throw Object.assign(new Error('units changed'), { code: 'UNITS_CHANGED' });
+  await tx.armyUnit.upsert({ where: { armyId_unitKey: { armyId: toId, unitKey: line.unitKey } }, update: { count: { increment: line.count } }, create: { armyId: toId, unitKey: line.unitKey, tier: line.tier, count: line.count } });
+  await tx.armyUnit.deleteMany({ where: { armyId: fromId, unitKey: line.unitKey, count: { lte: 0 } } });
+}
+
+router.post('/:id/exchange', auth, async (req, res) => {
+  try {
+    if (!isId(req.params.id)) return res.status(400).json({ error: 'Armée invalide' });
+    const asked = parseExchange(req.body, req.params.id);
+    if (asked.error) return res.status(400).json({ error: asked.error });
+    const playerId = req.user.playerId, ids = [req.params.id, asked.toArmyId];
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
+      // verrous : toutes les villes du joueur dans l'ordre des id (celles des deux armées : set-unit, départs, combats en
+      // ville ; une armée vidée hors de chez elle y dépose ce qu'elle porte), puis le Bastion de deux armées en garnison
+      // (l'assaut le prend avant de toucher à la garnison), puis les deux armées dans l'ordre des id
+      const cities = await lockPlayerCities(tx, playerId);
+      const probe = await tx.army.findMany({ where: { id: { in: ids }, ownerId: playerId }, select: { id: true, status: true, targetBastionId: true } });
+      if (probe.length !== 2) return { error: 'Armée non trouvée', status: 404 };
+      const bastionId = probe.every(a => a.status === 'STATIONED') && probe[0].targetBastionId === probe[1].targetBastionId ? probe[0].targetBastionId : null;
+      if (bastionId) await tx.$queryRaw`SELECT id FROM "Bastion" WHERE id = ${bastionId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "Army" WHERE id = ANY(${[...ids].sort()}) ORDER BY id FOR UPDATE`;
+      const [from, to] = await Promise.all(ids.map(id => tx.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, city: true } })));
+      const refusal = exchangeRefusal(from, to);
+      if (refusal) return { error: refusal, status: from && to ? 400 : 404 };
+      if (from.status === 'STATIONED' && from.targetBastionId !== bastionId) return { error: 'Les armées ont changé entre-temps, réessayez', status: 409 };
+      const have = (army, key) => army.units.find(u => u.unitKey === key)?.count || 0;
+      for (const [army, lines] of [[from, asked.give], [to, asked.take]]) {
+        for (const l of lines) if (have(army, l.unitKey) < l.count) return { error: `${army.name} n'a que ${have(army, l.unitKey)} ${unitNameOf(l.unitKey)} (${l.count} demandés)`, status: 400 };
+      }
+      // une armée vidée hors de sa ville rentre aussitôt ; celle qui porte le héros garde au moins un soldat pour marcher
+      const left = new Map([[from.id, soldiersOf(from) - movedCount(asked.give) + movedCount(asked.take)], [to.id, soldiersOf(to) + movedCount(asked.give) - movedCount(asked.take)]]);
+      const away = (a) => !a.city || !isHome(a, a.city);
+      for (const a of [from, to]) if (left.get(a.id) <= 0 && a.heroId && away(a)) return { error: `Le héros reste avec son armée : laissez au moins un soldat à ${a.name} pour qu'elle puisse rentrer`, status: 400 };
+      for (const l of asked.give) await moveSoldiers(tx, from.id, to.id, l);
+      for (const l of asked.take) await moveSoldiers(tx, to.id, from.id, l);
+      const notes = [];
+      for (const a of [from, to]) {
+        if (left.get(a.id) > 0) continue;
+        if (!away(a)) { notes.push(`${a.name} n'a plus de soldats : elle reste à ${a.city.name}, où vous pouvez la dissoudre.`); continue; }
+        if (!a.city) continue;   // sans ville d'origine : elle reste où elle est
+        await tx.army.update({ where: { id: a.id }, data: { status: 'IDLE', x: a.city.x, y: a.city.y, targetX: null, targetY: null, targetCityId: null, targetBastionId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, rallyId: null } });
+        await depositCarryTx(tx, a.id, a.city.id, cities);
+        notes.push(`${a.name} n'a plus de soldats : elle est rentrée aussitôt à ${a.city.name}${a.status === 'STATIONED' ? ' et sa place au Bastion est libérée' : ''}.`);
+      }
+      const rows = await tx.armyUnit.findMany({ where: { armyId: { in: ids }, count: { gt: 0 } } });
+      const view = (a) => ({ id: a.id, name: a.name, units: rows.filter(u => u.armyId === a.id).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })) });
+      const gave = movedCount(asked.give), took = movedCount(asked.take);
+      const parts = [gave ? `${gave} soldat${gave > 1 ? 's' : ''} de ${from.name} vers ${to.name}` : '', took ? `${took} soldat${took > 1 ? 's' : ''} de ${to.name} vers ${from.name}` : ''].filter(Boolean);
+      return { message: `Échange fait : ${parts.join(', ')}.${notes.length ? ` ${notes.join(' ')}` : ''}`, from: view(from), to: view(to), moved: { units: asked.give, back: asked.take } };
+    }, { timeout: 15000 }));
+    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    res.json(result);
+  } catch (e) {
+    if (e.code === 'UNITS_CHANGED') return res.status(409).json({ error: 'Les effectifs ont changé, réessayez' });
+    sendError(res, e);
+  }
+});
+
 // Une ville couvre 2 × 2 cases : un déplacement vers l'une d'elles va à sa case principale (celle de la ville), sinon
 // l'armée resterait « à côté de chez elle » (ni rentrée, ni défenseur, ni rencontrée en campagne)
 async function cityAnchorOf(x, y) {
@@ -992,3 +1108,5 @@ module.exports.checkHostileTarget = checkHostileTarget;   // refus d'une attaque
 module.exports.readyToLeave = readyToLeave;   // contrôles avant tout départ (armée réservée au marché), pour les tests
 // armées rattachées aux colonies (E2), pour les tests
 Object.assign(module.exports, { attachRefusal, detachRefusal, attachedColonyOf, firstFreeSlot, nameForSlot });
+// échange de soldats entre deux armées au même endroit (G9), pour les tests
+Object.assign(module.exports, { parseExchange, exchangeRefusal });

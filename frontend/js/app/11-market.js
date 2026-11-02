@@ -424,6 +424,9 @@ function showArmyTab(subTab) {
     case 'send':
       renderSendTroopsForm();
       break;
+    case 'exchange':   // soldats échangés entre deux armées au même endroit (G9, 07-army.js)
+      renderArmyExchange();
+      break;
     default:
       renderArmies();
   }

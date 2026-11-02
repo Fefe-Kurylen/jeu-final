@@ -54,13 +54,14 @@ test('camps are easy near the edges of the map and hard at the centre, ± 20 % b
   assert.ok(new Set(sizes).size > 3, 'camps differ from one another');
 });
 
-test('a camp costs the winner half of what a city raid costs (tribeLossMultiplier)', () => {
+test('camp de tribu au moteur de bataille (G3, 2 novembre 2026) : tous les rounds, pas d\'arrêt à 30 % comme un raid', () => {
   const inf = unitsData.find(u => u.faction === 'ROME' && u.class === 'INFANTRY' && u.tier === 'base');
   const atk = [{ unitKey: inf.key, tier: 'base', count: 200 }], def = [{ unitKey: inf.key, tier: 'base', count: 100 }];
-  const raid = resolveCombat(atk, def, 0, null, null, {});
-  const camp = resolveCombat(atk, def, 0, null, null, { winnerLossMultiplier: config.combat.tribeLossMultiplier });
+  const raid = resolveCombat(atk, def, 0, null, null, { raid: true });
+  const camp = resolveCombat(atk, def, 0, null, null, { fieldBattle: true });
   assert.ok(raid.attackerWon && camp.attackerWon);
-  assert.equal(config.combat.tribeLossMultiplier, 0.15);
-  assert.ok(Math.abs(camp.attackerLossRate - raid.attackerLossRate * 0.5) < 1e-9);
-  assert.equal(camp.defenderLossRate, config.combat.loserLossRate);
+  assert.equal(config.combat.tribeLossMultiplier, undefined, 'plus de pertes forfaitaires');
+  assert.equal(raid.defenderTotalKilled, 30, 'un raid s\'arrête à 30 %');
+  assert.equal(camp.defenderLossRate, 1, 'le camp se bat jusqu\'au bout');
+  assert.ok(camp.attackerTotalKilled > raid.attackerTotalKilled, 'un combat jusqu\'au bout coûte plus au vainqueur');
 });

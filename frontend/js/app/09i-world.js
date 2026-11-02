@@ -4,6 +4,10 @@
 // (calendrier, Merveilles, plans, Panthéon), monde terminé, rejoindre le monde suivant.
 // Serveur : src/services/wonderService.js, hallOfFameService.js, routes src/routes/wonder.js.
 // ============================================================
+// Vagues d'Immortels contre une Ville Merveille : toutes les 24 h, même force (config.world.immortalWaveHours, décision du
+// 2 novembre 2026 (deuxième simulation de 200 jours), G6 ; 12 h avant). La fiche de la Merveille prend celle du serveur
+// quand il la donne (waveHours)
+const IMMORTAL_WAVE_HOURS = 24;
 let worldStateCache = null, worldStateAt = 0;
 async function loadWorldState(force = false) {
   if (!force && worldStateCache && Date.now() - worldStateAt < 60000) return worldStateCache;
@@ -56,7 +60,7 @@ function renderWonderNodePanel(tile, content) {
     ${guard}
     ${site && !tile.hasDefenders ? '<div class="wonder-reserve"></div>' : ''}
     <p class="diplo-help">${site
-      ? 'Battez la garnison des Immortels, puis fondez-y une ville avec un colon : elle devient la Ville Merveille de votre alliance (une par joueur). La première alliance qui monte sa Merveille au niveau 100 gagne le monde.'
+      ? `Battez la garnison des Immortels, puis fondez-y une ville avec un colon : elle devient la Ville Merveille de votre alliance (une par joueur). Dès le niveau 1, les Immortels l'attaquent toutes les ${IMMORTAL_WAVE_HOURS} h : seules les armées postées dans la ville la défendent. La première alliance qui monte sa Merveille au niveau 100 gagne le monde.`
       : 'Battez la garnison des Immortels pour prendre le plan : il reste dans votre capitale et permet à votre alliance de monter sa Merveille au-delà du niveau 50. Un assaut gagné contre votre capitale l\'emporterait.'}${canRally ? ' Seul ou en rassemblement d\'alliance : la prise revient à celui qui le lance.' : ''}</p>
     <div class="panel-actions">
       ${tile.hasDefenders ? `<button class="btn btn-danger" onclick="raidResource('${id}', ${tile.x}, ${tile.y})" ${hasArmy ? '' : 'disabled title="Aucune armée disponible"'}>${resIconHtml('attack')} Attaquer les Immortels</button>` : ''}
@@ -103,7 +107,9 @@ async function openWonderPanel(cityId) {
     <div class="wonder-stock">${BASTION_RES.map(([k, l]) => `<span>${resIconHtml(k)} ${formatNum(w.stock[k] || 0)}${next ? ` <small>/ ${formatNum(next.cost[k])}</small>` : ''}</span>`).join('')}</div>
     <p class="diplo-help">${resIconHtml('army')} L'armée est le vrai moyen de ravitailler la Merveille : chaque membre de l'alliance envoie une armée de transport vers la Ville Merveille (Marché › Envoyer). Elle porte autant que la charge de ses troupes, livre tout au chantier (sans plafond), puis rentre. Plus l'armée est grande, plus elle porte.</p>
     ${next ? `<p>Niveau ${next.level} : ${formatDuration(next.seconds)}${next.needsPlan ? ` · ${w.hasPlan ? `${resIconHtml('star')} plan détenu par l'alliance` : `${resIconHtml('lock')} il faut un plan de construction dans l'alliance`}` : ''}</p>` : '<p><strong>Merveille achevée.</strong></p>'}
-    ${w.nextWaveAt ? `<p class="diplo-help">${resIconHtml('attack')} Prochaine vague d'Immortels : <span class="qd-timer" data-ends-at="${w.nextWaveAt}">${formatTime(w.nextWaveAt)}</span>. Un assaut perdu fait perdre des niveaux ; la ville ne peut pas être rasée.</p>` : ''}
+    ${w.nextWaveAt
+      ? `<p class="diplo-help">${resIconHtml('attack')} Les Immortels attaquent la Merveille toutes les ${w.waveHours ?? IMMORTAL_WAVE_HOURS} h. Prochaine vague : <span class="qd-timer" data-ends-at="${w.nextWaveAt}">${formatTime(w.nextWaveAt)}</span>. Seules les armées postées dans la ville la défendent. Un assaut perdu fait perdre des niveaux ; la ville ne peut pas être rasée.</p>`
+      : `<p class="diplo-help">${resIconHtml('attack')} Dès le niveau 1, les Immortels attaqueront la Merveille toutes les ${w.waveHours ?? IMMORTAL_WAVE_HOURS} h : postez-y des armées.</p>`}
     <div class="profile-actions">
       ${w.mine && next && !w.buildEndsAt ? `<button class="btn btn-primary" ${enough && planOk ? '' : 'disabled'} onclick="buildWonderLevel('${chatSafeId(w.cityId)}')">${resIconHtml('build')} Construire le niveau ${next.level}</button>` : ''}
       <button class="btn btn-secondary" onclick="closeModal()">Fermer</button>
