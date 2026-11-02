@@ -15,6 +15,11 @@
 // - les étapes « armies » et « rallies » du tick sont mesurées comme l'étape « gold » : l'or qu'elles versent est le trésor
 //   des donjons et l'or que les armées rapportent chez elles (camps d'or, récoltes) ; ce dernier se lit en retirant le
 //   trésor versé.
+// Décision du 2 novembre 2026 (deuxième simulation de 200 jours), G12 : la part de ressources du trésor va dans le stock
+// commun du joueur (creditPlayer) et ce qui ne tient dans aucune ville devient des points d'alliance (1 par
+// config.invasion.treasureOverflow.resourcesPerAlliancePoint ressources, au plus maxShareMult fois ceux de la part). Le
+// relevé lit chaque jour les notifications « Donjon barbare détruit » des joueurs (le texte que le serveur leur écrit) :
+// ressources reçues, ce qui n'a tenu nulle part, points d'alliance qu'il a donnés, ce qui s'est vraiment perdu.
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
@@ -28,12 +33,48 @@ const MEASURED = { gold: 'treasury', armies: 'tickArmies', rallies: 'tickRallies
 
 // credited : le trésor versé ; creditedFrom : jour où sa mesure a commencé (null : depuis le début ; un relevé d'avant
 // cette mesure la commence en cours de partie)
-const empty = () => ({ lastAt: null, gold0: null, goldNow: 0, treasury: 0, tickArmies: 0, tickRallies: 0, measuredFrom: null, expeditions: { gold: 0, done: 0, withGold: 0 }, invasion: { gold: 0, credited: 0, creditedFrom: null, destroyed: {} }, seenExp: {} });
+const emptyTreasure = (from = null) => ({ shares: 0, given: 0, lost: 0, lostShares: 0, overflowAp: 0, overflowShares: 0, capped: 0, unconverted: 0, shareAp: 0, from });
+const empty = () => ({ lastAt: null, gold0: null, goldNow: 0, treasury: 0, tickArmies: 0, tickRallies: 0, measuredFrom: null, expeditions: { gold: 0, done: 0, withGold: 0 }, invasion: { gold: 0, credited: 0, creditedFrom: null, destroyed: {} }, treasure: emptyTreasure(), seenExp: {} });
 // un relevé écrit avant ces mesures : elles commencent maintenant (le rapport dit depuis quand)
 function upgrade(L, now) {
   if (L.tickArmies === undefined) { L.tickArmies = 0; L.tickRallies = 0; L.measuredFrom = now; }
   if (L.invasion.credited === undefined) { L.invasion.credited = 0; L.invasion.creditedFrom = now; }
+  if (L.treasure === undefined) L.treasure = emptyTreasure(now);
   return L;
+}
+
+// La part d'un joueur dans le trésor d'un donjon, lue dans sa notification (hordeService.destroyHorde) : { ap, gain (de
+// chaque ressource), lost (ressources sans place), overflowAp (points d'alliance donnés pour elles), capped } ou null. Les
+// nombres s'écrivent à la française (espace fine entre les milliers)
+const TREASURE_TITLE = 'Donjon barbare détruit';
+const num = (x) => Number(String(x || '').replace(/[\s\u202f\u00a0]/g, '')) || 0;
+const N = '(\\d[\\d\\s\\u202f\\u00a0]*)';
+function parseTreasureNote(body) {
+  const text = String(body || '');
+  const part = text.match(new RegExp(`${N} or, ${N} points d'alliance et ${N} de chaque ressource`));
+  if (!part) return null;
+  const out = { ap: num(part[2]), gain: num(part[3]), lost: 0, overflowAp: 0, capped: false };
+  const over = text.match(new RegExp(`plus de place dans vos villes : (.+?)(?: perdus| changés en ${N} points d'alliance)`));
+  if (over) {
+    for (const m of over[1].matchAll(new RegExp(`${N} de (?:bois|pierre|fer|nourriture|céréales)`, 'g'))) out.lost += num(m[1]);
+    out.overflowAp = num(over[2]);
+    out.capped = /le reste est perdu/.test(text);
+  }
+  return out;
+}
+// les parts du trésor des joueurs depuis le dernier relevé, ajoutées au relevé
+async function readTreasureNotes(prisma, L, ids, since, until) {
+  const rows = await prisma.notification.findMany({ where: { playerId: { in: ids }, createdAt: { gt: since, lte: until }, title: { contains: TREASURE_TITLE } }, select: { body: true } });
+  const per = Number(config.invasion.treasureOverflow?.resourcesPerAlliancePoint) || 1000;
+  const T = L.treasure;
+  for (const r of rows) {
+    const x = parseTreasureNote(r.body);
+    if (!x) continue;
+    T.shares++; T.shareAp += x.ap; T.given += 4 * x.gain;
+    if (x.lost > 0) { T.lostShares++; T.lost += x.lost; T.unconverted += Math.max(0, x.lost - x.overflowAp * per); }
+    if (x.overflowAp > 0) { T.overflowShares++; T.overflowAp += x.overflowAp; }
+    if (x.capped) T.capped++;
+  }
 }
 
 // l'or de ces joueurs, tous ensemble
@@ -86,6 +127,7 @@ async function daily(prisma, clock, L, bots) {
   const hordes = await prisma.horde.findMany({ where: { destroyedAt: { gt: since, lte: new Date(now) } }, select: { id: true, level: true } });
   for (const h of hordes) { L.invasion.gold += treasureGold(h.level); L.invasion.destroyed[`L${h.level}`] = (L.invasion.destroyed[`L${h.level}`] || 0) + 1; }
   L.invasion.credited += await treasureCredited(prisma, hordes).catch(() => 0);
+  if (ids.length) await readTreasureNotes(prisma, L, ids, since, new Date(now)).catch(() => {});
   L.lastAt = now;
 }
 
@@ -112,8 +154,9 @@ function view(L, bots) {
     goldNow: L.goldNow, gold0: L.gold0,
     income: { ...income, other: Math.round((L.goldNow - (L.gold0 || 0)) + spentTotal - known) },
     invasionFormula: L.invasion.gold, invasionCredited: L.invasion.credited ?? null, invasionCreditedFrom: L.invasion.creditedFrom ?? null, measuredFrom: L.measuredFrom ?? null,
-    spent, expeditions: { done: L.expeditions.done, withGold: L.expeditions.withGold }, invasionDestroyed: L.invasion.destroyed
+    spent, expeditions: { done: L.expeditions.done, withGold: L.expeditions.withGold }, invasionDestroyed: L.invasion.destroyed,
+    treasure: L.treasure ? { ...L.treasure } : null   // parts de ressources du trésor (G12), lues dans les notifications
   };
 }
 
-module.exports = { MEASURED, empty, daily, view, measureStep, measureTreasury, treasureGold, treasureCredited };
+module.exports = { MEASURED, empty, daily, view, measureStep, measureTreasury, treasureGold, treasureCredited, parseTreasureNote };

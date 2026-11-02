@@ -1507,7 +1507,8 @@ async function bookkeeping(ctx, v) {
       // la garnison qui a défendu : les armées postées au Bastion après l'assaut qui ont encore des soldats
       const bastionId = r.loot?.bastionId || null;
       const garrison = bastionId ? (await ctx.prisma.army.count({ where: { status: 'STATIONED', targetBastionId: bastionId, units: { some: { count: { gt: 0 } } } } }).catch(() => null)) : null;
-      // la chaîne de l'alliance qui attaque : commencée par un assaut gagné, arrêtée par un assaut repoussé ou le Bastion rasé
+      // la chaîne de l'alliance qui attaque : commencée par un assaut gagné, ou repoussé qui a usé le mur (G2) ; arrêtée par un
+      // assaut repoussé sans dégât au mur, deux assauts repoussés de suite, ou le Bastion rasé
       const g = ['A', 'B'].find(x => atkAl && groupAlliance(ctx, v, x) === atkAl);
       const keeper = g ? ctx.byGroup(g).find(b => b.playerId) : null;
       const wm = keeper ? memOf(keeper, v) : null;
@@ -1527,8 +1528,8 @@ async function bookkeeping(ctx, v) {
         if (lives?.fallen) endChain(ctx, wm, tag, 'Bastion rasé');
         else if (won) {
           if (!wm.chain || wm.chain.b !== bastionId) {
-            wm.chain = { b: bastionId, s: ctx.step, n: 0, wins: 0, losses: 0, skip: 0, tw: 0, low: lives?.after ?? null };
-            ctx.event('bastion_chain', { alliance: tag, bastion: r.loot?.defenderName, lives: lives ? `${lives.after}/${lives.total}` : null });
+            wm.chain = { b: bastionId, s: ctx.step, n: 0, wins: 0, losses: 0, lossRun: 0, skip: 0, tw: 0, low: lives?.after ?? null, mode: 'vie' };
+            ctx.event('bastion_chain', { alliance: tag, bastion: r.loot?.defenderName, lives: lives ? `${lives.after}/${lives.total}` : null, mode: 'vie', wallHp: Number.isFinite(wallEnd) ? Math.round(wallEnd) : null, wallMaxHp: wallFull });
           }
           const c = wm.chain;
           c.wins++;
@@ -1557,7 +1558,7 @@ async function bookkeeping(ctx, v) {
       }
       // G2 : le mur avant et après, l'heure où il sera de nouveau plein (wallFullAt du rapport) ; G5 : la part des assaillants
       // tombés (un assaut repoussé se bat jusqu'au dernier soldat)
-      ctx.event('bastion_assault', { reportId: dkey, bastionId, by: r.loot?.attackerName, bastion: r.loot?.defenderName, won, armies: groupSize.get(assaultKey(r)) || 1, garrisonAfter: garrison, defenders: (r.defenderUnits || []).reduce((t, u) => t + (u.count || 0), 0), defendersLeft: soldiersOf(left), attackers: soldiersOf(r.attackerUnits || []), attackerLossRate: Number.isFinite(Number(r.attackerLosses?.rate)) ? Math.round(Number(r.attackerLosses.rate) * 1000) / 1000 : null, wallHpStart: r.loot?.wallHpStart, wallHpEnd: r.loot?.wallHpEnd, wallMaxHp: r.loot?.wallMaxHp, wallFullAt: r.loot?.wallFullAt ?? null, wallDamage: r.loot?.wallHpStart != null ? Math.round(r.loot.wallHpStart - (r.loot.wallHpEnd || 0)) : null, lives: lives ? `${lives.after}/${lives.total}` : null, chain: wm?.chain?.b === bastionId ? (wm.chain.n || 0) : 0, chainMode: wm?.chain?.b === bastionId ? (wm.chain.mode || 'vie') : null });
+      ctx.event('bastion_assault', { reportId: dkey, bastionId, assaultAt: new Date(at).toISOString(), by: r.loot?.attackerName, bastion: r.loot?.defenderName, won, armies: groupSize.get(assaultKey(r)) || 1, garrisonAfter: garrison, defenders: (r.defenderUnits || []).reduce((t, u) => t + (u.count || 0), 0), defendersLeft: soldiersOf(left), attackers: soldiersOf(r.attackerUnits || []), attackerLossRate: Number.isFinite(Number(r.attackerLosses?.rate)) ? Math.round(Number(r.attackerLosses.rate) * 1000) / 1000 : null, wallHpStart: r.loot?.wallHpStart, wallHpEnd: r.loot?.wallHpEnd, wallMaxHp: r.loot?.wallMaxHp, wallFullAt: r.loot?.wallFullAt ?? null, wallDamage: r.loot?.wallHpStart != null ? Math.round(r.loot.wallHpStart - (r.loot.wallHpEnd || 0)) : null, lives: lives ? `${lives.after}/${lives.total}` : null, chain: wm?.chain?.b === bastionId ? (wm.chain.n || 0) : 0, chainMode: wm?.chain?.b === bastionId ? (wm.chain.mode || 'vie') : null });
       if (lives?.fallen) ctx.event('bastion_destroyed', { by: r.loot?.attackerName, bastion: r.loot?.defenderName });
     }
   }

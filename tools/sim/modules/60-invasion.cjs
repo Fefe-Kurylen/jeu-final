@@ -81,7 +81,9 @@ const SLACK = 1.5;           // sans la route du serveur : la ligne droite × 1,
 const MAX_GATHERING = 2;     // rassemblements de l'alliance en attente au plus : au-delà, on rejoint
 const BOSS_WAIT = 120;       // attente minimale contre le chef (les membres éloignés arrivent)
 // armées qui ne se fondent jamais dans celle qui part : celles d'un autre rôle
-const MERGE_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.caravan, Armies.NAMES.convoy]);
+// l'armée « Défense » de la capitale non plus : seules les armées défendent une ville (décision du 2 novembre 2026 (deuxième
+// simulation de 200 jours), G10), elle ne part jamais
+const MERGE_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.caravan, Armies.NAMES.convoy, Armies.NAMES.defense]);
 const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
 const isSiege = (k) => UNIT[k]?.class === 'SIEGE';
 const fighters = (units) => (units || []).filter(u => u.count > 0 && UNIT[u.unitKey] && !isSiege(u.unitKey));

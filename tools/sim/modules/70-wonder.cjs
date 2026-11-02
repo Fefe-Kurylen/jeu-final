@@ -17,7 +17,8 @@
 //   chargement se prend dans le stock commun, décision du 1er novembre 2026, E1, plus bas) ; le
 //   propriétaire lance chaque niveau dès que le stock du chantier le paie (POST /api/wonder/:cityId/build), aussi à la
 //   notification de fin de niveau.
-// - Défense : une vague d'Immortels frappe toutes les 12 h (config.world.immortalWaveBase × niveau^immortalWaveExp). Quand
+// - Défense : une vague d'Immortels frappe toutes les 24 h (config.world.immortalWaveHours : décision du 2 novembre 2026
+//   (deuxième simulation de 200 jours), G6, 12 h avant ; force config.world.immortalWaveBase × niveau^immortalWaveExp). Quand
 //   les défenseurs postés pèsent moins que la vague voulue (plus bas : sim-e), les membres envoient une « Garde de la
 //   Merveille » (rôle wonder de ../armies.cjs ; sans place, une armée de campagne ou l'Ost d'un guerrier) remplie depuis leur
 //   garnison : en renfort (POST /api/army/:id/support), ou déplacée (POST /api/army/:id/move) par le propriétaire, dont
@@ -110,8 +111,10 @@ const NOTIF_ODDS = (wait) => (wait >= 120 ? 0.8 : 0.6);   // un membre qui ne jo
 const WEAK_PAUSE = 3;
 const QUIET_STEPS = 12;
 // armées d'un autre rôle, jamais prises pour un rassemblement ni pour escorter le colon
-const ESCORT_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.convoy]);
-const RALLY_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.caravan, Armies.NAMES.convoy]);
+// l'armée « Défense » de la capitale (30-military.cjs) n'escorte, ne rejoint ni ne renforce jamais : seules les armées
+// défendent une ville (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G10)
+const ESCORT_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.convoy, Armies.NAMES.defense]);
+const RALLY_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.caravan, Armies.NAMES.convoy, Armies.NAMES.defense]);
 // armées jamais vidées ni envoyées pour défendre la Ville Merveille : celles d'un autre rôle (l'Ost part seulement en dernier
 // recours, tel quel : ses engins attendent dans la garnison entre deux sièges)
 const DEFEND_NEVER = new Set([...RALLY_NEVER, Armies.NAMES.hunt, Armies.NAMES.ost]);
@@ -156,7 +159,8 @@ function keptForWonder(bot, armyId, step = bot?.ctx?.step) {
 }
 
 // ---------- défenseurs d'une Ville Merveille, comme l'alliance les voit ----------
-// La prochaine vague frappe 12 h après la dernière (la première, 12 h après le niveau 1). Comptent : les armées postées (renfort
+// La prochaine vague frappe config.world.immortalWaveHours (24 h, G6) après la dernière (la première, autant après le
+// niveau 1). Comptent : les armées postées (renfort
 // allié STATIONED, armée du propriétaire au repos dans la ville) et celles en route qui arrivent avant la vague (simulation
 // sim-e : les gardes encore en marche comptaient déjà). { nextWaveAt, armies, posted, coming, power, byOwner, list }
 function defense(c, armies, now) {
@@ -370,7 +374,7 @@ function escortWanted(s, founder, wc) {
 // ---------- tour du propriétaire : le niveau suivant ----------
 // Seulement quand la défense (postée, ou en route et là avant la vague) tient la vague du nouveau niveau : une vague perdue
 // ôte un niveau et le chantier en cours (simulation sim-e : 92 % des livraisons perdues ainsi). Le niveau 1 part sans
-// attendre (la première vague frappe 12 h après lui, les gardes ont le temps d'arriver).
+// attendre (la première vague frappe 24 h après lui, les gardes ont le temps d'arriver).
 async function buildTurn(bot, ctx, B, m, wc, margin = DEFENSE_MARGIN, D = SNAP.defense?.get(wc.id)) {
   if (B.left < 2 || wc.wonderBuildEndsAt || wc.playerId !== bot.playerId) return;
   const next = WS.levelCost(wc.wonderLevel + 1);
@@ -1039,7 +1043,7 @@ async function track(ctx, s) {
   // de l'alliance s'ajuste (−0,01 par vague tenue ; +0,05 par vague perdue alors que la défense voulue était postée) ;
   // l'événement donne la puissance postée face à celle de la vague et la part des soldats de l'alliance qui était postée
   const { since, until } = wavesWindow(ctx, s);
-  const reps = await ctx.prisma.battleReport.findMany({ where: { createdAt: { gt: since, lte: until }, defenderId: { not: null } }, select: { id: true, winner: true, loot: true, defenderUnits: true, playerId: true, defenderId: true } });
+  const reps = await ctx.prisma.battleReport.findMany({ where: { createdAt: { gt: since, lte: until }, defenderId: { not: null } }, select: { id: true, winner: true, loot: true, defenderUnits: true, playerId: true, defenderId: true, createdAt: true } });
   const troops = new Map();   // alliance -> soldiers de tous ses membres (lus une fois par pas)
   for (const r of reps) {
     if (r.loot?.type !== 'IMMORTALS' || r.playerId !== r.defenderId) continue;
@@ -1062,7 +1066,8 @@ async function track(ctx, s) {
     }
     if (al && !troops.has(al)) troops.set(al, await allianceSoldiers(ctx, s, al).catch(() => 0));
     const all = al ? troops.get(al) : 0;
-    ctx.event('wonder_wave', { reportId: r.id, levelBefore: r.loot?.wonderLevel ?? null, city: r.loot?.cityName, alliance: al ? s.tagOf.get(al) : null, level, held, wallBroken: !!r.loot?.wallBroken, defenders, posted: Math.round(posted), wave: Math.round(wave), ratio: wave ? Math.round(posted / wave * 100) / 100 : null, allianceSoldiers: all || null, postedShare: all ? Math.round(defenders / all * 1000) / 1000 : null, margin: as ? marginOf(as) : null });
+    // waveAt : l'heure de la vague (rapport), pour l'écart entre deux vagues d'une même Ville Merveille (G6 : 24 h)
+    ctx.event('wonder_wave', { reportId: r.id, waveAt: new Date(r.createdAt).toISOString(), cityId: r.loot?.cityId ?? null, levelBefore: r.loot?.wonderLevel ?? null, city: r.loot?.cityName, alliance: al ? s.tagOf.get(al) : null, level, held, wallBroken: !!r.loot?.wallBroken, defenders, posted: Math.round(posted), wave: Math.round(wave), ratio: wave ? Math.round(posted / wave * 100) / 100 : null, allianceSoldiers: all || null, postedShare: all ? Math.round(defenders / all * 1000) / 1000 : null, margin: as ? marginOf(as) : null });
   }
 }
 // l'état d'alliance (keeper du groupe) d'une alliance de la fin de partie

@@ -51,7 +51,7 @@ const STALE_H = 24;              // une offre sans preneur depuis 24 h est retir
 const MIN_TRADE = 200;
 const PORTER_SHARE = 0.25;       // part de chaque troupe de la garnison que la caravane prend au plus
 // armées que le marché n'emprunte jamais : celles d'un autre rôle (armée de guerre, gardes, chasse aux hordes)
-const NOT_FOR_TRADE = new Set([Armies.NAMES.ost, Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.hunt]);
+const NOT_FOR_TRADE = new Set([Armies.NAMES.ost, Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.hunt, Armies.NAMES.defense]);   // Défense : G10, elle reste chez elle
 
 // ---------- petits outils ----------
 const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);

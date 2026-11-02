@@ -378,7 +378,9 @@ let lastSnapAt = (() => {
 //   Merveille ou contre un Bastion, ou un camp devant un Bastion ; les défenseurs de ce Bastion aussi ;
 // - pour une alliance dont le Bastion n'a pas retrouvé toutes ses vies (une chaîne d'assauts peut être en cours) et pour
 //   celles qui l'ont attaqué depuis moins de config.bastion.regenPauseHours + regenHours (24 h sans assaut gagné avant
-//   qu'une vie ne remonte, puis 72 h pour toutes : décision du 1er novembre 2026, E3).
+//   qu'une vie ne remonte, puis 72 h pour toutes : décision du 1er novembre 2026, E3) ; de même pour un Bastion dont le mur
+//   garde des dégâts (il redevient plein config.bastion.wallRepairHours après le dernier, 12 h : décision du 2 novembre 2026
+//   (deuxième simulation de 200 jours), G2), pour l'alliance qui le tient et celles qui l'ont attaqué depuis moins de 12 h.
 // Ces joueurs jouent alors chaque pas, pas un sur deux. Le pas joue en plus des ticks d'une heure (--subticks) aux heures
 // où un rassemblement doit partir ou arriver, ou un camp devant un Bastion donner l'assaut (nextDue) : départs, arrivées et
 // assauts se jouent à l'heure près (le vrai serveur : tick de 30 s), sans tick pour les heures où rien ne se joue. La
@@ -406,10 +408,14 @@ async function pressing(from, to) {
     if (owner.has(c.targetBastionId)) out.alliances.add(owner.get(c.targetBastionId));
   }
   const regenMs = ((Number(config.bastion.regenPauseHours) || 0) + config.bastion.regenHours) * 3600000;
+  const wallMs = (Number(config.bastion.wallRepairHours) || 0) * 3600000;
+  const BSv = bastionService();
+  const worn = (b) => typeof BSv.wallNow === 'function' && BSv.wallNow(b, from) < BSv.wallMaxHp() - 1;   // G2 : mur pas encore réparé
   for (const b of bastions) {
-    if (bastionService().structureNow(b, from) >= 1) continue;
+    const livesDown = BSv.structureNow(b, from) < 1;
+    if (!livesDown && !worn(b)) continue;
     out.alliances.add(b.allianceId);
-    const by = await prisma.$queryRawUnsafe(`SELECT DISTINCT m."allianceId" AS id FROM "BattleReport" r JOIN "AllianceMember" m ON m."playerId" = r."attackerId" WHERE r."playerId" = r."attackerId" AND r.loot->>'type' = 'BASTION' AND r.x = $1 AND r.y = $2 AND r."createdAt" >= $3`, b.x, b.y, new Date(from - regenMs));
+    const by = await prisma.$queryRawUnsafe(`SELECT DISTINCT m."allianceId" AS id FROM "BattleReport" r JOIN "AllianceMember" m ON m."playerId" = r."attackerId" WHERE r."playerId" = r."attackerId" AND r.loot->>'type' = 'BASTION' AND r.x = $1 AND r.y = $2 AND r."createdAt" >= $3`, b.x, b.y, new Date(from - (livesDown ? Math.max(regenMs, wallMs) : wallMs)));
     for (const x of by) out.alliances.add(x.id);
   }
   out.fine = OPT.subTicks > 1 && (out.all || rallies.length > 0 || camps.length > 0);

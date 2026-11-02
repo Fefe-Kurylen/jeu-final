@@ -21,6 +21,12 @@
 //   gagnés, vies, pauses ; vagues tenues et perdues, défenseurs postés ; plans pris ; chefs des donjons par niveau 1 à 5 ;
 //   or par source, camps compris ; taille des gardes des colonies (colonies comptées sans les Villes Merveille) ;
 // - le bandeau « Update available » de Prisma n'est pas une erreur du serveur.
+// Décisions du 2 novembre 2026 (deuxième simulation de 200 jours) : une section par décision G2 à G12 avec les nombres qui
+// la jugent (decisionsG) : mur du Bastion avant et après chaque assaut, réparation lue d'un assaut au suivant, chaînes
+// d'usure ; combats par type au moteur de bataille ; butin des raids contre la charge des survivants et le stock des villes ;
+// pertes d'un assaut repoussé ; écart entre deux vagues d'Immortels ; plans tentés et pris ; chefs des donjons par niveau ;
+// échanges de soldats vers les gardes des colonies ; défenseurs des villes contre la réserve et armées « Défense » ; camps
+// d'or et or par joueur et par jour ; parts du trésor des donjons et points d'alliance donnés pour ce qui n'a pas tenu.
 'use strict';
 const fs = require('fs');
 
@@ -180,6 +186,7 @@ function write(FILES, live) {
     L.push('');
   }
   decisions(L, { metrics, events, CALLS, first: metrics[0], last, startMs: state.startMs, bots: state.bots || [] });
+  decisionsG(L, { metrics, events, CALLS, last, bots: state.bots || [] });
   // classement final
   if (last) {
     L.push('## Joueurs à la fin', '');
@@ -237,7 +244,7 @@ function decisions(L, { metrics, events, CALLS, first, last, startMs, bots = [] 
   const AX = allianceIndex(metrics, events);
   const H = (title) => L.push(`### ${title}`, '');
   const end = () => L.push('');
-  L.push('## Décisions : ce que la simulation en montre', '', 'Une section par décision (D1 à D19 : 31 octobre 2026, rapport de vérification ; E1 à E6 : 1er novembre 2026, simulation de 200 jours).', '');
+  L.push('## Décisions : ce que la simulation en montre', '', 'Une section par décision (D1 à D19 : 31 octobre 2026, rapport de vérification ; E1 à E6 : 1er novembre 2026, simulation de 200 jours ; G2 à G12 : 2 novembre 2026, deuxième simulation de 200 jours).', '');
 
   // D1 — carte et gisements
   H('D1. Carte et gisements pour 2 000 joueurs');
@@ -521,4 +528,160 @@ function decisions(L, { metrics, events, CALLS, first, last, startMs, bots = [] 
   L.push(`- Villes Merveille fondées : ${cities.length} (${cities.map(e => `${e.alliance} jour ${e.day}${e.freedBy ? (e.sameAlliance ? ', site qu\'elle a libéré' : `, site libéré par ${e.freedBy}`) : ''}`).join(' ; ') || '—'}). Refus « Site réservé » : ${n(refusals(/Site réservé/))}.`); end();
 }
 
-module.exports = { write, isNoise, dropReplays };
+// ---------- décisions du 2 novembre 2026 (deuxième simulation de 200 jours) : G2 à G12 ----------
+// Les nombres qui jugent chaque décision, lus dans les événements des modules (50-war.cjs, 70-wonder.cjs, 60-invasion.cjs),
+// les compteurs des joueurs automatiques, les relevés de chaque semaine (checks.cjs : defense, week.combat, week.goldCamps,
+// endgame.bastions) et le relevé de l'or (ledger.cjs : income.carried, treasure).
+const hoursBetween = (a, b) => (Date.parse(b) - Date.parse(a)) / 3600000;
+// Mur au début d'un assaut tel que la réparation le prévoit depuis l'assaut d'avant (G2) : les PV qu'il a laissés, réparés en
+// ligne droite jusqu'au plein à l'heure que donne le rapport d'avant (wallFullAt) ; null sans ces nombres
+function repairedWall(prev, cur) {
+  const end = Number(prev.wallHpEnd), max = Number(prev.wallMaxHp);
+  if (!Number.isFinite(end) || !Number.isFinite(max) || !prev.assaultAt || !cur.assaultAt) return null;
+  if (!prev.wallFullAt) return max;
+  const span = Date.parse(prev.wallFullAt) - Date.parse(prev.assaultAt);
+  const done = span > 0 ? Math.min(1, Math.max(0, (Date.parse(cur.assaultAt) - Date.parse(prev.assaultAt)) / span)) : 1;
+  return end + (max - end) * done;
+}
+function decisionsG(L, { metrics, events, CALLS, last, bots = [] }) {
+  const nn = (x) => (x === null || x === undefined || Number.isNaN(x) ? '—' : n(x));
+  const ev = (kind) => events.filter(e => e.kind === kind);
+  const counters = (kind) => lastOf(events, kind)?.counters || {};
+  const refusals = (re) => Object.entries(CALLS.refusals || {}).filter(([k]) => re.test(k)).reduce((t, [, v]) => t + v, 0);
+  const calls = (route) => Object.values(CALLS.byRoute?.[route] || {}).reduce((t, v) => t + v, 0);
+  const H = (title) => L.push(`### ${title}`, '');
+  const end = () => L.push('');
+  const mil = counters('military_summary'), wk = counters('war_summary');
+  const marks = [30, 60, 90, 120, 150, 180, 200].filter(d => d <= (last?.day || 0) + 6);
+  const at = (d) => metrics.reduce((best, m) => (Math.abs(m.day - d) < Math.abs((best?.day ?? 1e9) - d) ? m : best), null);
+
+  // G2 — mur du Bastion
+  H('G2. Mur du Bastion : 36 000 PV, les dégâts restent, plein 12 h après le dernier');
+  const ba = ev('bastion_assault');
+  const withWall = ba.filter(e => typeof e.wallHpStart === 'number' && typeof e.wallMaxHp === 'number');
+  const worn = withWall.filter(e => e.wallHpStart < e.wallMaxHp - 1), full = withWall.filter(e => e.wallHpStart >= e.wallMaxHp - 1);
+  L.push(`- Assauts : ${ba.length} (gagnés ${ba.filter(e => e.won).length}) ; mur plein au début ${full.length} (gagnés ${full.filter(e => e.won).length}, ${pct(full.filter(e => e.won).length, full.length)}), mur usé au début ${worn.length} (gagnés ${worn.filter(e => e.won).length}, ${pct(worn.filter(e => e.won).length, worn.length)}). Mur au plus : ${nn(withWall[0]?.wallMaxHp)} PV.`);
+  L.push(`- PV du mur avant l'assaut (médiane) ${nn(median(withWall.map(e => e.wallHpStart)))}, après ${nn(median(withWall.map(e => Number(e.wallHpEnd) || 0)))} ; dégâts d'un assaut (médiane) ${nn(median(nums(ba.map(e => e.wallDamage))))} ; assauts qui ont fait tomber le mur ${withWall.filter(e => Number(e.wallHpEnd) <= 0).length}.`);
+  // réparation lue d'un assaut au suivant sur le même Bastion : le mur trouvé au début contre celui que la règle prévoit
+  const pairs = [];
+  const byB = {};
+  for (const e of ba.filter(x => x.assaultAt && (x.bastionId || x.bastion))) (byB[x => x][0] ||= []);
+  const groups = {};
+  for (const e of ba.filter(x => x.assaultAt)) (groups[e.bastionId || e.bastion] ||= []).push(e);
+  for (const list of Object.values(groups)) {
+    list.sort((a, b) => Date.parse(a.assaultAt) - Date.parse(b.assaultAt));
+    for (let i = 1; i < list.length; i++) {
+      const prev = list[i - 1], cur = list[i];
+      const expected = repairedWall(prev, cur);
+      if (expected === null || typeof cur.wallHpStart !== 'number') continue;
+      pairs.push({ prev, cur, gapH: hoursBetween(prev.assaultAt, cur.assaultAt), expected, diff: cur.wallHpStart - expected, wornLeft: Number(prev.wallHpEnd) < Number(prev.wallMaxHp) - 1 });
+    }
+  }
+  const inWindow = pairs.filter(p => p.wornLeft && p.prev.wallFullAt && Date.parse(p.cur.assaultAt) < Date.parse(p.prev.wallFullAt));
+  L.push(`- Réparation : ${pairs.length} assauts suivis d'un autre sur le même Bastion ; ${inWindow.length} tombés avant la fin de la réparation du précédent (écart médian ${fixed(median(inWindow.map(p => p.gapH)))} h, mur trouvé (médiane) ${nn(median(inWindow.map(p => p.cur.wallHpStart)))} PV) ; écart entre le mur trouvé et la réparation en ligne droite (médiane des écarts absolus) ${nn(median(pairs.map(p => Math.round(Math.abs(p.diff)))))} PV.`);
+  const chains = ev('bastion_chain'), chainEnds = ev('bastion_chain_end'), br = ev('bastion_rally');
+  const wearRallies = br.filter(e => e.mode === 'mur');
+  L.push(`- Chaînes d'assauts : ${chains.length} commencées (${kv(byKey(chains, 'mode'))} ; « mur » : après un assaut repoussé qui a laissé le mur sous 60 %), ${chainEnds.length} finies (${kv(byKey(chainEnds, 'why'))}) ; rassemblements contre un mur usé ${n(wk.chainWornWall || 0)}, dont chaînes d'usure ${wearRallies.length} ; mur le plus bas d'une chaîne (médiane) ${nn(median(nums(chainEnds.map(e => e.lowestWall))))} PV.`);
+  const endB = (last?.endgame?.bastions || []).filter(b => b.wallMaxHp);
+  if (endB.length) L.push(`- Murs à la fin : ${endB.map(b => `${b.tag} ${b.status} ${n(b.wallHp ?? 0)} / ${n(b.wallMaxHp)} PV${b.wallFullAt ? `, plein le ${b.wallFullAt.slice(0, 16).replace('T', ' ')}` : ''}`).join(' ; ')}.`);
+  if (pairs.length) L.push('', table(['Jour', 'Bastion', 'Armées', 'Gagné', 'Écart avec l\'assaut d\'avant (h)', 'Mur laissé avant', 'Mur prévu (réparation)', 'Mur trouvé', 'Mur après', 'Vies'], pairs.slice(-15).map(p => [p.cur.day, p.cur.bastion, p.cur.armies, p.cur.won ? 'oui' : 'non', fixed(p.gapH), p.prev.wallHpEnd, Math.round(p.expected), p.cur.wallHpStart, p.cur.wallHpEnd, p.cur.lives])));
+  end();
+
+  // G3 — tous les combats au moteur de bataille
+  H('G3. Tous les combats au moteur de bataille (raid arrêté à 30 % de pertes)');
+  const cw = {};
+  for (const m of metrics) for (const r of m.week?.combat || []) {
+    const k = `${r.t}|${r.won ? 1 : 0}`;
+    const x = (cw[k] ||= { t: r.t, won: r.won, n: 0, al: 0, dl: 0, alN: 0, dlN: 0, rounds: 0, roundsN: 0 });
+    x.n += r.n;
+    if (typeof r.al === 'number') { x.al += r.al * r.n; x.alN += r.n; }
+    if (typeof r.dl === 'number') { x.dl += r.dl * r.n; x.dlN += r.n; }
+    if (typeof r.rounds === 'number') { x.rounds += r.rounds * r.n; x.roundsN += r.n; }
+  }
+  const cwRows = Object.values(cw).sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : b.won - a.won));
+  L.push(cwRows.length ? table(['Combat', 'Issue pour l\'attaquant', 'Combats', 'Pertes de l\'attaquant (moyenne)', 'Pertes du défenseur (moyenne)', 'Rounds (moyenne)'], cwRows.map(x => [x.t, x.won ? 'gagné' : 'perdu', x.n, x.alN ? share(x.al / x.alN) : '—', x.dlN ? share(x.dl / x.dlN) : '—', x.roundsN ? fixed(x.rounds / x.roundsN) : '—'])) : 'Aucun combat relevé (relevés d\'avant le 2 novembre 2026).');
+  L.push('', '- Un raid s\'arrête quand un camp a perdu 30 % de ses soldats : le perdant d\'un raid perd environ 30 %, le vainqueur moins ; les autres combats jouent tous leurs rounds.'); end();
+
+  // G4 — raids à 100 % de la charge
+  H('G4. Raid : jusqu\'à 100 % de la charge des pillards survivants');
+  const raids = wk.raidsWonCounted || 0;
+  L.push(`- Raids gagnés lus : ${n(raids)} ; butin ${n(wk.raidLoot || 0)} (par raid, moyenne ${raids ? n(Math.round((wk.raidLoot || 0) / raids)) : '—'}) ; charge des survivants (sans bonus de transport) ${n(wk.raidCarry || 0)}, butin / charge ${pct(wk.raidLoot || 0, wk.raidCarry || 0)}.`);
+  L.push(`- Ce qui a limité le butin : la charge ${n(wk.raidCarryCapped || 0)} raids, la ville (moitié de ce qui dépasse la cachette) ${n(wk.raidStockCapped || 0)} raids. Stock des villes pillées avant le raid ${n(wk.raidStockBefore || 0)}, butin / stock ${pct(wk.raidLoot || 0, wk.raidStockBefore || 0)}, à l'abri dans la cachette ${pct(wk.raidSheltered || 0, wk.raidStockBefore || 0)}.`);
+  L.push(`- Raids lancés par les joueurs automatiques : ${n(wk.raids || 0)} (butin estimé au départ ${n(wk.raidLootEst || 0)}) ; raids des alliances perdus ${n(wk.RAID_lost || 0)}, gagnés ${n(wk.RAID_won || 0)}.`); end();
+
+  // G5 — assaut repoussé jusqu'au dernier soldat
+  H('G5. Assaut de Bastion repoussé : jusqu\'au dernier soldat (inchangé)');
+  const lostA = ba.filter(e => !e.won), wonA = ba.filter(e => e.won);
+  L.push(`- Assauts repoussés : ${lostA.length}, part des assaillants tombés (médiane) ${share(median(nums(lostA.map(e => e.attackerLossRate))))}, soldats engagés (médiane) ${nn(median(nums(lostA.map(e => e.attackers))))} ; assauts gagnés : ${wonA.length}, pertes (médiane) ${share(median(nums(wonA.map(e => e.attackerLossRate))))}.`); end();
+
+  // G6 — vagues toutes les 24 h
+  H('G6. Vagues d\'Immortels toutes les 24 h (même force)');
+  const waves = ev('wonder_wave');
+  const wByCity = {};
+  for (const e of waves) (wByCity[e.cityId || e.city || '?'] ||= []).push(e);
+  const wRows = Object.entries(wByCity).map(([, list]) => {
+    const timed = list.filter(e => e.waveAt).sort((a, b) => Date.parse(a.waveAt) - Date.parse(b.waveAt));
+    const gaps = timed.slice(1).map((e, i) => hoursBetween(timed[i].waveAt, e.waveAt));
+    const spanD = timed.length > 1 ? hoursBetween(timed[0].waveAt, timed[timed.length - 1].waveAt) / 24 : null;
+    return [list[0].alliance || list[0].city || '?', list.length, list.filter(e => e.held).length, list.filter(e => !e.held).length, fixed(median(gaps)), spanD ? fixed((timed.length - 1) / spanD, 2) : '—', share(median(nums(list.map(e => e.postedShare)))), fixed(median(nums(list.map(e => e.ratio))), 2)];
+  });
+  L.push(`- Vagues : ${waves.length}, tenues ${waves.filter(e => e.held).length}, perdues ${waves.filter(e => !e.held).length}.`);
+  if (wRows.length) L.push('', table(['Ville Merveille de', 'Vagues', 'Tenues', 'Perdues', 'Écart entre deux vagues (médiane, h)', 'Vagues par jour', 'Part de l\'alliance postée (médiane)', 'Défense / vague (médiane)'], wRows));
+  end();
+
+  // G7 — plans (inchangés, remesurés)
+  H('G7. Plans à 5,75 M (inchangés, remesurés après G3)');
+  const wr = ev('wonder_rally'), planR = wr.filter(e => e.target === 'PLAN'), taken = ev('wonder_plan_taken');
+  const planRep = ev('wonder_rally_repelled').filter(e => e.target === 'PLAN');
+  L.push(`- Plans tentés (rassemblements) : ${planR.length} (${kv(byKey(planR, 'alliance'))}), repoussés ${planRep.length}, pris ${taken.length} : ${pct(taken.length, planR.length)} des rassemblements ; puissance du rassemblement / Immortels (médiane) ${fixed(median(planR.map(e => (e.immortals ? e.power / e.immortals : null)).filter(x => typeof x === 'number')), 2)}, armées (médiane) ${nn(median(planR.map(e => e.armies)))}. Sites : rassemblements ${wr.filter(e => e.target === 'WONDER').length}, libérés ${ev('wonder_site_beaten').length}.`); end();
+
+  // G8 — donjons (inchangés, remesurés)
+  H('G8. Donjons à 42 % (inchangés, remesurés après G3)');
+  const boss = last?.world?.bossFloor || 3;
+  const fights = events.filter(e => ['rally_repelled', 'horde_floor_cleared', 'horde_destroyed'].includes(e.kind) && e.floor === boss);
+  const players = (e) => Number(e.armies?.length ?? e.armies) || 0;
+  L.push(table(['Niveau du donjon', 'Chefs combattus', 'Battus', 'Repoussés', 'Joueurs d\'un rassemblement qui bat le chef (médiane, une armée chacun)', 'Joueurs d\'un rassemblement repoussé (médiane)'], [1, 2, 3, 4, 5].map(l => { const f = fights.filter(e => Number(e.level) === l); const win = f.filter(e => e.kind !== 'rally_repelled'), lose = f.filter(e => e.kind === 'rally_repelled'); return [l, f.length, win.length, lose.length, nn(median(win.map(players))), nn(median(lose.map(players)))]; })));
+  end();
+
+  // G9 — échanger des soldats
+  H('G9. Échanger des soldats entre deux armées au même endroit');
+  L.push(`- Gardes des colonies regarnies par échange : ${n(mil.guardSwaps || 0)} échanges, ${n(mil.guardSwapSoldiers || 0)} soldats donnés (demandés ${n(mil.guardTopUps || 0)}, refusés ${n(mil.guardSwapRefused || 0)}, abandonnés après trois refus ${n(mil.guardSwapGaveUp || 0)}${mil.guardSwapMissing ? `, route absente ${n(mil.guardSwapMissing)}` : ''}) ; armées vidées par l'échange puis dissoutes à la capitale ${n(mil.guardCourierDisbanded || 0)}.`);
+  L.push(`- Appels POST /api/army/:id/exchange : ${n(calls('POST /api/army/:id/exchange'))}, refus du serveur ${n(refusals(/\/exchange/))}. Relèves d'avant (nouvelle garde, l'ancienne rentre) : ${n(mil.guardReliefs || 0)} ; renvois à la capitale ${n(mil.guardDetached || 0)}, sans place ${n(mil.guardDetachNoSlot || 0)}.`);
+  const cg = last?.map?.colonyGuards;
+  if (cg) L.push(`- Gardes rattachées à la fin : ${n(cg.n)} ; garde / part visée (médiane) ${share(cg.ratio)} ; ${n(cg.under50)} sous 50 %, ${n(cg.under30)} sous 30 %, ${n(cg.empty)} vides.`);
+  end();
+
+  // G10 — seules les armées défendent
+  H('G10. Seules les armées défendent une ville (la réserve ne combat plus)');
+  const d = last?.defense;
+  if (d) {
+    L.push(`- À la fin : capitales défendues par une armée ${n(d.capital?.defended ?? 0)} sur ${n(d.capital?.n ?? 0)}, colonies ${n(d.colony?.defended ?? 0)} sur ${n(d.colony?.n ?? 0)} ; soldats qui défendent (capitales) ${n(d.capital?.defending ?? 0)}, en réserve ${n(d.capital?.reserve ?? 0)} ; part des soldats d'un joueur en réserve (médiane) ${share(d.reserveShare)} ; armées « Défense » ${n(d.defenseArmies)} (${n(d.defenseSoldiers)} soldats).`);
+    const dRows = [...new Set(marks.map(x => at(x)).filter(m => m?.defense))].map(m => [m.day, `${m.defense.capital?.defended ?? 0} / ${m.defense.capital?.n ?? 0}`, `${m.defense.colony?.defended ?? 0} / ${m.defense.colony?.n ?? 0}`, m.defense.capital?.defending ?? 0, m.defense.capital?.reserve ?? 0, share(m.defense.reserveShare), m.defense.defenseArmies, m.defense.defenseSoldiers]);
+    if (dRows.length) L.push('', table(['Jour', 'Capitales défendues', 'Colonies défendues', 'Soldats qui défendent les capitales', 'Soldats en réserve', 'Part en réserve (médiane)', 'Armées « Défense »', 'Leurs soldats'], dRows), '');
+  } else L.push('- Pas de relevé des défenseurs (relevés d\'avant le 2 novembre 2026).');
+  L.push(`- Raids qui n'ont trouvé aucune armée dans la ville : ${n(wk.raidNoDefender || 0)} gagnés, ${n(wk.raidNoDefenderLost || 0)} perdus ; attaques de siège sans défenseur : ${n(wk.attackNoDefender_won || 0)} gagnées, ${n(wk.attackNoDefender_lost || 0)} perdues.`);
+  L.push(`- Armées « Défense » (joueurs automatiques) : ${n(mil.defenseCreated || 0)} formées, ${n(mil.defenseFills || 0)} fois regarnies (${n(mil.defenseSoldiers || 0)} soldats pris dans la réserve), ${n(mil.defenseNoSlot || 0)} fois sans place à la capitale, ${n(mil.defenseWaitSoldiers || 0)} fois sans soldats.`); end();
+
+  // G11 — camps d'or
+  H('G11. Camps d\'or (mesure avant décision)');
+  const gold = {};
+  for (const m of metrics) for (const r of m.week?.goldCamps || []) gold[r.result] = (gold[r.result] || 0) + r.n;
+  const lg = last?.ledger;
+  const nPlayers = bots.length || last?.players?.length || 0;
+  const days = last?.day || 0;
+  const carried = lg?.income?.carried;
+  const income = lg ? Object.values(lg.income || {}).reduce((t, v) => t + (Number(v) || 0), 0) : null;
+  L.push(`- Attaques de camps d'or (rapports de bataille) : ${n((gold.WIN || 0) + (gold.LOSE || 0))} (gagnées ${n(gold.WIN || 0)}, perdues ${n(gold.LOSE || 0)}) ; envois des joueurs automatiques ${n(mil.goldCampRaids || 0)}, or vu dans le camp au départ ${n(mil.goldCampExpected || 0)}, or vu rapporté ${n(mil.goldCampGold || 0)}.`);
+  L.push(`- Or rapporté par les armées (mesuré aux étapes du tick) : ${typeof carried === 'number' ? n(carried) : 'non mesuré'}${typeof carried === 'number' && nPlayers && days ? `, soit ${fixed(carried / nPlayers / days, 2)} or par joueur et par jour` : ''} ; toutes sources : ${income !== null && nPlayers && days ? `${fixed(income / nPlayers / days, 1)} or par joueur et par jour` : '—'}.`); end();
+
+  // G12 — trésor des invasions
+  H('G12. Trésor des invasions : stock commun, ce qui ne tient nulle part en points d\'alliance');
+  const t = lg?.treasure;
+  if (t && t.shares) {
+    L.push(`- Parts du trésor : ${n(t.shares)} (points d'alliance de la part : ${n(t.shareAp)}) ; ressources données ${n(t.given)}, sans place dans aucune ville ${n(t.lost)} (${pct(t.lost, t.given)}, ${n(t.lostShares)} parts).`);
+    L.push(`- Points d'alliance donnés pour ce qui n'a pas tenu : ${n(t.overflowAp)} (${n(t.overflowShares)} parts ; plafonnés à 2 fois ceux de la part ${n(t.capped)} fois) ; ressources vraiment perdues (moins de 1 000, ou au-delà du plafond) ${n(t.unconverted)} (${pct(t.unconverted, t.given)} du trésor).${t.from ? ' Mesuré depuis le début de cette mesure dans la partie.' : ''}`);
+  } else L.push('- Aucune part du trésor lue (pas de donjon détruit, ou relevé d\'avant le 2 novembre 2026).');
+  end();
+}
+
+module.exports = { write, isNoise, dropReplays, repairedWall };

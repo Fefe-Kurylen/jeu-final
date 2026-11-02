@@ -19,6 +19,9 @@
 // automatique (gardes faibles, vides), soldats sans les engins de chaque joueur et sigles des alliances (part de l'alliance
 // dans un rassemblement contre un Bastion, défenseurs postés contre une vague d'Immortels), Villes Merveille à part des
 // colonies (les colonies comptées sur 76, pas 78).
+// Décisions du 2 novembre 2026 (deuxième simulation de 200 jours) : défenseurs des villes contre la réserve (G10 : seules
+// les armées défendent), combats de la semaine par type au moteur de bataille (G3 : issue, pertes de chaque camp, rounds),
+// camps d'or attaqués (G11), mur de chaque Bastion et sa réparation (G2).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
@@ -30,6 +33,7 @@ const Terrain = require(path.join(ROOT, 'frontend/js/shared/terrain.js'));
 let SPAWN = null, BASTION = null;
 const spawn = () => (SPAWN ||= require(path.join(ROOT, 'src/utils/spawn')));   // lecture seule : la place d'une ville
 const bastionService = () => (BASTION ||= require(path.join(ROOT, 'src/services/bastionService')));   // vies d'un Bastion
+const Armies = require('./armies.cjs');   // noms des armées des joueurs automatiques (armée « Défense »)
 
 // placement (décision du 30 octobre 2026), lu dans les données : bâtiments de la capitale seulement, des colonies seulement
 const CAPITAL_ONLY = buildingsData.filter(b => b.effects?.capitalOnly).map(b => b.key);
@@ -144,7 +148,10 @@ async function snapshot(prisma, clock, bots, sinceMs = null) {
     quests: await count(`SELECT count(*)::int AS n FROM "QuestClaim" WHERE "claimedAt" >= $1`, since).catch(() => 0),
     tradeVolume: await count(`SELECT coalesce(sum("sellAmount" + "buyAmount"), 0)::int AS n FROM "MarketOffer" WHERE "acceptedAt" >= $1`, since),
     expeditions: await count(`SELECT count(*)::int AS n FROM "Expedition" WHERE status = 'COMPLETED' AND "createdAt" >= $1`, since).catch(() => 0),
-    bastionBreaks: await bastionBreaks(prisma, since)
+    bastionBreaks: await bastionBreaks(prisma, since),
+    combat: await combatWeek(prisma, since).catch(() => []),
+    // camps d'or attaqués (G11 : mesurer avant de décider) : attaques de tribu sur un point d'or, gagnées ou perdues
+    goldCamps: await q(`SELECT result, count(*)::int AS n FROM "BattleReport" WHERE "createdAt" >= $1 AND "playerId" = "attackerId" AND rounds->>'resourceType' = 'GOLD' GROUP BY 1`, since).catch(() => [])
   };
   const world = {
     // colonies : toutes les villes hors capitales, Villes Merveille comprises (comme avant) ; wonderCities : ces dernières
@@ -164,7 +171,45 @@ async function snapshot(prisma, clock, bots, sinceMs = null) {
     alliances: await count(`SELECT count(*)::int AS n FROM "Alliance"`),
     medals: await count(`SELECT count(*)::int AS n FROM "Medal"`).catch(() => 0)
   };
-  return { players: per, factions, week, world, map: await mapView(prisma, cities, players), endgame: await endgameView(prisma, clock.now()), totals: await totalsView(prisma, cities) };
+  return { players: per, factions, week, world, map: await mapView(prisma, cities, players), endgame: await endgameView(prisma, clock.now()), totals: await totalsView(prisma, cities), defense: await defenseView(prisma, cities).catch(() => null) };
+}
+
+// Combats de la semaine (rapports de l'attaquant), par type et par issue : tous au moteur de bataille (décision du 2 novembre
+// 2026 (deuxième simulation de 200 jours), G3) ; al / dl : part moyenne des soldats perdus par l'attaquant et le défenseur
+// (rate des rapports), rounds : rounds joués en moyenne (rapports qui les gardent), stopped : raids arrêtés avant leurs
+// rounds (un camp à 30 % de pertes)
+async function combatWeek(prisma, since) {
+  const rows = await prisma.$queryRawUnsafe(`SELECT coalesce(loot->>'type', rounds->>'type', 'AUTRE') AS t, winner = 'ATTACKER' AS won, count(*)::int AS n, avg(("attackerLosses"->>'rate')::float) AS al, avg(("defenderLosses"->>'rate')::float) AS dl, avg(CASE WHEN jsonb_typeof(loot->'rounds') = 'array' THEN jsonb_array_length(loot->'rounds') END)::float AS rounds FROM "BattleReport" WHERE "createdAt" >= $1 AND "playerId" = "attackerId" GROUP BY 1, 2`, since);
+  const r3 = (x) => (x === null || x === undefined ? null : Math.round(Number(x) * 1000) / 1000);
+  return rows.map(r => ({ t: r.t, won: !!r.won, n: r.n, al: r3(r.al), dl: r3(r.dl), rounds: r3(r.rounds) }));
+}
+
+// Défenseurs des villes contre la réserve (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G10 : seules les
+// armées défendent ; la réserve, soldats formés mais dans aucune armée, ne combat plus). Pour chaque ville (sans les Villes
+// Merveille) : sa réserve (ligne de garnison) et ses défenseurs (armées de son joueur au repos sur sa case, renforts postés),
+// soldats sans les engins. capital / colony : villes, villes défendues (au moins un soldat), soldats de la réserve et des
+// défenseurs (sommes, médiane par ville défendue) ; defenseArmies : armées « Défense » des joueurs automatiques (30-military.cjs)
+// et leurs soldats ; reserveShare : part des soldats de chaque joueur dans sa réserve (médiane).
+async function defenseView(prisma, cities) {
+  const armies = await prisma.army.findMany({ where: { OR: [{ isGarrison: true }, { status: { in: ['IDLE', 'STATIONED'] } }] }, select: { ownerId: true, cityId: true, name: true, x: true, y: true, status: true, isGarrison: true, targetCityId: true, units: { select: { unitKey: true, count: true } } } });
+  const all = await prisma.army.findMany({ select: { ownerId: true, units: { select: { unitKey: true, count: true } } } });
+  const med = (list) => { const s = [...list].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+  const out = {};
+  for (const [key, list] of [['capital', cities.filter(c => c.isCapital)], ['colony', cities.filter(c => !c.isCapital && !c.isWonder)]]) {
+    const rows = list.map(c => {
+      const reserve = armies.filter(a => a.isGarrison && a.cityId === c.id).reduce((t, a) => t + soldiersOf(a.units), 0);
+      const defending = armies.filter(a => !a.isGarrison && ((a.status === 'IDLE' && a.x === c.x && a.y === c.y && (a.cityId === c.id || a.ownerId === c.playerId)) || (a.status === 'STATIONED' && a.targetCityId === c.id))).reduce((t, a) => t + soldiersOf(a.units), 0);
+      return { reserve, defending };
+    });
+    out[key] = { n: rows.length, defended: rows.filter(r => r.defending > 0).length, reserve: rows.reduce((t, r) => t + r.reserve, 0), defending: rows.reduce((t, r) => t + r.defending, 0), medianDefending: med(rows.filter(r => r.defending > 0).map(r => r.defending)) };
+  }
+  const defense = armies.filter(a => !a.isGarrison && a.name === Armies.NAMES.defense);
+  const soldiersBy = new Map(), reserveBy = new Map();
+  for (const a of all) soldiersBy.set(a.ownerId, (soldiersBy.get(a.ownerId) || 0) + soldiersOf(a.units));
+  for (const a of armies.filter(x => x.isGarrison)) reserveBy.set(a.ownerId, (reserveBy.get(a.ownerId) || 0) + soldiersOf(a.units));
+  const shares = [...soldiersBy].filter(([, n]) => n > 0).map(([id, n]) => (reserveBy.get(id) || 0) / n);
+  const share = med(shares);
+  return { ...out, defenseArmies: defense.length, defenseSoldiers: defense.reduce((t, a) => t + soldiersOf(a.units), 0), reserveShare: share === null ? null : Math.round(share * 1000) / 1000 };
 }
 
 // Camps devant un Bastion attaqués depuis `since` (mission BREAK du dehors ou sortie de la garnison), lus dans les rapports
@@ -292,7 +337,10 @@ async function endgameView(prisma, now = Date.now()) {
     const t = g.lastWonAt ? new Date(g.lastWonAt).getTime() + pauseMs : 0;
     return pauseMs && g.status !== 'DESTROYED' && t > now ? new Date(t).toISOString() : null;
   };
-  return { bastions: garrison.map(g => ({ tag: g.tag, status: g.status, lives: livesOf(g), garrison: g.garrison, soldiers: g.soldiers, lastWonAt: g.lastWonAt ? new Date(g.lastWonAt).toISOString() : null, pausedUntil: pausedUntil(g) })), rallies, wonders, plans, sites, alliances };
+  // mur (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G2) : ses PV maintenant et la fin de sa réparation,
+  // comme le panneau du Bastion (bastionService.wallView)
+  const wallOf = (g) => { const row = rowsById.get(g.id); if (!row || typeof BS.wallView !== 'function') return {}; const w = BS.wallView(row, now); return { wallHp: w.wallHp, wallMaxHp: w.wallMaxHp, wallFullAt: w.wallFullAt ? new Date(w.wallFullAt).toISOString() : null }; };
+  return { bastions: garrison.map(g => ({ tag: g.tag, status: g.status, lives: livesOf(g), garrison: g.garrison, soldiers: g.soldiers, lastWonAt: g.lastWonAt ? new Date(g.lastWonAt).toISOString() : null, pausedUntil: pausedUntil(g), ...wallOf(g) })), rallies, wonders, plans, sites, alliances };
 }
 
 // ---------- cumuls : quêtes, cachettes ----------
