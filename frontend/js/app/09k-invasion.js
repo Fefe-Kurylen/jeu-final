@@ -4,6 +4,10 @@
 // garnison, trésor, contributeurs, attaquer), carte « Invasion » de l'onglet Classement › Monde.
 // Serveur : src/services/hordeService.js, src/routes/invasion.js.
 // ============================================================
+// Part du trésor qui ne tient dans aucune ville du joueur : 1 point d'alliance par 1 000 ressources perdues, au plus 2 fois
+// les points d'alliance de la part (config.invasion.treasureOverflow, hordeService.overflowAlliancePoints ; décision du
+// 2 novembre 2026 (deuxième simulation de 200 jours), G12 : rien ne se perd plus sans rien dire)
+const TREASURE_OVERFLOW = { resourcesPerAlliancePoint: 1000, maxShareMult: 2 };
 
 // ---- carte ----
 function drawHordeNode(x, y, tw, th, tile) {
@@ -66,7 +70,7 @@ async function renderHordeNodePanel(tile, content) {
     ${d.destroyed ? '<p class="bastion-fallen">Donjon détruit : le trésor a été partagé.</p>' : ''}
     <div class="horde-floors">${floors}</div>
     ${!d.destroyed && garrison ? `<p><small>Garnison de l'étage :</small><br>${garrison}</p>` : ''}
-    <p class="diplo-help">Trésor du donjon, partagé selon les dégâts : ${formatNum(d.treasure.wood)} de chaque ressource (rangées dans votre capitale, puis dans vos autres villes s'il n'y a plus de place), ${formatNum(d.treasure.gold)} or, ${formatNum(d.treasure.alliancePoints)} points d'alliance ; ${Math.round(d.treasure.itemChance * 100)} % de chance d'objet pour le héros du dernier coup. Les étages se battent dans l'ordre ; un donjon ne s'attaque qu'en rassemblement d'alliance ; une attaque repoussée use quand même la garnison.</p>
+    <p class="diplo-help">Trésor du donjon, partagé selon les dégâts : ${formatNum(d.treasure.wood)} de chaque ressource (rangées dans votre capitale, puis dans vos autres villes ; ce qui ne tient dans aucune ville devient des points d'alliance : 1 par ${formatNum(TREASURE_OVERFLOW.resourcesPerAlliancePoint)} ressources, au plus ${TREASURE_OVERFLOW.maxShareMult} fois ceux de votre part), ${formatNum(d.treasure.gold)} or, ${formatNum(d.treasure.alliancePoints)} points d'alliance ; ${Math.round(d.treasure.itemChance * 100)} % de chance d'objet pour le héros du dernier coup. Les étages se battent dans l'ordre ; un donjon ne s'attaque qu'en rassemblement d'alliance ; une attaque repoussée use quand même la garnison.</p>
     ${rallies}
     <h4>${resIconHtml('ranking')} Dégâts</h4>${contrib}
     ${d.inAlliance && d.myAlliancePoints ? `<p><small>Votre alliance : ${formatNum(d.myAlliancePoints)} points sur ${formatNum(d.totalPoints)}</small></p>` : ''}

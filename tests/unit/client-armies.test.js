@@ -299,3 +299,12 @@ test('G2 : rapport d\'assaut de Bastion, PV du mur sur 36 000, brèche, de nouve
   // siège de ville : inchangé
   assert.match(report({ wallHpStart: 5000, wallHpEnd: 5000, wallMaxHp: 5000, wallBroken: false }), /Mur 5000 → 5000 PV \(a tenu\)<\/span>/);
 });
+
+// ---- G12 : le trésor d'un donjon qui ne tient dans aucune ville devient des points d'alliance ----
+test('G12 : le panneau du donjon dit la part changée en points d\'alliance (1 par 1 000 ressources, au plus 2 fois ceux de la part)', { skip }, () => {
+  const ctx = { console };
+  vm.createContext(ctx);
+  run(ctx, 'app/09k-invasion.js', ['TREASURE_OVERFLOW']);
+  assert.deepEqual(plain(vm.runInContext('TREASURE_OVERFLOW', ctx)), config.invasion.treasureOverflow);
+  assert.match(src('app/09k-invasion.js'), /ce qui ne tient dans aucune ville devient des points d'alliance : 1 par \$\{formatNum\(TREASURE_OVERFLOW\.resourcesPerAlliancePoint\)\} ressources, au plus \$\{TREASURE_OVERFLOW\.maxShareMult\} fois ceux de votre part/);
+});

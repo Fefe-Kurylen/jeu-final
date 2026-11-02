@@ -1,6 +1,27 @@
-# État des systèmes de jeu (octobre 2026, mis à jour le 1er novembre 2026)
+# État des systèmes de jeu (octobre 2026, mis à jour le 2 novembre 2026)
 
 Ce qui existe, ce qui manque, et les images ou animations à produire. Référence : Travian pour les mécaniques, Rise of Kingdoms pour la lisibilité et le mouvement.
+
+## Décisions après la deuxième simulation de 200 jours (2 novembre 2026)
+
+Réponses du propriétaire aux constats de la deuxième simulation de 200 jours (G1 à G13) ; mesures, raisons et chiffres :
+`docs/DECISIONS-2026-10-31-SOIR.md` (section « Décisions du 2 novembre après la deuxième simulation ») ; valeurs :
+`docs/EQUILIBRAGE.md` § 19. Les décisions D1 à D19 et E1 à E8 ci-dessous restent valables.
+
+| | Décision | Section |
+|---|---|---|
+| G1 | Garnison du Bastion : 10 armées au plus, gardé | Bastion d'alliance |
+| G2 | Mur du Bastion : 1,8 fois un mur 20 (36 000 PV, 60 000 avant) ; il garde les dégâts de chaque assaut et redevient plein 12 h après le dernier ; montré sur le panneau et la carte | Bastion d'alliance |
+| G3 | Tous les combats au moteur de bataille (raids, camps de tribus, donjons, sites et plans, terrain ouvert) ; un raid s'arrête dès qu'un camp a perdu 30 % de ses soldats ; plus de pertes forfaitaires | Combat, Brigands, Invasions, Merveille |
+| G4 | Butin d'un raid : jusqu'à 100 % de ce que portent les pillards survivants (30 % avant), la cachette gardant sa part | Combat |
+| G5 | Assaut de Bastion perdu : jusqu'au dernier soldat, inchangé | Bastion d'alliance |
+| G6 | Vagues d'Immortels contre une Ville Merveille toutes les 24 h (12 h avant), même force | Cycle du serveur et Merveille |
+| G7, G8 | Plans (5,75 M) et donjons (42 %) : inchangés, à mesurer de nouveau | Merveille, Invasions |
+| G9 | Onglet Armée « Échanger » : des soldats passent entre deux armées du même joueur au même endroit, dans les deux sens ; la garde rattachée à une colonie reçoit sans emplacement de la capitale | Villes secondaires, Interface |
+| G10 | Seules les armées défendent une ville : la réserve (soldats formés dans aucune armée) ne combat pas, n'est ni tuée ni blessée et reste en ville ; le joueur en est prévenu partout | Combat, Siège, Espionnage, Héros, Villes secondaires |
+| G11 | Camps d'or : mesurer dans la prochaine simulation | — |
+| G12 | Trésor des donjons : ce qui ne tient dans aucune ville devient des points d'alliance (1 par 1 000 ressources, au plus 2 fois ceux de la part) | Invasions |
+| G13 | Axe de progression de fin de partie : étude faite, réponses H1 à H10 du propriétaire, lots à venir | `docs/BACKLOG.md` |
 
 ## Décisions après la simulation de 200 jours (1er novembre 2026)
 
@@ -199,7 +220,7 @@ autres ×1,2. La recherche garde ×1,28 et ×1,2.
 
 | Existe | Manque |
 |---|---|
-| Bataille round par round au moteur du GDD (ci-dessous : triangle des classes, mur, Forge en attaque et en défense, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité et à la moitié de ce qui dépasse la cachette (1,5 % du stockage de la ville par niveau pour chaque ressource depuis le 31 octobre 2026 au soir, D15, seule protection du pillage), un raid par jour sur une même ville pour chaque attaquant (le raid est un harcèlement, pas un revenu : recommandation 11) ; **siège** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
+| Bataille round par round au moteur du GDD (ci-dessous : triangle des classes, mur, Forge en attaque et en défense, Brasserie, héros, équipement), raids au moteur de bataille (arrêt dès qu'un camp a perdu 30 % de ses soldats, G3 du 2 novembre 2026), butin jusqu'à 100 % de ce que portent les survivants (G4 ; 30 % avant) et à la moitié de ce qui dépasse la cachette (1,5 % du stockage de la ville par niveau pour chaque ressource depuis le 31 octobre 2026 au soir, D15, seule protection du pillage), un raid par jour sur une même ville pour chaque attaquant (le raid est un harcèlement, pas un revenu : recommandation 11) ; **siège** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
 | Rapports : deux exemplaires (attaquant, défenseur), **tableau avant → après par unité**, bandeau de synthèse (pertes des deux côtés, butin, PV de mur, rounds), replay 2.5D | Rapport d'arrivée de transport |
 | Espionnage par espions dédiés (section Espionnage et vision, 26 octobre 2026) | Espions dessinés en marche sur la carte (image `map/units/spy` à produire) |
 | Alertes d'attaque : compte à rebours ; attaquant révélé par la Tour de guet niveau 10, effectifs niveau 15 | Son/notification native à l'arrivée (push existe pour « attaque en approche ») |
@@ -226,6 +247,29 @@ Moteur de bataille et unités (décisions du 30 octobre 2026, `src/services/comb
   ville, renforts, camps barbares, rencontres, points de ressource, donjons, Immortels, Bastion), 50 % au plus. Quand
   plusieurs joueurs combattent du même côté (renforts alliés, rassemblement, camps alliés), chacun garde sa Forge : le côté
   prend leur moyenne selon les soldats. Les technologies restent celles du joueur qui mène.
+- **Tous les combats au moteur de bataille** (décision du 2 novembre 2026, deuxième simulation de 200 jours, G3,
+  `combatService.resolveCombat`) : raids, camps de tribus, donjons d'invasion, sites et plans des Immortels, combats en
+  terrain ouvert (points tenus, camps de siège, rencontres, sièges du Bastion brisés) jouent leurs rounds comme un siège
+  (attaque, défense, endurance, paliers, triangle) ; plus de comparaison de puissance ni de pertes forfaitaires
+  (`winnerLossMultiplier` 0,3 et `tribeLossMultiplier` 0,15 retirés). Les morts de chaque type d'unité viennent des rounds et
+  se partagent entre les armées d'un même camp selon leurs soldats, au total exact (`armyUnits.splitLosses`) : une ligne de
+  1 à 3 soldats ne survivait plus que par arrondi dans la simulation. **Raid** (règle du GDD, `config.combat.loserLossRate`
+  0,30) : le combat s'arrête au moment du round où un camp a perdu 30 % de ses soldats, et ce camp a perdu ; le mur n'y est
+  qu'un bonus de défense. **Butin d'un raid** (G4, `config.combat.raidLootPctOfCarry` 1,0) : jusqu'à 100 % de ce que portent
+  les pillards survivants (30 % avant : 8 691 ressources par raid gagné dans la simulation, 0,52 % du stock d'une ville
+  pleine), pris sur au plus la moitié de ce qui dépasse la cachette. Les rapports de raid, de tribu et de donjon portent
+  les rounds (`loot.rounds`, `loot.duration`) et les pertes par type d'unité.
+- **Seules les armées défendent une ville** (décision du 2 novembre 2026, G10, `armyProcessor.defendingArmies`) : la
+  **réserve** (les soldats formés mais dans aucune armée : la ligne de garnison) ne combat plus, ni contre une attaque, ni
+  contre un raid, ni contre un siège, ni contre une vague d'Immortels ; elle n'y perd ni morts ni blessés et reste dans la
+  ville (les soldats ne sont pas du butin). Défendent : les armées de la ville à l'arrêt chez elle, celles du joueur venues
+  d'une autre de ses villes qui s'y tiennent, les renforts alliés postés, les armées rattachées à une colonie (E2). Sans
+  armée, personne ne défend : derrière un mur debout la ville tient encore (mur bouclier d'un siège), un raid passe sans
+  combat. Le héros ne combat que dans une armée. Le client le dit partout : « N en réserve (ne défend pas) », résumé
+  « Seules les armées défendent la ville : … », alerte d'attaque (« Défendront : … » ou « Aucune armée dans la ville »),
+  fenêtre de siège, rapport d'espion. Pourquoi : dans la simulation, la réserve (6 % des soldats, une salle d'attente)
+  défendait la capitale sans décision du joueur, alors qu'une colonie n'est défendue que par une armée ; une seule règle
+  pour toutes les villes, et « Échanger » (G9) pour remplir une garde.
 
 ## Espionnage et vision (26 octobre 2026)
 
@@ -235,7 +279,8 @@ Façon Travian et GDD (`espionage_config`) : `src/services/spyService.js`, route
 - **Espions dédiés** : 2 au plus par compte, le 1er avec une Tour de guet niveau 5 (20 or), le 2e niveau 10 (200 or),
   prêts tout de suite (onglet Armée → Espions, ou bulle de la Tour de guet). **Les armées n'espionnent plus.**
 - **Missions** depuis la carte (« Espionner » sur une ville ou un point), au choix pour une ville :
-  - **Ressources et troupes** : les troupes présentes (garnison, armées en ville, renforts alliés) et **les ressources
+  - **Ressources et troupes** : les troupes présentes (armées en ville, renforts alliés ; la réserve montrée à part en
+    dernier, « Réserve (ne défend pas) », `reserve: true`, puisqu'elle ne défend plus : G10 du 2 novembre 2026) et **les ressources
     qu'un pillage pourrait prendre** (ce qui dépasse la cachette, seule protection depuis le 30 octobre 2026), à la centaine
     près ; pas les bâtiments ;
   - **Défenses et troupes** : les troupes, le mur (niveau, points de vie, santé de la muraille), la Tour de guet de la
@@ -321,6 +366,9 @@ d'un combat où le mur sert de bouclier.
   notifications du jeu**, avec un lien vers la fenêtre de siège, le rapport ou la case de la carte (voir « Fil de
   notifications »).
 - **Garde** : l'armée qui garde une ville combat l'ennemi déclaré qui arrive sur la case (voir « Rencontres d'armées »).
+- **Défenseurs** (décision du 2 novembre 2026, G10) : seules les armées à l'arrêt dans la ville (les siennes, celles venues
+  de ses autres villes, les renforts alliés postés, l'armée rattachée d'une colonie) combattent l'assaut ; la réserve de la
+  ville ne combat pas, n'est ni tuée ni blessée. Sans armée, la ville ne tient que par son mur bouclier.
 - **Garde-fous repris de l'ancien siège** : file de recherche verrouillée par joueur ; chute en attente réglée en premier
   dans le tick ; la chute d'une colonie verrouille toutes les villes du joueur dans l'ordre ; une sortie qui rentre dépose
   sa charge avec la bataille ; un raid par ville et par 24 h même après le déplacement d'une capitale.
@@ -434,7 +482,7 @@ Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bas
   transports et échanges du marché, pillage, butin).
 - **Garnison** : les membres et les alliés y postent leurs armées (+10 % de défense) et les rappellent quand ils
   veulent ; l'entretien reste payé par leur ville. **Aucune troupe n'entre pendant un siège.** Une garnison dont le
-  joueur n'est plus membre ni allié rentre seule. **10 armées au plus** (D9, 31 octobre 2026 au soir,
+  joueur n'est plus membre ni allié rentre seule. **10 armées au plus** (D9, 31 octobre 2026 au soir, gardé le 2 novembre 2026, G1,
   `config.bastion.maxGarrisonArmies` ; 25 puis 17 proposées avant), **celles en route et une sortie en cours comprises** :
   la 11e est refusée à l'envoi (« Garnison du Bastion complète : 10 armées au plus, celles en route comprises ») et, si la
   garnison s'est remplie pendant sa marche, elle rentre à l'arrivée (relu sous le verrou du Bastion). `GET /api/bastion`
@@ -442,9 +490,20 @@ Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bas
   alliance. Une armée de la garnison anéantie dans un assaut ne compte plus : elle rentre aussitôt dans sa ville, vide, et
   libère sa place (son propriétaire est prévenu) ; le tick renvoie aussi celles restées sans soldats.
 - **Siège et chute** (« comme une ville, en plus dur ») : il faut au moins un engin de siège ; toute l'alliance est
-  prévenue de la marche. **Camp d'1 h**, puis assaut contre la garnison derrière un **mur bouclier 3 fois plus solide
-  qu'un mur 20** (**60 000 PV**, D9, 31 octobre 2026 au soir ; 10 fois avant, 50 fois jusqu'au 30 octobre 2026), que seuls
-  les engins abîment ; chaque assaut gagné lui ôte **une vie sur 10**. **Une vie ne revient qu'après 24 h sans assaut
+  prévenue de la marche. **Camp d'1 h**, puis assaut contre la garnison derrière un **mur bouclier 1,8 fois plus solide
+  qu'un mur 20** (**36 000 PV**, décision du 2 novembre 2026, deuxième simulation de 200 jours, G2,
+  `config.bastion.wallMultiplier` ; 3 fois et 60 000 PV du 31 octobre au 2 novembre, 10 fois avant, 50 fois jusqu'au
+  30 octobre 2026), que seuls les engins abîment. **Le mur garde les dégâts de chaque assaut, gagné ou repoussé, et
+  redevient plein en ligne droite 12 h après le dernier dégât** (`config.bastion.wallRepairHours`, `bastionService.wallNow`,
+  colonnes `Bastion.wallHp` et `wallAt`, migration `0036_mur_bastion`) : il n'est plus remis à neuf à chaque assaut, les
+  vies n'y entrent plus, un assaut sans engin ne l'abîme pas et n'arrête pas la réparation, un chantier achevé a un mur
+  neuf. Le panneau du Bastion (« Mur : 18 000 / 36 000 PV, de nouveau plein dans 6 h s'il n'est plus touché »), la carte
+  (barre du mur sous la barre de vies), les rapports (`wallHpStart`, `wallHpEnd`, `wallFullAt`) et les notifications le
+  disent ; `GET /api/bastion` et `/api/map/viewport` donnent `wallHp`, `wallMaxHp`, `wallFullAt`, `rules.wallRepairHours`.
+  Pourquoi : dans la deuxième simulation, 52 assauts repoussés d'affilée (dégâts médians 8 897 sur 60 000, mur neuf à
+  chaque fois) ; avec 36 000 PV gardés, un premier assaut repoussé laisse un second de la même taille 6 h plus tard face à
+  18 000 PV (33 / 83 / 100 % de victoire avec 12 / 13 / 14 armées contre une garnison remise à neuf). Chaque assaut gagné
+  lui ôte **une vie sur 10**. **Une vie ne revient qu'après 24 h sans assaut
   gagné** (décision du 1er novembre 2026, simulation de 200 jours, E3, `config.bastion.regenPauseHours`), puis une toutes
   les 7,2 h (`regenHours` 72 pour 10 vies) ; chaque assaut gagné relance la pause, un assaut repoussé ne change rien. Avant,
   la remontée ne s'arrêtait jamais : il fallait 10 assauts gagnés à moins de 7,2 h l'un de l'autre, et aucun Bastion n'a été
@@ -660,7 +719,7 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   que le joueur lancerait. Le lanceur peut **partir
   plus tôt** ou **annuler** ; un membre peut retirer son armée. Au départ, les armées arrivées partent **ensemble, à la
   vitesse de la plus lente** (celles encore en route rentrent) et livrent **un seul combat** : le héros du lanceur en
-  tête, chaque armée perd la même part de ses soldats, les **dégâts** reviennent à chacun **selon la puissance qu'il a
+  tête, au moteur de bataille (G3 du 2 novembre 2026 ; par la puissance avant), les technologies du lanceur, la Forge et la civilisation de chacun, les morts de chaque type d'unité partagés entre les armées selon leurs soldats, les **dégâts** reviennent à chacun **selon la puissance qu'il a
   amenée** (points de combat : entretien des barbares tués, aussi comptés au classement d'attaque), un rapport par
   joueur ; puis chacun rentre chez lui. Plusieurs alliances peuvent attaquer le même donjon. Les rassemblements de
   l'alliance sont dans **Alliance › Rassemblements** et dans le panneau du donjon.
@@ -675,9 +734,9 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
 - **Rassemblement contre un site ou un plan de Merveille** (décision du 30 octobre 2026, D4) : bouton « Rassemblement » dans
   le panneau d'un site ou d'un plan encore gardé par les Immortels (alliance requise). Mêmes règles qu'un donjon (attente,
   capacité, une armée par joueur, départ ensemble) ; refusé si les Immortels sont déjà vaincus ou si une Ville Merveille
-  s'y dresse, et revérifié au départ puis à l'arrivée, sous verrou du point. À l'arrivée, **un seul combat de groupe** (par
-  la puissance) mené par le héros et les technologies de l'armée du lanceur (sans héros si elle a été rappelée) ; chaque
-  armée perd la même part de ses soldats ; la prise suit les règles d'une armée seule et **revient au lanceur** (plan dans sa
+  s'y dresse, et revérifié au départ puis à l'arrivée, sous verrou du point. À l'arrivée, **un seul combat de groupe** (au
+  moteur de bataille, G3 du 2 novembre 2026 ; par la puissance avant) mené par le héros et les technologies de l'armée du lanceur (sans héros si elle a été rappelée) ; les morts de
+  chaque type d'unité se partagent entre les armées selon leurs soldats ; la prise suit les règles d'une armée seule et **revient au lanceur** (plan dans sa
   capitale, ou site libre 24 h pour y fonder la Ville Merveille, réservé les 6 premières heures à l'alliance du lanceur,
   E6). Repoussé, le rassemblement laisse la garnison entamée.
 - **Fenêtre de la cible façon Rise of Kingdoms** (29 octobre 2026, `frontend/js/map.js` : `openMapPopupAt`) : toucher
@@ -687,7 +746,7 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   se déplient avec « Détails ».
 - **Trésor** à la destruction, **partagé selon les dégâts** entre tous ceux qui ont frappé : ressources livrées dans la
   capitale puis, s'il n'y tient pas, dans les autres villes du joueur (8 000 de chaque au niveau 1, × 2,5 par niveau, × l'âge
-  du monde ; ce qui ne tient nulle part est perdu et la notification le dit, recommandation 2), or (**200 → 3 200** depuis le
+  du monde ; ce qui ne tient dans aucune ville devient des **points d'alliance** : 1 par 1 000 ressources perdues, au plus 2 fois ceux de la part, et la notification le dit : « plus de place dans vos villes : … changés en N points d'alliance » (décision du 2 novembre 2026, G12, `config.invasion.treasureOverflow` ; perdu sans rien dire avant : 322 parts sur 324 dans la deuxième simulation), recommandation 2), or (**200 → 3 200** depuis le
   31 octobre 2026 au soir, D17, `config.invasion.treasure.gold` ; 40 → 640 avant), points
   d'alliance (30 → 480) ; le **dernier coup** a une chance d'**objet** pour le héros (15 % au niveau 1, 70 % au niveau 5,
   objet rare dès le niveau 3, épique aux niveaux 4 et 5). Chaque participant est prévenu de sa part.
@@ -777,7 +836,10 @@ Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/ha
   tient le niveau 100 avec 89 / 85 / 82 / 76 / 68 % de son armée, 80 % en moyenne. Avec les armées du jour 200 de la
   simulation, une alliance de 16 / 15 joueurs le tient avec 61 / 67 % ; base gardée à 14 000 (E7), à mesurer de nouveau quand
   une simulation atteindra la Merveille 50.
-- **Défendre** : toutes les 12 h, une **vague d'Immortels** attaque chaque Merveille (force croissante avec le niveau) ;
+- **Défendre** : toutes les **24 h** (décision du 2 novembre 2026, deuxième simulation de 200 jours, G6,
+  `config.world.immortalWaveHours` ; 12 h avant : à deux vagues par jour, tenir le niveau 50 coûtait 14 000 à 20 000 soldats
+  par jour à une alliance de 50 000), la première 24 h après le niveau 1, la prochaine annoncée sur la fiche de la Merveille
+  (`nextWaveAt`), une **vague d'Immortels** attaque chaque Merveille (force croissante avec le niveau, inchangée) ;
   si la défense tombe, la Merveille perd **1 niveau**. Comme seuls les engins abîment le mur (D6), chaque vague amène des
   **mangonneaux pour 15 % de sa puissance** (règle retenue le 30 octobre 2026, comme les Natars de Travian qui viennent avec
   béliers et catapultes). Le Mur d'une Ville Merveille s'arrête au niveau 15 (comme une colonie) : avec la base de 14 000, un
@@ -829,8 +891,8 @@ Cadre voulu par le GDD (`resource_points.json`) : **façon Travian**, une tribu 
 liée au niveau du point, qui réapparaît avec la régénération ; pas de camps itinérants (les « invasions barbares » restent une
 idée d'événement). Vérifié en octobre 2026 : génération (100 / 600 / 1 500 soldats, composition aléatoire par faction, niveau 3
 au centre), affichage sur la carte (puissance sur l'échelle des armées, défenseurs nommés avec fiche), attaque (adjacente ou en
-marche, chemin terrestre), combat par puissance, butin borné au transport puis récolte sur place, réapparition, XP du héros.
-Corrigé : pertes contre un camp divisées par deux (`tribeLossMultiplier`), blessés récupérés comme après une bataille, renfort
+marche, chemin terrestre), combat au moteur de bataille, rounds complets (G3 du 2 novembre 2026 ; par la puissance avant), butin borné au transport puis récolte sur place, réapparition, XP du héros.
+Corrigé en octobre : pertes contre un camp divisées par deux (`tribeLossMultiplier`, retiré le 2 novembre 2026 : les pertes des deux camps viennent des rounds), blessés récupérés comme après une bataille, renfort
 horaire des tribus affaiblies, puissance recalculée après un assaut repoussé, bonus de transport appliqué au butin et à la
 récolte, points d'or au barème du GDD (10 / 20 / 30 or par 12 h), notification du résultat. Simulation et chiffres dans
 `docs/EQUILIBRAGE.md` § 9, outil `node tools/simulate-tribes.cjs`.
@@ -900,8 +962,9 @@ Décisions du 29 octobre 2026 (GDD) :
 
 - **Compétences passives seulement** : ses caractéristiques, son équipement et ses talents ; pas de compétence à
   déclencher. Pas de forge pour l'instant.
-- Le héros ne compte que s'il est **joint à une armée depuis le panneau de l'armée**, garnison comprise (pour défendre la
-  ville, on le joint à la garnison). Retiré d'une armée, son armée dissoute, ressuscité au Domus ou chassé d'une
+- Le héros ne compte que s'il est **joint à une armée depuis le panneau de l'armée**. Depuis le 2 novembre 2026 (G10), la
+  réserve ne défend pas : pour défendre la ville, on le joint à une armée à l'arrêt dans la ville (joint à la réserve, il
+  attend et ne combat pas). Retiré d'une armée, son armée dissoute, ressuscité au Domus ou chassé d'une
   capitale tombée : il **attend en ville sans combattre** (`Hero.cityId`) jusqu'à ce qu'on le joigne à une armée de
   cette ville. Un nouveau joueur commence avec son héros joint à la garnison. Onglet Armée : où il attend et
   « Joindre à la garnison ».
@@ -1122,7 +1185,11 @@ GDD : `data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json`
 
 **Ce qu'une colonie n'a pas**
 - **Pas de garnison propre** (§ 1 bis) : de nouvelles unités n'y arrivent jamais seules (formées ou soignées, elles vont à
-  la capitale) ; une colonie n'est défendue que par les armées qu'on y envoie et les renforts alliés.
+  la capitale) ; une colonie n'est défendue que par les armées qu'on y envoie et les renforts alliés. Depuis le 2 novembre
+  2026 (G10), c'est la règle de toutes les villes : la réserve de la capitale ne défend pas non plus. **« Échanger »** (G9,
+  `POST /api/army/:id/exchange`) : une armée de la capitale posée dans la colonie donne ses soldats à la garde rattachée,
+  sur place, sans emplacement de la capitale (dans la simulation, 8 061 « Renvoyer à la capitale » étaient refusés, 5 659
+  faute de place, et les gardes restaient à 43 % de leur cible).
 - **Armées rattachées aux colonies** (décision du 1er novembre 2026, simulation de 200 jours, E2 ;
   `POST /api/army/:id/attach-colony`, `POST /api/army/:id/detach-colony`, `config.army.colonyArmies`) : une armée **à
   l'arrêt** (ni réservée au marché, ni en mission) qui se tient dans une de vos colonies peut lui être rattachée

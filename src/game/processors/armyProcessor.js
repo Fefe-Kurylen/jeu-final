@@ -667,8 +667,13 @@ async function handleRaid(army, now) {
     // pertes du moteur, type par type : appliquées, rapport et classements comptent les mêmes
     const RK = require('../../services/rankingService');
     const sides = { attackers: [{ playerId: army.ownerId, units: RK.unitCount(attackerUnits) }], defenders: RK.sideOf(defenders) };   // avant les pertes
+    const HS = require('../../services/heroService');
+    const engaged = HS.fought([{ ...army, units: attackerUnits }, ...defenders]);   // héros des armées qui combattent avec des soldats (avant les pertes)
     const [atkLoss] = await applyEngineLosses(tx, [{ units: attackerUnits }], result.attackerFinalUnits);
     const defLoss = await applyEngineLosses(tx, defenders, result.defenderFinalUnits);
+    // le raid s'arrête à 30 % de pertes, mais une toute petite armée (1 à 3 soldats) peut y être anéantie : son héros tombe,
+    // comme dans tous les autres combats du moteur
+    await HS.fallIfWiped(tx, engaged, now);
     const atkLosses = atkLoss.killed, defLosses = defLoss.flatMap(l => l.killed);
     const atkKilled = atkLoss.total, defKilled = defLoss.reduce((t, l) => t + l.total, 0);
 

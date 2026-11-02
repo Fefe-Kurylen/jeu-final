@@ -157,8 +157,10 @@ Moteur de bataille du GDD (D10, § 2) : triangle +50 % (infanterie > cavalerie >
 1 / 1,35 / 1,9 (siège 0,75), solidité END + 0,55 × DEF, 15 rounds à 18 %, coups répartis sur toutes les lignes de soldats
 selon leur solidité (engins visés après les soldats, § 14) ; mur en bouclier au siège (seuls les engins l'abîment, au moins
 5 rounds après la brèche : D5, D6), bonus du mur, bonus de ville (Forge et Brasserie de la capitale), héros plafonné à +5 %.
-Les Douves n'existent plus (30 octobre 2026). Combats par la puissance (pillages, camps, rencontres,
-hordes) : pertes du perdant 30 %, butin ≤ 30 % du transport, cachette seule protection (D1). Tous vérifiés
+Les Douves n'existent plus (30 octobre 2026). Depuis le 2 novembre 2026 (G3, § 19), tous les combats passent par le moteur
+(pillages, camps, rencontres, donjons, sites et plans) : plus de pertes forfaitaires ; un raid s'arrête dès qu'un camp a perdu
+30 % de ses soldats, son butin monte jusqu'à 100 % du transport des survivants (G4 ; 30 % avant), cachette seule protection
+(D1). Tous vérifiés
 (`tests/unit/combat.test.js`, `tests/unit/units-retouches.test.js`, `tests/api-e2e.mjs`).
 
 ## 6. Commandes de contrôle
@@ -436,7 +438,7 @@ visés en dernier) :
 | niveau 10 | 10 000 | 15 442 | 55 / 83 / 165 | 179 280, 3,5 j |
 | niveau 15 | 15 000 | 56 525 | 83 / 124 / 247 | 267 840, 5,2 j |
 | niveau 20 | 20 000 | 197 689 | 110 / 165 / 330 | 356 400, 6,9 j |
-| Bastion (3 × mur 20, D9 du 31 octobre 2026 au soir ; 10 × avant) | 60 000 | — | 330 / 494 / 988 | 1,07 million, à répartir entre les membres d'un rassemblement (200 000 PV et 3,56 millions à × 10) |
+| Bastion (1,8 × mur 20, G2 du 2 novembre 2026 ; 3 × du 31 octobre au 2 novembre, 10 × avant) | 36 000 | — | 198 / 297 / 593 | 641 520, à répartir entre les membres d'un rassemblement (60 000 PV et 1,07 million à × 3 ; 200 000 PV et 3,56 millions à × 10) ; le mur garde ses dégâts et se répare en 12 h (§ 19) |
 
 Combats réels (même outil : Rome, Triarii et catapultes, contre une ville gauloise gardée par 600 Triarii gaulois et
 300 archers gaulois, sans héros ni technologie ; pertes de l'attaquant, engins compris / du défenseur) :
@@ -474,7 +476,7 @@ Décisions du propriétaire, appliquées le 30 octobre 2026 ; le détail des rè
 | D3 | Alliance : 60 membres au plus (adhésion sous verrou, invitation refusée quand elle est pleine) ; le 31 octobre 2026, 3 membres par niveau de l'Ambassade du chef dans cette limite (§ 16) ; le soir même, 5 par niveau et 100 au plus (§ 17) | `config.alliance.maxMembers`, `EMBASSY.effects.allianceMembersPerLevel` | 100 |
 | D4 | Camps : défenseurs à leur palier et camps d'or à +40 % au combat ; rassemblements d'alliance contre les sites et plans de Merveille | `armyService`, `rallyService`, `wonderService` | § 9 |
 | D5 | Brèche : au moins 5 rounds de combat après la chute du mur | `config.combat.siege.roundsAfterBreach` | § 12 |
-| D6 | Seuls les engins abîment le mur ; mur du Bastion à 10 fois un mur 20 (50 avant ; 3 depuis le 31 octobre 2026 au soir, § 17) ; bonus des engins du Sultanat vérifié | `config.combat.siege`, `config.bastion.wallMultiplier` | § 12 : Bastion 60 000 PV (200 000 à × 10) |
+| D6 | Seuls les engins abîment le mur ; mur du Bastion à 10 fois un mur 20 (50 avant ; 3 depuis le 31 octobre 2026 au soir, § 17 ; 1,8 depuis le 2 novembre 2026, § 19) ; bonus des engins du Sultanat vérifié | `config.combat.siege`, `config.bastion.wallMultiplier` | § 12 : Bastion 36 000 PV (60 000 à × 3, 200 000 à × 10) |
 | D7 | Donjons d'invasion de plus en plus forts avec l'âge du monde | `config.invasion`, colonne `Invasion.ageMult` | tableau ci-dessous |
 | D8 | Défi de la semaine : 750 / 500 / 250 points par membre ; seuls comptent les membres arrivés avant le vendredi 0 h (Paris) | `config.alliance.challengeRewardPoints`, `challengeJoinDeadline` | — |
 | D9 | XP du héros : × 1,25 par niveau (× 1,5 avant), seuils des héros existants recalculés, XP gardée | `config.hero`, migration `0029` | tableau ci-dessous |
@@ -522,7 +524,7 @@ Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` ; règles détaill
 | Donjons (rec. 9) | Avant-poste du niveau 1 = max(3 000 ; 50 % de la puissance médiane des joueurs actifs), × 1,8 par niveau, étages × 1 / × 2 / × 4 ; ancienne formule sous 5 joueurs mesurés ; le trésor garde l'âge du monde | `config.invasion.powerRef`, `Invasion.basePower` | chef du niveau 1 = 2 joueurs médians ; du niveau 5 ≈ 21 |
 | Trésor (rec. 2) | Capitale d'abord, puis les autres villes ; la notification dit ce qui a été perdu faute de place | `hordeService.destroyHorde` | — |
 | Ciblage (rec. 10) | Coups de chaque round répartis sur toutes les lignes de soldats selon leur solidité totale ; engins visés après les soldats | `combatService.resolveCombatDetailed` | tableau ci-dessous |
-| Pillage (rec. 11) | GDD gardé (30 % de la capacité, un raid par jour sur une même ville et par attaquant) ; présenté comme du harcèlement | client, documents | — |
+| Pillage (rec. 11) | GDD gardé en octobre (30 % de la capacité, un raid par jour sur une même ville et par attaquant) ; depuis le 2 novembre 2026 : combat au moteur arrêté à 30 % de pertes d'un camp et butin jusqu'à 100 % de la charge des survivants (G3, G4, § 19), un raid par jour inchangé | `config.combat.raidLootPctOfCarry`, client, documents | — |
 | Plafonds (rec. 12) | Récompenses de quêtes calculées sur le Dépôt et le Silo seuls (les routes commerciales n'existent plus depuis le 31 octobre 2026 au soir) | `questService.rewardCap` | 80 000 par ressource et par récompense au plus (320 000 en tout), soit **1,4 h** de production d'un compte complet (et non 20 minutes) |
 
 **Intermédiaire contre base, à entretien égal** (X = indice d'échange à céréale égale, R = contre une armée de référence ;
@@ -743,3 +745,28 @@ armées de la simulation au jour 200 (+15 % pour l'assaillant avec les recherche
 | E6 | Site de Merveille libéré | libre 24 h pour toute alliance → **réservé 6 h à l'alliance qui a battu les Immortels**, puis libre pour toutes jusqu'à la fin des 24 h | `config.world.wonderSiteReserveHours` (6), migration `0034_site_merveille_reserve` | LUP a fondé sur le site qu'AQL venait de libérer, 3 minutes après son combat ; AQL a libéré 9 fois un site avant de fonder (jour 197) |
 | E7 | Vagues d'Immortels | **14 000 × niveau^1,35, gardé** | `config.world.immortalWaveBase` | armées du jour 200 : une alliance de 16 / 15 tient le niveau 100 avec 61 / 67 % de son armée (80 % visés : il faudrait 17 000 à 18 000) ; 83 vagues tenues au niveau 1 dans la simulation. À mesurer de nouveau quand une simulation atteint la Merveille 50 |
 | E8 | Taxe des échanges entre joueurs | **30 % de base, gardée** | `config.market.p2pTaxPctBase` | taxe réelle côté vendeur dans la simulation : 17,3 % (Comptoir 5 à 15, Chambre au Trésor jusqu'à 20) ; plus avantageux que le marchand du serveur (11 % au Marché 20) seulement avec le Comptoir 15 et la Chambre 20 |
+
+## 19. Décisions du 2 novembre 2026 (deuxième simulation de 200 jours)
+
+Réponses du propriétaire aux constats de la deuxième simulation de 200 jours (38 joueurs automatiques avec D1 à D19 et
+E1 à E8, deux alliances rivales voisines), ce qui a été fait et pourquoi : `docs/DECISIONS-2026-10-31-SOIR.md`, section
+« Décisions du 2 novembre après la deuxième simulation » ; règles détaillées : `docs/ETAT-DES-SYSTEMES.md`. Chaque chiffre
+est dans `src/config/index.js`, avec la mention « décision du 2 novembre 2026 (deuxième simulation de 200 jours) ». Les
+mesures de combat utilisent le vrai moteur et les armées de la simulation au jour 200 (médiane 3 486 soldats par joueur,
++15 % pour l'assaillant avec les recherches et la Forge 20, 65 engins par armée assaillante, 200 tirages).
+
+| | Sujet | Avant → maintenant | Où le régler | Pourquoi, et ce que donnent les chiffres |
+|---|---|---|---|---|
+| G1 | Garnison du Bastion | **10 armées au plus, gardé** | `config.bastion.maxGarrisonArmies` | contre 10 armées médianes derrière le mur d'avant (60 000), 15 / 16 / 17 / 18 armées prenaient une vie 8-10 / 30-34 / 70-77 / 97 % des fois ; avec le mur de 36 000 (G2) : 13 / 14 / 15 / 16 armées → 5 / 36 / 84 / 99 % |
+| G2 | Mur du Bastion | 3 × un mur 20 (60 000 PV), remis à neuf à chaque assaut → **1,8 × un mur 20 (36 000 PV)**, qui **garde les dégâts de chaque assaut** (gagné ou repoussé) et **redevient plein 12 h après le dernier dégât**, en ligne droite ; les vies n'y entrent plus | `config.bastion.wallMultiplier` (1,8), `wallRepairHours` (12), `Bastion.wallHp` / `wallAt`, migration `0036_mur_bastion` | 105 assauts, 5 gagnés, 0 Bastion rasé ; après le jour 120, 52 assauts repoussés d'affilée, dégâts médians 8 897 sur 60 000 et un mur neuf à chaque fois. Maintenant un premier assaut repoussé laisse un second de la même taille, 6 h plus tard, face à 18 000 PV : **33 / 83 / 100 % avec 12 / 13 / 14 armées** contre une garnison remise à neuf, presque toujours si elle n'a pas remplacé ses pertes ; sans garnison, 3 armées de campagne suffisent (5 avant) |
+| G3 | Tous les combats | raids, camps, donjons, sites, plans et terrain ouvert par comparaison de puissance (pertes forfaitaires : perdant 30 %, vainqueur 30 % × 0,3, camp 15 %) → **moteur de bataille partout** (attaque, défense, endurance, paliers, triangle, rounds), pertes par type d'unité partagées entre les armées au total exact ; **un raid s'arrête dès qu'un camp a perdu 30 % de ses soldats** (règle du GDD), les autres combats jouent leurs rounds | `combatService.resolveCombat` (`opts.raid`), `config.combat.loserLossRate` (0,30), `armyUnits.splitLosses` ; `winnerLossMultiplier` et `tribeLossMultiplier` retirés | une ligne de 1 à 3 soldats ne mourait jamais (30 % arrondis à l'entier inférieur : 225 raids gagnés sans tuer un défenseur) ; des gardes usées éternelles et inutiles ; les sièges et le Bastion avaient déjà le moteur. Blessés, plafonds et bonus de chaque combat gardés |
+| G4 | Butin d'un raid | ≤ 30 % de la charge des survivants → **≤ 100 %**, sur au plus la moitié de ce qui dépasse la cachette (inchangé) | `config.combat.raidLootPctOfCarry` (1,0), `config.hideout.raidStealRate` (0,5) | 1 215 raids gagnés, 10,56 M de butin : **8 691 par raid, 0,52 % du stock d'une ville pleine** ; le plafond de 30 % bornait le butin bien avant la cachette (30,5 % du stock à l'abri) |
+| G5 | Assaut de Bastion perdu | **jusqu'au dernier soldat, gardé** | — | les 20 derniers assauts : 57 731 soldats et 6 243 engins perdus (100 %), 0 défenseur tué |
+| G6 | Vagues d'Immortels | toutes les 12 h → **toutes les 24 h**, même force (14 000 × niveau^1,35) | `config.world.immortalWaveHours` (24) | une vague tenue tue 27 à 53 % des soldats postés ; à deux par jour, tenir le niveau 50 coûtait 14 000 à 20 000 soldats par jour à une alliance de 50 000 à 54 000 ; 312 vagues, 14 tenues, Merveilles à 23 et 17 (92 % des 377 M livrés détruits) |
+| G7 | Plan des Immortels | **5,75 M, gardé**, à mesurer de nouveau après G3 | `config.world.immortalPlanPower` | aucun plan pris : 3 rassemblements de 3,90 / 2,95 / 3,07 M l'ont usé de 5,75 à 3,84 M ; il demande 68 à 77 % de tous les soldats d'une alliance de 15-16 (90 à 100 % des armées de capitale) ; une usure en 2 à 3 rassemblements le met à la portée de 12-13 joueurs |
+| G8 | Donjons d'invasion | **42 % de la médiane des soldats, gardé**, à mesurer de nouveau | `config.invasion.powerRef.outpostPctOfMedian` | l'armée de la capitale pèse 74 % des soldats (84 % quand E5 a été réglé) : chefs des niveaux 1 / 4 / 5 pour 3 / 12 / 21 joueurs (37 % donnerait 2 / 11 / 19) ; aucun donjon 4 ou 5 attaqué par les joueurs automatiques |
+| G9 | Échange de soldats | une armée ne recevait des soldats que de la réserve de sa capitale → **« Échanger »** : deux armées du même joueur au même endroit, toutes deux à l'arrêt (ou en garnison dans le même Bastion), se passent des soldats dans les deux sens ; la garde rattachée à une colonie reçoit sans emplacement de la capitale ; une armée vidée hors de chez elle rentre aussitôt | `POST /api/army/:id/exchange`, onglet Armée › Échanger | gardes des colonies à 227 soldats pour 524 voulus, 5 vides, 8 061 « Renvoyer à la capitale » refusés (5 659 faute de place : 27 capitales sur 38 pleines) ; 477 raids sur 480 gagnés par le pillard sur les colonies |
+| G10 | Défense d'une ville | la réserve (garnison) défendait avec les armées → **seules les armées défendent** : la réserve ne combat pas, n'est ni tuée ni blessée et reste en ville ; le joueur en est prévenu (onglet Armée, carte, siège, alerte d'attaque, rapport d'espion) | `armyProcessor.defendingArmies`, client | la réserve (6 % des soldats, une salle d'attente) défendait la capitale sans décision du joueur ; une colonie non : une seule règle, et « Échanger » pour remplir une garde |
+| G11 | Camps d'or | **à mesurer** dans la prochaine simulation | `config.map.goldNode`, joueurs automatiques | 0 camp pillé sur 780 (les joueurs automatiques jugeaient leur besoin sur la seule capitale) ; 166 camps à 20 cases d'une capitale donneraient environ 111 or par joueur et par jour |
+| G12 | Trésor des donjons | ce qui ne tenait nulle part était perdu → **1 point d'alliance par 1 000 ressources perdues, au plus 2 fois les points de la part**, et le message le dit | `config.invasion.treasureOverflow` | 322 parts sur 324 perdaient leur bois, pierre et fer (1 494 801 sur 1 524 267, 98 %) ; l'or (7 653 sur 7 800) et les points étaient bien versés |
+| G13 | Progression de fin de partie | comptes complets au jour 126, plus rien à faire progresser → **étude faite**, réponses H1 à H10 du propriétaire (taille maximale d'une armée, Gloire et triomphes, prêt de soldats, retrait de Plus), lots à venir | `docs/BACKLOG.md` | 34 joueurs sur 38 identiques au jour 200 |
