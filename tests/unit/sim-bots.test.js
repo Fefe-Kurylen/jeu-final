@@ -362,15 +362,17 @@ test('marché des joueurs automatiques : un échange part avec une armée libre 
 
 test('marché des joueurs automatiques : la caravane se forme sur une place libre et prend des porteurs à la garnison', async () => {
   const cap = marketCity();
+  cap.buildings.find(b => b.key === 'RALLY_POINT').level = 10;   // 3 armées : campagne, « Défense » (G10), caravane
   const garrison = { id: 'g', isGarrison: true, cityId: 'a', x: 0, y: 0, status: 'IDLE', units: unitsOf(400) };
   const calls = [];
   const bot = botWith(withBalance([cap], { production: 100, consumption: 0, net: 100 }), {
-    name: 'Marchand', playerId: 'p1', me: { faction: 'ROME' }, armies: [garrison, armyAt('f1', 'Armée 1', 1)], mem: { mil: { own: ['f1'] } },
+    name: 'Marchand', playerId: 'p1', me: { faction: 'ROME' }, armies: [garrison, armyAt('f1', 'Armée 1', 1), armyAt('d1', Armies.NAMES.defense, 2)], mem: { mil: { own: ['f1'] } },
     post: async (p, body) => { calls.push([p, body]); return { ok: true, data: p === '/api/army/create' ? { army: { id: 'car', name: body.name, slot: body.slot, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false } } : { newCount: body.count } }; }
   });
   await market.early(bot, { ...ctx(), step: 20 });
-  // Place de rassemblement 5 : 2 armées ; l'armée de campagne a la sienne, la caravane prend l'autre
-  assert.deepEqual(calls[0], ['/api/army/create', { cityId: 'a', slot: 2, name: Armies.NAMES.caravan }]);
+  // Place de rassemblement 10 : 3 armées ; l'armée de campagne et l'armée « Défense » de la capitale (G10 : seules les armées
+  // défendent, décision du 2 novembre 2026) ont la leur, la caravane prend la dernière ; la Défense ne porte jamais au marché
+  assert.deepEqual(calls[0], ['/api/army/create', { cityId: 'a', slot: 3, name: Armies.NAMES.caravan }]);
   // une charge d'environ 15 % du stockage (2 000 au moins) : 29 miliciens de 70
   assert.deepEqual(calls[1], ['/api/army/car/set-unit', { unitKey: 'ROM_INF_MILICIEN', count: 29 }]);
 });
@@ -380,22 +382,37 @@ test('emplacements de la Place de rassemblement : partagés par ordre de priorit
   const col = city({ id: 'b', x: 30, y: 30 });
   const bot = botWith([cap, col], { armies: [{ id: 'f1', name: 'Armée 1', slot: 1, cityId: 'a', isGarrison: false }], mem: { mil: { own: ['f1'], guard: {} }, war: { wantOst: true } } });
   assert.equal(fx.maxArmies(cap.buildings), 3);
-  // une colonie sans garde et un Ost voulu : 2 places attendues sur les 2 libres, rien pour la caravane
+  // une colonie sans garde, l'armée « Défense » de la capitale (G10 : seules les armées défendent, décision du 2 novembre
+  // 2026) et un Ost voulu : 3 places attendues sur les 2 libres ; la garde d'abord, la Défense ensuite, rien pour l'Ost ni la
+  // caravane
   assert.equal(Armies.missing(bot, 'guard'), 1);
+  assert.equal(Armies.missing(bot, 'defense'), 1);
   assert.equal(Armies.freeSlot(bot, 'caravan'), null);
   assert.equal(Armies.freeSlot(bot, 'guard'), 3);
-  assert.equal(Armies.freeSlot(bot, 'ost'), 3);
-  // la garde formée : il reste la place de l'Ost, toujours rien pour la caravane
+  assert.equal(Armies.freeSlot(bot, 'defense'), 3);
+  assert.equal(Armies.freeSlot(bot, 'ost'), null);
+  // la garde formée (elle prend une place de la capitale le temps de la marche) : la Défense prend la dernière
   bot.armies.push({ id: 'g1', name: Armies.NAMES.guard, slot: 3, cityId: 'a', isGarrison: false });
   bot.mem.mil.guard.b = 'g1';
-  assert.equal(Armies.freeSlot(bot, 'ost'), 2);
+  assert.equal(Armies.freeSlot(bot, 'defense'), 2);
+  assert.equal(Armies.freeSlot(bot, 'ost'), null);
+  bot.armies.push({ id: 'd1', name: Armies.NAMES.defense, slot: 2, cityId: 'a', isGarrison: false });
+  assert.equal(Armies.missing(bot, 'defense'), 0);
+  assert.equal(Armies.freeSlot(bot, 'ost'), null);
+  // la garde rattachée à sa colonie (E2) rend sa place : l'Ost la prend, toujours rien pour la caravane
+  bot.armies.find(a => a.id === 'g1').cityId = 'b';
+  assert.equal(Armies.freeSlot(bot, 'ost'), 3);
   assert.equal(Armies.freeSlot(bot, 'caravan'), null);
   // l'Ost formé : plus aucune place
-  bot.armies.push({ id: 'o1', name: Armies.NAMES.ost, slot: 2, cityId: 'a', isGarrison: false });
+  bot.armies.push({ id: 'o1', name: Armies.NAMES.ost, slot: 3, cityId: 'a', isGarrison: false });
   assert.equal(Armies.freeSlot(bot, 'hunt'), null);
+  // une Place de rassemblement à un seul emplacement : il reste à l'armée de campagne, pas de Défense demandée
+  const small = botWith([city({ id: 'c', isCapital: true, x: 0, y: 0, buildings: [{ key: 'RALLY_POINT', level: 1, slot: 2 }] })], { mem: { mil: { own: [] } } });
+  assert.equal(fx.maxArmies(small.capital.buildings), 1);
+  assert.equal(Armies.missing(small, 'defense'), 0);
 });
 
-test('garde d\'une colonie : formée dans la capitale, remplie depuis la garnison, postée, rattachée (E2), puis relevée quand elle s\'affaiblit', async () => {
+test('garde d\'une colonie : formée dans la capitale, remplie depuis la garnison, postée, rattachée (E2), puis regarnie par échange (G9) quand elle s\'affaiblit', async () => {
   const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'RALLY_POINT', level: 5, slot: 2 }] });
   const col = city({ id: 'b', x: 30, y: 30, createdAt: '2027-01-01T00:00:00Z' });
   const garrison = { id: 'g', isGarrison: true, cityId: 'a', x: 0, y: 0, status: 'IDLE', units: unitsOf(400) };
@@ -406,6 +423,8 @@ test('garde d\'une colonie : formée dans la capitale, remplie depuis la garniso
     if (p === '/api/army/create') return { army: { id: `g${++made}`, name: body.name, slot: body.slot, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false } };
     if (p.endsWith('/attach-colony')) return { army: { id: p.split('/')[3], cityId: 'b', slot: 1, name: Armies.NAMES.guard }, colony: { id: 'b' } };   // la réponse de POST /api/army/:id/attach-colony
     if (p.endsWith('/detach-colony')) return { army: { id: p.split('/')[3], cityId: 'a', slot: 2, name: Armies.NAMES.guard }, arrivalAt: '2027-02-01T10:00:00Z', travelTime: 3600 };
+    // la réponse de POST /api/army/:id/exchange (G9) : les troupes des deux armées après l'échange
+    if (p.endsWith('/exchange')) return { message: 'Échange fait', from: { id: p.split('/')[3], name: Armies.NAMES.guard, units: [] }, to: { id: body.toArmyId, name: Armies.NAMES.guard, units: [{ unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 52 }] }, moved: { units: body.units, back: [] } };
     return { newCount: body.count };
   };
   const bot = botWith([cap, col], {
@@ -435,29 +454,130 @@ test('garde d\'une colonie : formée dans la capitale, remplie depuis la garniso
   calls.length = 0;
   await military.guards(bot, { ...ctx(), step: 32 }, { left: 6 }, m, cap);
   assert.deepEqual(calls, []);
-  // affaiblie (simulation sim-e : 8 061 renvois refusés, faute de place à la capitale) : une relève se forme dans la capitale,
-  // se remplit et part ; l'ancienne garde reste en poste pendant la marche
+  // affaiblie (simulation sim-e : 8 061 renvois refusés, faute de place à la capitale) : une relève se forme dans la capitale
+  // avec seulement ce qui manque à la garde (G9 : 52 voulus, 5 en poste, 47 à apporter) et part ; la garde reste en poste
   g1.units = unitsOf(5);
   calls.length = 0;
   await military.guards(bot, { ...ctx(), step: 40 }, { left: 6 }, m, cap);
   assert.deepEqual(calls.map(c => c[0]), ['/api/army/create', '/api/army/g2/set-unit', '/api/army/g2/move']);
-  assert.deepEqual([m.guard.b, m.rel.b, m.gr.b], ['g1', 'g2', 40]);
-  assert.equal(m.k.guardReliefs, 1);
-  // la relève arrivée se rattache et devient la garde ; l'ancienne rentre à la capitale (la place que la relève vient de rendre)
+  assert.deepEqual(calls[1][1], { unitKey: 'ROM_INF_MILICIEN', count: 47 });
+  assert.deepEqual([m.guard.b, m.rel.b, m.gr.b, m.rs.b], ['g1', 'g2', 40, 47]);
+  assert.deepEqual([m.k.guardTopUps, m.k.guardReliefs], [1, undefined]);
+  // arrivée au repos dans la colonie : elle donne tous ses soldats à la garde (POST /api/army/:id/exchange) ; vidée hors de
+  // chez elle, le serveur la pose aussitôt dans la capitale, où elle se dissout. La garde n'a pas quitté sa colonie
   const g2 = bot.armies.find(a => a.id === 'g2');
   Object.assign(g2, { status: 'IDLE', x: 30, y: 30 });
   calls.length = 0;
   await military.guards(bot, { ...ctx(), step: 41 }, { left: 6 }, m, cap);
-  assert.deepEqual(calls.map(c => c[0]), ['/api/army/g2/attach-colony', '/api/army/g1/detach-colony']);
-  assert.deepEqual([m.guard.b, m.rel.b, g2.cityId], ['g2', undefined, 'b']);
-  assert.deepEqual([g1.cityId, g1.status], ['a', 'RETURNING']);
-  assert.equal(m.k.guardRelieved, 1);
-  // rentrée sans poste : dissoute, ses soldats retournent à la garnison
-  Object.assign(g1, { status: 'IDLE', x: 0, y: 0 });
+  assert.deepEqual(calls.map(c => c[0]), ['/api/army/g2/exchange', 'DELETE /api/army/g2/disband']);
+  assert.deepEqual(calls[0][1], { toArmyId: 'g1', units: [{ unitKey: 'ROM_INF_MILICIEN', count: 47 }] });
+  assert.deepEqual([m.guard.b, m.rel.b, m.rs.b, m.gr.b], ['g1', undefined, undefined, undefined]);
+  assert.deepEqual([g1.cityId, g1.status, g1.units.reduce((t, u) => t + u.count, 0)], ['b', 'IDLE', 52]);
+  assert.ok(!bot.armies.some(a => a.id === 'g2'));
+  assert.deepEqual([m.k.guardSwaps, m.k.guardSwapSoldiers, m.k.guardCourierDisbanded, m.k.guardRelieved], [1, 47, 1, undefined]);
+  assert.equal(Armies.freePlaces(bot), 1, 'la place de la capitale est rendue');
+  // regarnie à sa part : rien à faire au tour suivant
   calls.length = 0;
   await military.guards(bot, { ...ctx(), step: 42 }, { left: 6 }, m, cap);
-  assert.deepEqual(calls.map(c => c[0]), ['DELETE /api/army/g1/disband']);
-  assert.ok(!bot.armies.some(a => a.id === 'g1'));
+  assert.deepEqual(calls, []);
+});
+
+// Une relève qui échange (G9), arrivée au repos dans la colonie de sa garde (5 soldats sur 52 voulus, la relève en porte 47) ;
+// `exchangeReply` : ce que le serveur répond à POST /api/army/:id/exchange
+function reliefArrived(exchangeReply) {
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'RALLY_POINT', level: 5, slot: 2 }] });
+  const col = city({ id: 'b', x: 30, y: 30 });
+  const garrison = { id: 'g', isGarrison: true, cityId: 'a', x: 0, y: 0, status: 'IDLE', units: unitsOf(300) };
+  const g1 = { id: 'g1', name: Armies.NAMES.guard, slot: 1, cityId: 'b', x: 30, y: 30, status: 'IDLE', isGarrison: false, units: unitsOf(5) };
+  const g2 = { id: 'g2', name: Armies.NAMES.guard, slot: 2, cityId: 'a', x: 30, y: 30, status: 'IDLE', isGarrison: false, units: unitsOf(47) };
+  const calls = [];
+  const m = { own: ['f1'], k: {}, guard: { b: 'g1' }, rel: { b: 'g2' }, rs: { b: 47 }, gr: { b: 40 }, gs: {} };
+  const bot = botWith([cap, col], {
+    armies: [garrison, { id: 'f1', name: 'Armée 1', slot: 1, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false, units: [] }, g1, g2], mem: { mil: m },
+    post: async (p, body = {}) => {
+      calls.push([p, body]);
+      if (p.endsWith('/exchange')) return exchangeReply(body);
+      if (p === '/api/army/create') return { ok: true, data: { army: { id: 'g3', name: body.name, slot: body.slot, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false } } };
+      if (p.endsWith('/attach-colony')) return { ok: true, data: { army: { id: p.split('/')[3], cityId: 'b', slot: 1, name: Armies.NAMES.guard }, colony: { id: 'b' } } };
+      if (p.endsWith('/detach-colony')) return { ok: true, data: { army: { id: p.split('/')[3], cityId: 'a', slot: 2, name: Armies.NAMES.guard }, arrivalAt: '2027-02-01T10:00:00Z', travelTime: 3600 } };
+      return { ok: true, data: { newCount: body.count } };
+    },
+    del: async (p) => { calls.push([`DELETE ${p}`]); return { ok: true, data: {} }; }
+  });
+  return { bot, m, calls, cap, g1, g2 };
+}
+
+test('garde regarnie par échange (G9) : un serveur sans la route, ou trois refus de suite, ramènent la relève d\'avant', async () => {
+  // la route absente (« Route non trouvee ») : la relève se rattache à la place de l'ancienne garde, qui rentre ; plus aucun
+  // échange tenté ensuite
+  const A = reliefArrived(() => ({ ok: false, status: 404, data: { error: 'Route non trouvee' } }));
+  await military.guards(A.bot, { ...ctx(), step: 41 }, { left: 6 }, A.m, A.cap);
+  assert.deepEqual(A.calls.map(c => c[0]), ['/api/army/g2/exchange', '/api/army/g2/attach-colony', '/api/army/g1/detach-colony']);
+  assert.deepEqual([A.m.noSwap, A.m.k.guardSwapMissing, A.m.k.guardSwapGaveUp, A.m.k.guardRelieved], [1, 1, 1, 1]);
+  assert.deepEqual([A.m.guard.b, A.m.rel.b, A.m.rs.b, A.g2.cityId, A.g1.cityId, A.g1.status], ['g2', undefined, undefined, 'b', 'a', 'RETURNING']);
+  // l'ancienne garde rentrée s'est dissoute ; la nouvelle s'affaiblit à son tour : la relève d'avant, remplie à toute la part
+  // (46 : 15 % des 305 soldats), qui se rattachera à l'arrivée
+  A.bot.armies = A.bot.armies.filter(a => a.id !== 'g1');
+  A.g2.units = unitsOf(5);
+  A.calls.length = 0;
+  await military.guards(A.bot, { ...ctx(), step: 50 }, { left: 6 }, A.m, A.cap);
+  assert.deepEqual(A.calls.map(c => c[0]), ['/api/army/create', '/api/army/g3/set-unit', '/api/army/g3/move']);
+  assert.deepEqual(A.calls[1][1], { unitKey: 'ROM_INF_MILICIEN', count: 46 });
+  assert.deepEqual([A.m.k.guardReliefs, A.m.k.guardTopUps, A.m.rs.b, A.m.rel.b], [1, undefined, undefined, 'g3']);
+  // un refus du serveur (400) : réessayé au tour suivant ; au troisième refus, la relève se rattache comme avant
+  const B = reliefArrived(() => ({ ok: false, status: 400, data: { error: 'Les deux armées doivent se trouver au même endroit (même ville ou même case)' } }));
+  for (const step of [41, 42]) {
+    B.calls.length = 0;
+    await military.guards(B.bot, { ...ctx(), step }, { left: 6 }, B.m, B.cap);
+    assert.deepEqual(B.calls.map(c => c[0]), ['/api/army/g2/exchange']);
+  }
+  assert.deepEqual([B.m.sf.b, B.m.k.guardSwapRefused, B.m.guard.b, B.m.rel.b, B.m.rs.b], [2, 2, 'g1', 'g2', 47]);
+  B.calls.length = 0;
+  await military.guards(B.bot, { ...ctx(), step: 43 }, { left: 6 }, B.m, B.cap);
+  assert.deepEqual(B.calls.map(c => c[0]), ['/api/army/g2/exchange', '/api/army/g2/attach-colony', '/api/army/g1/detach-colony']);
+  assert.deepEqual([B.m.k.guardSwapRefused, B.m.k.guardSwapGaveUp, B.m.guard.b, B.m.noSwap, B.g1.status], [3, 1, 'g2', undefined, 'RETURNING']);
+});
+
+test('armée « Défense » de la capitale (G10) : formée sur une place libre, remplie à 25 % des soldats du joueur, regarnie seulement quand il lui manque 15 %', async () => {
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'RALLY_POINT', level: 10, slot: 2 }] });
+  const garrison = { id: 'g', isGarrison: true, cityId: 'a', x: 0, y: 0, status: 'IDLE', units: unitsOf(400) };
+  const calls = [];
+  const m = { own: ['f1'], k: {} };
+  const bot = botWith([cap], {
+    armies: [garrison, { id: 'f1', name: 'Armée 1', slot: 1, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false, units: unitsOf(200) }], mem: { mil: m },
+    post: async (p, body = {}) => { calls.push([p, body]); return { ok: true, data: p === '/api/army/create' ? { army: { id: 'd1', name: body.name, slot: body.slot, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false } } : { newCount: body.count } }; }
+  });
+  assert.equal(Armies.missing(bot, 'defense'), 1);
+  await military.defense(bot, { ...ctx(), step: 30 }, { left: 6 }, m, cap);
+  // 600 soldats : 150 pris dans la réserve (la garnison, qui ne défend plus), sur la place la plus haute (les premières vont à
+  // l'armée de campagne)
+  assert.deepEqual(calls.map(c => c[0]), ['/api/army/create', '/api/army/d1/set-unit']);
+  assert.deepEqual(calls[0][1], { cityId: 'a', slot: 3, name: Armies.NAMES.defense });
+  assert.deepEqual(calls[1][1], { unitKey: 'ROM_INF_MILICIEN', count: 150 });
+  assert.deepEqual([m.def, m.k.defenseCreated, m.k.defenseFills, m.k.defenseSoldiers], ['d1', 1, 1, 150]);
+  assert.equal(Armies.missing(bot, 'defense'), 0);
+  const d1 = bot.armies.find(a => a.id === 'd1');
+  // à sa part : rien à faire
+  calls.length = 0;
+  await military.defense(bot, { ...ctx(), step: 31 }, { left: 6 }, m, cap);
+  assert.deepEqual(calls, []);
+  // usée par un combat (100 soldats, 138 voulus sur 550) : regarnie dans la réserve
+  d1.units = unitsOf(100);
+  await military.defense(bot, { ...ctx(), step: 32 }, { left: 6 }, m, cap);
+  assert.deepEqual(calls, [['/api/army/d1/set-unit', { unitKey: 'ROM_INF_MILICIEN', count: 138 }]]);
+  assert.deepEqual([m.k.defenseFills, m.k.defenseSoldiers], [2, 188]);
+  // il lui manque moins de 15 % de sa part : pas d'appel pour rien
+  d1.units = unitsOf(125);
+  calls.length = 0;
+  await military.defense(bot, { ...ctx(), step: 33 }, { left: 6 }, m, cap);
+  assert.deepEqual(calls, []);
+  // hors de chez elle (elle ne part jamais, mais une reprise peut la trouver en route) ou ville assiégée : rien
+  d1.units = unitsOf(10);
+  d1.status = 'MOVING';
+  await military.defense(bot, { ...ctx(), step: 34 }, { left: 6 }, m, cap);
+  d1.status = 'IDLE'; cap.isSieged = true;
+  await military.defense(bot, { ...ctx(), step: 35 }, { left: 6 }, m, cap);
+  assert.deepEqual(calls, []);
 });
 
 test('garde rattachée que la mémoire ne suit plus (reprise) : reprise pour sa colonie ; trop faible, sa relève attend une place, que la caravane lui rend', async () => {
@@ -621,11 +741,12 @@ test('rassemblement contre les Immortels : toute l\'armée de la capitale part (
     armyAt('f1', 'Armée 1', 1, { units: [row('ROM_INF_TRIARII', 300)] }),
     armyAt('ost', Armies.NAMES.ost, 2, { units: [row('ROM_CAV_AUXILIAIRE', 200), row('ROM_SIEGE_CATAPULTE', 60)] }),
     armyAt('car', Armies.NAMES.caravan, 3, { units: unitsOf(30) }),
-    armyAt('away', 'Armée 3', 4, { status: 'HARVESTING', units: unitsOf(500) })];
+    armyAt('away', 'Armée 3', 4, { status: 'HARVESTING', units: unitsOf(500) }),
+    armyAt('def', Armies.NAMES.defense, 5, { units: unitsOf(120) })];
   const member = { playerId: 'p3', mem: { mil: { own: ['f1', 'away'] } } };
   const { full, part } = wonder.memberPart(member, cap, mine);
   assert.equal(part.army.id, 'f1');
-  assert.deepEqual(part.others.map(a => a.id), ['ost'], 'l\'Ost se fond, pas la caravane ni l\'armée dehors');
+  assert.deepEqual(part.others.map(a => a.id), ['ost'], 'l\'Ost se fond, pas la caravane, l\'armée dehors ni l\'armée « Défense » de la capitale (G10)');
   assert.deepEqual(Object.fromEntries(part.pool.map(u => [u.unitKey, u.count])), { ROM_INF_MILICIEN: 1000, ROM_ARC_MILICIEN: 500, ROM_CAV_AUXILIAIRE: 240 }, 'les engins restent');
   assert.equal(part.pot, pw('ROM_INF_TRIARII', 300) + pw('ROM_INF_MILICIEN', 900) + pw('ROM_ARC_MILICIEN', 450) + pw('ROM_CAV_AUXILIAIRE', 216));
   // le potentiel compte aussi l'armée partie récolter (pour annoncer le prochain rassemblement)
@@ -663,13 +784,13 @@ test('invasions des joueurs automatiques : l\'armée qui part prend l\'Ost et le
   const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'RALLY_POINT', level: 5, slot: 2 }] });
   const garrison = { id: 'g', isGarrison: true, cityId: 'a', x: 0, y: 0, status: 'IDLE', units: unitsOf(400) };
   const cav = (n) => ({ unitKey: 'ROM_CAV_AUXILIAIRE', tier: 'base', count: n });
-  const armies = [garrison, armyAt('f1', 'Armée 1', 1, { units: unitsOf(100) }), armyAt('ost', Armies.NAMES.ost, 2, { units: [cav(200), { unitKey: 'ROM_SIEGE_CATAPULTE', tier: 'siege', count: 60 }] }), armyAt('conv', Armies.NAMES.convoy, 3, { units: unitsOf(50) })];
+  const armies = [garrison, armyAt('f1', 'Armée 1', 1, { units: unitsOf(100) }), armyAt('ost', Armies.NAMES.ost, 2, { units: [cav(200), { unitKey: 'ROM_SIEGE_CATAPULTE', tier: 'siege', count: 60 }] }), armyAt('conv', Armies.NAMES.convoy, 3, { units: unitsOf(50) }), armyAt('def', Armies.NAMES.defense, 4, { units: unitsOf(80) })];
   const bot = botWith([cap], { armies, mem: { mil: { own: ['f1'] } } });
   // Place de rassemblement 5 : deux emplacements pris, pas d'armée de chasse ; l'Ost compte parmi les armées qui partent
   const usable = invasion.usableArmies(bot, {}, true);
   assert.deepEqual(usable.map(o => o.army.id).sort(), ['f1', 'ost']);
   const o = usable.find(x => x.army.id === 'f1');
-  assert.deepEqual(o.merge.map(a => a.id), ['ost'], 'le convoi ne se fond pas');
+  assert.deepEqual(o.merge.map(a => a.id), ['ost'], 'ni le convoi ni l\'armée « Défense » de la capitale (G10) ne se fondent');
   // la garnison et les soldats de l'Ost (sans ses engins), la ville garde 10 %
   assert.deepEqual(o.rows.map(r => [r.unitKey, r.count]), [['ROM_INF_MILICIEN', 360], ['ROM_CAV_AUXILIAIRE', 170]]);
   // le fondateur de la Ville Merveille garde la plus petite armée au repos pour son colon
@@ -1009,7 +1130,8 @@ test('rassemblements contre le Bastion (lot M, E3) : essai avec la plus forte ar
     idleAll(); calls.length = 0; events.length = 0; c.step = 101;
     await war.bastionOps(c, v, { left: 400 }, 'A');
     const r1 = events.find(e => e[0] === 'bastion_rally')[1];
-    assert.deepEqual([r1.chain, r1.wait], [1, 180]);
+    assert.deepEqual([r1.chain, r1.wait, r1.mode], [1, 30, 'vie'], 'l\'attente la plus courte qui laisse arriver les membres retenus (G2 : le mur se répare pendant l\'attente)');
+    assert.equal(r1.wallNow, r1.wallHp, 'mur plein : le Bastion ne garde aucun dégât');
     assert.ok(r1.armies < 12, 'pas toute l\'alliance d\'un coup');
     assert.ok(r1.gapH !== null && r1.gapH < 24, String(r1.gapH));
     assert.ok(!keeper.mem.war.k.chainRestart);
@@ -1063,6 +1185,34 @@ test('rassemblements contre le Bastion (lot M, E3) : essai avec la plus forte ar
     idleAll(); calls.length = 0; events.length = 0; c.step = 106;
     await war.bastionOps(c, v, { left: 400 }, 'A');
     assert.ok(calls.some(x => x[2] === '/api/rallies'));
+    // 6. chaîne d'usure (G2, décision du 2 novembre 2026) : un assaut repoussé a laissé le mur à 15 000 PV il y a 2 h (réparé en
+    // ligne droite, plein 12 h après) ; le rassemblement part avec l'attente la plus courte, jugé contre le mur prévu à l'heure
+    // de l'assaut, pas le mur plein
+    const eb = v.bastions[0];
+    Object.assign(eb, { wallHp: 15000, wallAt: new Date(T - 2 * 3600000).toISOString() });
+    keeper.mem.war.chain = { b: 'eb', s: 106, n: 0, wins: 0, losses: 1, lossRun: 1, skip: 0, tw: 0, ww: T - 2 * 3600000, lw: 15000, def: [inf(4000)], mode: 'mur' };
+    keeper.mem.war.bo = 0; keeper.mem.war.seen = { b: 'eb', def: [inf(300)], at: T - 86400000 };
+    idleAll(); calls.length = 0; events.length = 0; c.step = 107;
+    await war.bastionOps(c, v, { left: 400 }, 'A');
+    const r6 = events.find(e => e[0] === 'bastion_rally')[1];
+    assert.deepEqual([r6.mode, r6.wait, r6.chain, r6.wallHp], ['mur', 30, 1, 36000]);
+    assert.ok(r6.wallNow > 15000 && r6.wallNow < 36000, `mur prévu ${r6.wallNow} : en cours de réparation`);
+    assert.equal(keeper.mem.war.k.chainWornWall, 1);
+    assert.ok(calls.some(x => x[2] === '/api/rallies'));
+    // le mur de nouveau plein (13 h après le dernier dégât) sans pause de vies en cours : la chaîne s'arrête
+    Object.assign(eb, { wallAt: new Date(T - 13 * 3600000).toISOString() });
+    keeper.mem.war.chain = { b: 'eb', s: 106, n: 1, wins: 0, losses: 1, lossRun: 1, skip: 0, tw: 0, ww: T - 13 * 3600000, lw: 15000, def: [inf(4000)], mode: 'mur' };
+    idleAll(); events.length = 0; c.step = 108;
+    await war.bastionOps(c, v, { left: 400 }, 'A');
+    assert.equal(keeper.mem.war.chain, undefined);
+    assert.ok(events.some(e => e[0] === 'bastion_chain_end' && e[1].why === 'mur réparé' && e[1].mode === 'mur' && e[1].lowestWall === 15000), JSON.stringify(events));
+    // deux assauts repoussés de suite : la chaîne s'arrête aussi, même devant un mur usé
+    Object.assign(eb, { wallAt: new Date(T - 2 * 3600000).toISOString() });
+    keeper.mem.war.chain = { b: 'eb', s: 106, n: 2, wins: 0, losses: 2, lossRun: 2, skip: 0, tw: 0, ww: T - 2 * 3600000, lw: 15000, def: [inf(4000)], mode: 'mur' };
+    events.length = 0; c.step = 109;
+    await war.bastionOps(c, v, { left: 400 }, 'A');
+    assert.ok(events.some(e => e[0] === 'bastion_chain_end' && e[1].why === 'assauts repoussés'), JSON.stringify(events));
+    delete eb.wallHp; delete eb.wallAt;
     // 5. grille des ticks : une heure dans un pas qui presse, le pas entier sinon
     assert.equal(war.slotOf(c, T + 3600000), 1);
     assert.equal(war.slotOf(c, T + 3600000 + 1000), 2);
@@ -1122,7 +1272,7 @@ test('attaque d\'une tribu (simulation sim-e) : l\'issue se lit sur l\'armée ; 
   assert.equal(military.tribeVerdict(army('IDLE', 590, 395), x, city0), 'win');
   assert.equal(military.tribeVerdict(army('IDLE', 420, 280), x, city0), 'loss');
   assert.equal(military.tribeVerdict(army('IDLE', 0, 0), x, city0), null, 'vidée par une fusion');
-  assert.equal(military.tribeVerdict(army('IDLE', 600, 0), x, city0), null, 'une troupe rendue à la garnison');
+  assert.equal(military.tribeVerdict(army('IDLE', 600, 0), x, city0), 'loss', 'une troupe entière perdue : rounds complets du moteur de bataille (G3), plus le signe d\'une fusion');
   assert.equal(military.tribeVerdict(army('IDLE', 900, 400), x, city0), null, 'regarnie entre-temps');
   // review : une armée partie en rassemblement n'est pas jugée, le ratio ne monte pas
   const bot = botWith([city({ id: 'a', isCapital: true, x: 0, y: 0 })], { armies: [army('RALLY_WAIT', 600, 400)] });
@@ -1379,11 +1529,12 @@ test('défense de la Ville Merveille (sim-e) : seules comptent les armées post�
     { id: 'a', ownerId: 'p1', status: 'STATIONED', targetCityId: 'w', x: 40, y: 40, units: u },                                               // postée
     { id: 'b', ownerId: 'p9', status: 'IDLE', x: 40, y: 40, units: u },                                                                      // le propriétaire, dans sa ville
     { id: 'c', ownerId: 'p2', status: 'SUPPORTING', targetCityId: 'w', arrivalAt: new Date(T + 3600000).toISOString(), units: u },           // là avant la vague
-    { id: 'd', ownerId: 'p2', status: 'SUPPORTING', targetCityId: 'w', arrivalAt: new Date(T + 11 * 3600000).toISOString(), units: u },      // trop tard
+    { id: 'd', ownerId: 'p2', status: 'SUPPORTING', targetCityId: 'w', arrivalAt: new Date(T + 23 * 3600000).toISOString(), units: u },      // trop tard (la vague frappe dans 22 h)
     { id: 'e', ownerId: 'p9', status: 'MOVING', targetX: 40, targetY: 40, arrivalAt: new Date(T + 3600000).toISOString(), units: u },       // le propriétaire, en route
     { id: 'f', ownerId: 'p3', status: 'STATIONED', targetCityId: 'autre', x: 40, y: 40, units: u }                                         // ailleurs
   ], T);
-  assert.equal(D.nextWaveAt, T + 10 * 3600000);
+  assert.equal(config.world.immortalWaveHours, 24, 'décision du 2 novembre 2026 (G6) : une vague toutes les 24 h');
+  assert.equal(D.nextWaveAt, T + (config.world.immortalWaveHours - 2) * 3600000);
   assert.deepEqual([D.armies, D.posted, D.coming, D.power], [4, 2 * p, 2 * p, 4 * p]);
   assert.deepEqual([D.byOwner.get('p2'), D.byOwner.get('p9')], [p, 2 * p]);
   assert.equal(D.list.length, 5);
@@ -1401,7 +1552,7 @@ test('défense de la Ville Merveille (sim-e) : seules comptent les armées post�
   assert.equal(mb.k.buildWaitDefense, 1);
   await wonder.buildTurn(owner, ctxB, { left: 2 }, mb, site, 1, { power: WS.wavePower(21) });
   assert.deepEqual(calls.map(x => x[1]), ['/api/wonder/w', '/api/wonder/w/build']);
-  // le niveau 1 part sans défense (la première vague frappe 12 h après lui)
+  // le niveau 1 part sans défense (la première vague frappe 24 h après lui)
   calls.length = 0;
   await wonder.buildTurn(owner, ctxB, { left: 2 }, mb, { ...site, wonderLevel: 0, wonderBuildEndsAt: null }, 1, { power: 0 });
   assert.equal(calls.length, 2);

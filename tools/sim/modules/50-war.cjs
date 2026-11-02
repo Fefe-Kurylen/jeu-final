@@ -1287,8 +1287,9 @@ async function bastionOps(ctx, v, S, g) {
     if (chain) chain.skip = (chain.skip || 0) + 1; else { wm.bo = ctx.step + BASTION_GAP; wm.mb = ctx.step; setMuster(wm); }
     return;
   }
-  const { l: leader, reach, fits, at: plannedAt } = pool[0];
-  const wallHp = wallOf(eb, plannedAt);   // le mur à l'heure prévue de l'assaut (dégâts gardés, réparés depuis : G2)
+  const { l: leader, reach } = pool[0];
+  let { fits } = pool[0];
+  let wallHp = wallOf(eb, pool[0].at);   // le mur à l'heure prévue de l'assaut (dégâts gardés, réparés depuis : G2)
   // taille du rassemblement (décision du 31 octobre 2026) : la Place de rassemblement du lanceur, 5 armées + 1 par niveau
   const capacity = fx.rallyMaxArmies(lvl(leader.cap, 'RALLY_POINT'));
   let joiners = reach.sort((a, b) => a.t - b.t).slice(0, Math.max(0, capacity - 1));
@@ -1317,6 +1318,12 @@ async function bastionOps(ctx, v, S, g) {
     if (!beats(group, leader.b.faction, garrison, wallHp)) { chain.skip = (chain.skip || 0) + 1; bump(wm, 'chainWait'); return; }
     joiners = keep; rolled = true;
     wait = WAITS.find(w => w * 60 >= Math.max(0, ...keep.map(x => x.t))) || Math.max(...WAITS);
+    // l'assaut prévu avec cette attente, plus tôt que celui du plan (l'attente la plus longue) : le mur y est moins réparé,
+    // et il tombe peut-être encore dans la fenêtre (pas de redémarrage de la chaîne pour rien)
+    if (wait < Math.max(...WAITS)) {
+      const soon = await assaultOf(leader, ctx.clock.now() + wait * 60000);
+      if (Number.isFinite(soon)) { fits = soon <= limit; wallHp = wallOf(eb, soon); }
+    }
     if (wallHp < wallMax - 1) bump(wm, 'chainWornWall');
   } else {
     const need = Math.max(0, ...joiners.map(x => x.t));

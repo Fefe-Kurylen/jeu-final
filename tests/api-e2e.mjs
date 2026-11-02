@@ -434,8 +434,12 @@ const wall0 = Number(sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`));
 await sleep(32000);
 assert('the camp does not wear the wall down', Number(sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`)) === wall0, `${wall0} -> ${sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`)}`);
 assert('the besieged city still produces', Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`)) > prodB0 || Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`)) >= Number(sql(`SELECT "maxStorage" FROM "City" WHERE id='${cityB.id}'`)), `${prodB0} -> ${sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`)}`);
-// the hour is over: the battle starts by itself, the wall as a shield (10 engines and 70 soldiers against 5 000 HP)
+// the hour is over: the battle starts by itself, the wall as a shield (10 engines and 70 soldiers against 5 000 HP).
+// G10 (décision du 2 novembre 2026, deuxième simulation de 200 jours) : seules les armées défendent ; la réserve de B (sa
+// garnison) ne combat pas. Les défenseurs du rapport sont les armées de B à l'arrêt chez elle (Sortie, Rappel)
 const garBBeforeBattle = Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${garB}'`));
+const bArmiesAtHome = () => Number(sql(`SELECT coalesce(sum(u.count),0) FROM "ArmyUnit" u JOIN "Army" a ON a.id=u."armyId" JOIN "City" c ON c.id=a."cityId" WHERE a."cityId"='${cityB.id}' AND NOT a."isGarrison" AND a.status='IDLE' AND a.x=c.x AND a.y=c.y`));
+const bArmiesBefore = bArmiesAtHome();
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
 await waitTick('battle resolved', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${A.player.id}'`)) >= 1);
 // the report is written inside the battle; the army leaves and the siege flag is cleared right after
@@ -448,7 +452,10 @@ assert('the report carries the wall as a shield and the camp time', Number(sql(`
   const r = sql(`SELECT winner||':'||(loot->>'wallBroken') FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`);
   const ws = Number(sql(`SELECT round(("wallStructure"*100)::numeric) FROM "City" WHERE id='${cityB.id}'`));
   assert('behind a wall that holds, the city wins and keeps its lives', r === 'DEFENDER:false' && ws === 100, `${r}, lives ${ws} %`);
-  assert('the defenders took no loss behind the wall', Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${garB}'`)) === garBBeforeBattle);
+  const defRows = JSON.parse(sql(`SELECT "defenderUnits"::text FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`) || '[]');
+  const defCount = defRows.reduce((t, u) => t + (u.count || 0), 0);
+  assert('G10: the report lists only B\'s armies as defenders, never its reserve', defCount === bArmiesBefore && bArmiesBefore > 0 && garBBeforeBattle > 0 && defCount < garBBeforeBattle + bArmiesBefore, `report ${defCount}, armies ${bArmiesBefore}, reserve ${garBBeforeBattle}`);
+  assert('behind a wall that holds nobody is touched: the armies keep their soldiers, the reserve too', Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${garB}'`)) === garBBeforeBattle && bArmiesAtHome() === bArmiesBefore);
 }
 // ---------- IN-GAME NOTIFICATIONS ----------
 // every alert is first a message in the game, with a link to what it is about (décision du 25 octobre 2026)
@@ -506,6 +513,61 @@ sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}
 await waitTick('army home after raid', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'IDLE');
 console.log('  A resources after raid:', sql(`SELECT wood::int||'/'||stone::int||'/'||iron::int||'/'||food::int FROM "City" WHERE id='${cityA.id}'`));
 await call('second raid within 24h -> 400 (cooldown)', 'POST', `/api/army/${armyId}/raid`, tA, { targetCityId: cityB.id }, 400);
+// ---------- G10 / G3 / G4 : SEULES LES ARMÉES DÉFENDENT, RAID AU MOTEUR, BUTIN À 100 % DU TRANSPORT ----------
+// (décisions du 2 novembre 2026, deuxième simulation de 200 jours) : la réserve d'une ville (sa garnison : les soldats formés
+// dans aucune armée) ne combat pas un raid, n'y perd personne et reste en ville ; une armée à l'arrêt chez elle défend ; le
+// raid passe par le moteur de bataille et s'arrête dès qu'un camp a perdu 30 % de ses soldats ; le butin monte jusqu'à 100 %
+// de ce que portent les pillards survivants (30 % avant), la cachette gardant sa part
+{
+  const CB = CONF().combat;
+  assert('G3 / G4: a raid stops at 30 % of losses and carries up to 100 % of the raiders\' capacity (config)', CB.loserLossRate === 0.3 && CB.raidLootPctOfCarry === 1 && CONF().hideout.raidStealRate === 0.5, JSON.stringify({ stop: CB.loserLossRate, carry: CB.raidLootPctOfCarry }));
+  const hunInf = unitKeyFor('HUN', 'INFANTRY', 'base');
+  const reserveB = () => Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${garB}'`));
+  const ageRaids = () => sql(`UPDATE "BattleReport" SET "createdAt"=now()-interval '25 hours' WHERE "playerId"='${A.player.id}' AND loot->>'type'='RAID' AND (loot->>'cityId'='${cityB.id}' OR (x=${cityB.x} AND y=${cityB.y}))`);
+  const raidsOfA = () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='RAID' AND loot->>'cityId'='${cityB.id}'`));
+  const lastRaid = () => JSON.parse(sql(`SELECT row_to_json(r)::text FROM (SELECT winner, "defenderUnits", "attackerLosses", "defenderLosses", loot FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='RAID' AND loot->>'cityId'='${cityB.id}' ORDER BY "createdAt" DESC LIMIT 1) r`) || 'null');
+  const lootOf = (r) => RES.reduce((t, k) => t + (Number(r?.loot?.[k]) || 0), 0);
+  const homeAgainA = async (label) => { sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}' AND status<>'IDLE'`); await waitTick(label, () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'IDLE'); };
+  // B : ses armées à l'arrêt chez elle rendent leurs soldats à la réserve (set-unit 0) ; il ne reste que la réserve, bien visible
+  for (const [id, name] of [[sortieId, 'Sortie'], [recallId, 'Rappel']]) {
+    for (const u of JSON.parse(sql(`SELECT coalesce(json_agg(json_build_object('unitKey', "unitKey")), '[]') FROM "ArmyUnit" WHERE "armyId"='${id}' AND count > 0`) || '[]')) await call(`G10: B empties ${name} into the reserve`, 'POST', `/api/army/${id}/set-unit`, tB, { unitKey: u.unitKey, count: 0 });
+  }
+  sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garB}','${hunInf}','base',60) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count=60`);
+  const reserve0 = reserveB();
+  richCity(cityB.id);   // de quoi piller : 50 000 de chaque ; la cachette de B garde sa part
+  const armyUnits = JSON.parse(sql(`SELECT coalesce(json_agg(json_build_object('unitKey', "unitKey", 'tier', tier, 'count', count)), '[]')::text FROM "ArmyUnit" WHERE "armyId"='${armyId}' AND count > 0`) || '[]');
+  const baseCarry = CALC().getArmyCarryCapacity(armyUnits, UNITS);   // sans bonus (civilisation, Bastion, talent : ils ne font qu'augmenter)
+  ageRaids();
+  const n0 = raidsOfA();
+  await call('G10: A raids B, who has only reserve soldiers', 'POST', `/api/army/${armyId}/raid`, tA, { targetCityId: cityB.id });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
+  await waitTick('G10: raid on the reserve-only city resolved', () => raidsOfA() > n0);
+  const r1 = lastRaid();
+  assert('G10: a city with only reserve soldiers is not defended: no defender in the report, nobody killed, the raider passes without a fight', r1?.winner === 'ATTACKER' && (r1.defenderUnits || []).length === 0 && Number(r1.defenderLosses?.totalKilled) === 0 && Number(r1.attackerLosses?.totalKilled) === 0 && (r1.loot?.rounds || []).length === 0, JSON.stringify({ winner: r1?.winner, def: r1?.defenderUnits, killed: r1?.defenderLosses?.totalKilled, rounds: r1?.loot?.rounds?.length }));
+  assert('G10: the reserve is neither killed nor wounded, it stays in the city', reserveB() === reserve0 && reserve0 >= 60, `${reserve0} -> ${reserveB()}`);
+  const loot1 = lootOf(r1);
+  assert('G4: the loot goes past 30 % of the raiders\' capacity (up to 100 % of what the survivors carry)', loot1 > 0.5 * baseCarry && loot1 <= 1.5 * baseCarry + 4, `loot ${loot1}, base carry ${baseCarry}`);
+  await homeAgainA('G10: the raider is home');
+  assert('G4: the raiders bring the loot home (deposited on arrival)', sql(`SELECT "carryWood"+"carryStone"+"carryIron"+"carryFood" FROM "Army" WHERE id='${armyId}'`) === '0');
+  // B met sa réserve dans une armée : elle défend, au moteur, et le raid s'arrête dès qu'un camp a perdu 30 % de ses soldats
+  await call('G10: B puts its reserve into an army', 'POST', `/api/army/${recallId}/set-unit`, tB, { unitKey: hunInf, count: 99999 });
+  const guardB = Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${recallId}'`));
+  assert('G10: the whole reserve of that unit moved into the army', guardB >= 60 && reserveB() === reserve0 - guardB, `army ${guardB}, reserve ${reserveB()}`);
+  ageRaids();
+  const n1 = raidsOfA();
+  await call('G10: A raids B again, now guarded by an army', 'POST', `/api/army/${armyId}/raid`, tA, { targetCityId: cityB.id });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
+  await waitTick('G10: raid on the guarded city resolved', () => raidsOfA() > n1);
+  const r2 = lastRaid();
+  const defCount = (r2?.defenderUnits || []).reduce((t, u) => t + (u.count || 0), 0);
+  assert('G10: with an army at home the city is defended: the report lists its soldiers, some fall, the reserve is untouched', defCount === guardB && Number(r2?.defenderLosses?.totalKilled) > 0 && reserveB() === reserve0 - guardB, JSON.stringify({ def: defCount, army: guardB, killed: r2?.defenderLosses?.totalKilled, reserve: reserveB() }));
+  const atkRate = Number(r2?.attackerLosses?.rate), defRate = Number(r2?.defenderLosses?.rate), stop = CB.loserLossRate;
+  const loserRate = Math.max(atkRate, defRate), winnerRate = Math.min(atkRate, defRate);
+  assert('G3: the raid ran in the battle engine (rounds) and stopped as soon as one side had lost 30 % of its soldiers', (r2?.loot?.rounds || []).length >= 1 && loserRate >= stop - 1e-6 && loserRate <= stop + 0.02 && winnerRate < stop && r2.winner === (defRate > atkRate ? 'ATTACKER' : 'DEFENDER'), JSON.stringify({ rounds: r2?.loot?.rounds?.length, atkRate, defRate, winner: r2?.winner }));
+  await homeAgainA('G10: the raider is home again');
+  // remise en état : les soldats de B retournent dans la réserve
+  await call('G10: B puts the army back into the reserve', 'POST', `/api/army/${recallId}/set-unit`, tB, { unitKey: hunInf, count: 0 });
+}
 // ---------- ESPIONS (décision du 26 octobre 2026) : espions de la Tour de guet, toujours réussis, la cible prévenue ----------
 await call('army spy -> 400 (armies no longer spy)', 'POST', `/api/army/${armyId}/spy`, tA, { targetCityId: cityB.id }, 400);
 await call('send SPY with an army -> 400', 'POST', '/api/armies/send', tA, { armyId, targetX: cityB.x, targetY: cityB.y, mission: 'SPY' }, 400);
@@ -647,6 +709,15 @@ if (defended) {
   await waitTick('tribe fight resolved', () => ['HARVESTING', 'RETURNING', 'IDLE'].includes(sql(`SELECT status FROM "Army" WHERE id='${armyId}'`)));
   console.log('  army after tribe fight:', sql(`SELECT status||' carry='||("carryWood"+"carryStone"+"carryIron"+"carryFood")||' tgt='||coalesce("targetResourceId",'-') FROM "Army" WHERE id='${armyId}'`), '| node:', sql(`SELECT "hasDefenders"||' '||"hasPlayerArmy"||' '||amount FROM "ResourceNode" WHERE id='${defended.id}'`));
   assert('tribe fight produced a report', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND rounds->>'type'='TRIBE_RAID'`)) >= 1);
+  { // G3 (décision du 2 novembre 2026, deuxième simulation de 200 jours) : le combat contre la tribu passe par le moteur de
+    // bataille, rounds complets ; les pertes des deux camps viennent des rounds, plus des parts forfaitaires (15 % pour le
+    // vainqueur d'un camp, 30 % pour le perdant, sans round)
+    const tr = JSON.parse(sql(`SELECT row_to_json(r)::text FROM (SELECT winner, "attackerLosses", "defenderLosses", loot FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND rounds->>'type'='TRIBE_RAID' ORDER BY "createdAt" DESC LIMIT 1) r`) || 'null');
+    const rounds = tr?.loot?.rounds || [];
+    const atkRate = Number(tr?.attackerLosses?.rate), defRate = Number(tr?.defenderLosses?.rate);
+    const forfeit = (x) => [0.15, 0.3].some(v => Math.abs(x - v) < 1e-9);
+    assert('G3: the tribe fight ran its rounds in the engine (kills per round, duration) and its losses are no forfeit any more', rounds.length >= 1 && tr?.loot?.duration === rounds.length && rounds.every(r => Array.isArray(r.attackerKills) && Array.isArray(r.defenderKills) && typeof r.attackerRemaining === 'number' && typeof r.defenderRemaining === 'number') && !forfeit(atkRate) && !forfeit(defRate) && (tr?.winner !== 'ATTACKER' || defRate > 0) && (tr?.winner !== 'DEFENDER' || atkRate > 0), JSON.stringify({ rounds: rounds.length, atkRate, defRate, winner: tr?.winner }));
+  }
   assert('node stock never negative', Number(sql(`SELECT amount FROM "ResourceNode" WHERE id='${defended.id}'`)) >= 0);
   const cityWoodBefore = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
   await call('army return from node', 'POST', `/api/army/${armyId}/return`, tA, {});
@@ -1625,6 +1696,41 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       const defended = JSON.parse(sql(`SELECT "defenderUnits"::text FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='RAID' AND loot->>'cityId'='${colony[0]}' ORDER BY "createdAt" DESC LIMIT 1`) || '[]');
       assert('E2: the attached army defends the colony (its 40 soldiers fight the raid) and stays there', defended.some(u => u.key === infKey && u.count === 40) && where(guard) === `IDLE:${colX}:${colY}:${colony[0]}` && soldiers(guard) > 0, `${JSON.stringify(defended)} | ${where(guard)}`);
       sql(`DELETE FROM "Army" WHERE id='${raiders}'`);
+      { // G9 (décision du 2 novembre 2026, deuxième simulation de 200 jours) : « Échanger ». Deux armées du même joueur au même
+        // endroit (même ville ou même case), toutes deux à l'arrêt, se passent des soldats dans les deux sens en une fois ;
+        // une armée de la capitale posée dans la colonie remplit la garde rattachée sans prendre d'emplacement à la capitale ;
+        // refusé entre deux endroits, avec la réserve, avec l'armée d'un autre joueur, au-delà de l'effectif, une même unité
+        // dans les deux sens ; une armée vidée hors de chez elle rentre aussitôt
+        const cavKey = unitKeyFor('ROME', 'CAVALRY', 'base');
+        sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garA}','${cavKey}','base',10) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count="ArmyUnit".count+10`);
+        const unitsOf = (id) => Object.fromEntries(JSON.parse(sql(`SELECT coalesce(json_agg(json_build_object('k', "unitKey", 'n', count)), '[]')::text FROM "ArmyUnit" WHERE "armyId"='${id}' AND count > 0`) || '[]').map(u => [u.k, u.n]));
+        const capSlots0 = slotsOf(cityA.id).length;
+        const relief = (await call('G9: a relief army formed in the capital', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: freeSlot(cityA.id), name: 'Subsidium' }))?.army?.id;
+        await call('G9: 30 soldiers from the capital reserve', 'POST', `/api/army/${relief}/set-unit`, tA, { unitKey: infKey, count: 30 });
+        await call('G9: 10 horsemen from the capital reserve', 'POST', `/api/army/${relief}/set-unit`, tA, { unitKey: cavKey, count: 10 });
+        const g0 = unitsOf(guard), s0 = unitsOf(relief), inf0 = g0[infKey] || 0;
+        const apart = await call('G9: exchange between two armies in different places -> 400', 'POST', `/api/army/${relief}/exchange`, tA, { toArmyId: guard, units: [{ unitKey: infKey, count: 5 }] }, 400);
+        assert('G9: refused across places (capital and colony), nothing moved', /même endroit/.test(apart?.error || '') && JSON.stringify(unitsOf(guard)) === JSON.stringify(g0) && JSON.stringify(unitsOf(relief)) === JSON.stringify(s0), apart?.error);
+        const withReserve = await call('G9: exchange with the reserve (garrison) -> 400', 'POST', `/api/army/${relief}/exchange`, tA, { toArmyId: garA, units: [{ unitKey: infKey, count: 5 }] }, 400);
+        assert('G9: the reserve is not an army: refused', /réserve/.test(withReserve?.error || ''), withReserve?.error);
+        await call('G9: exchange with another player\'s army -> 404', 'POST', `/api/army/${relief}/exchange`, tA, { toArmyId: garB, units: [{ unitKey: infKey, count: 5 }] }, 404);
+        await call('G9: the relief marches to the colony', 'POST', `/api/army/${relief}/move`, tA, { x: colX, y: colY });
+        sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${relief}'`);
+        await waitTick('G9: the relief stands in the colony', () => where(relief) === `IDLE:${colX}:${colY}:${cityA.id}`);
+        const ex1 = await call('G9: 25 soldiers from the capital army to the attached guard', 'POST', `/api/army/${relief}/exchange`, tA, { toArmyId: guard, units: [{ unitKey: infKey, count: 25 }] });
+        assert('G9: the attached guard received them, keeps its colony and its slot, no capital slot used', unitsOf(guard)[infKey] === inf0 + 25 && unitsOf(relief)[infKey] === 5 && ex1?.to?.id === guard && ex1.to.units.find(u => u.unitKey === infKey)?.count === inf0 + 25 && /^Échange fait/.test(ex1?.message || '') && sql(`SELECT "cityId"||':'||slot FROM "Army" WHERE id='${guard}'`) === `${colony[0]}:${colSlot}` && slotsOf(cityA.id).length === capSlots0 + 1, JSON.stringify({ guard: unitsOf(guard), relief: unitsOf(relief), msg: ex1?.message }));
+        const ex2 = await call('G9: both ways at once (horsemen to the guard, 10 soldiers back)', 'POST', `/api/army/${relief}/exchange`, tA, { toArmyId: guard, units: [{ unitKey: cavKey, count: 10 }], back: [{ unitKey: infKey, count: 10 }] });
+        assert('G9: both directions applied in one call', unitsOf(guard)[cavKey] === 10 && unitsOf(guard)[infKey] === inf0 + 15 && unitsOf(relief)[infKey] === 15 && !unitsOf(relief)[cavKey] && ex2?.moved?.back?.[0]?.count === 10, JSON.stringify({ guard: unitsOf(guard), relief: unitsOf(relief), msg: ex2?.message }));
+        const tooMany = await call('G9: more soldiers than the army has -> 400', 'POST', `/api/army/${relief}/exchange`, tA, { toArmyId: guard, units: [{ unitKey: infKey, count: 99 }] }, 400);
+        assert('G9: the refusal says how many the army has, nothing moved', /n'a que 15 /.test(tooMany?.error || '') && unitsOf(relief)[infKey] === 15 && unitsOf(guard)[infKey] === inf0 + 15, tooMany?.error);
+        const sameUnit = await call('G9: the same unit both ways -> 400', 'POST', `/api/army/${relief}/exchange`, tA, { toArmyId: guard, units: [{ unitKey: infKey, count: 1 }], back: [{ unitKey: infKey, count: 1 }] }, 400);
+        assert('G9: a given unit goes one way at a time', /un sens/.test(sameUnit?.error || ''), sameUnit?.error);
+        // vidée hors de chez elle, l'armée de la capitale rentre aussitôt (elle ne pourrait plus marcher)
+        const ex3 = await call('G9: the relief gives its last soldiers to the guard', 'POST', `/api/army/${relief}/exchange`, tA, { toArmyId: guard, units: [{ unitKey: infKey, count: 15 }] });
+        assert('G9: emptied away from home, the army is back in the capital at once and the message says so', /rentrée aussitôt/.test(ex3?.message || '') && where(relief) === `IDLE:${cityA.x}:${cityA.y}:${cityA.id}` && unitsOf(guard)[infKey] === inf0 + 30, `${ex3?.message} | ${where(relief)}`);
+        await call('G9: the empty relief army is disbanded in the capital', 'DELETE', `/api/army/${relief}/disband`, tA);
+        assert('G9: the capital army slot is free again, the guard keeps everything it received', slotsOf(cityA.id).length === capSlots0 && soldiers(guard) === inf0 + 30 + 10 + Object.entries(g0).filter(([k]) => k !== infKey).reduce((t, [, n]) => t + n, 0), `slots ${slotsOf(cityA.id)}, guard ${soldiers(guard)}`);
+      }
       // chaque retour la ramène à la colonie : elle part, on la rappelle en chemin
       await call('E2: the attached army leaves the colony', 'POST', `/api/army/${guard}/move`, tA, out);
       sql(`UPDATE "Army" SET "departedAt"=now()-("arrivalAt"-"departedAt"), "arrivalAt"=now()+("arrivalAt"-"departedAt") WHERE id='${guard}'`);   // à mi-chemin
@@ -1787,14 +1893,15 @@ if (MAIL_LOG) {
 // ---------- NO RIPOSTE ----------
 // Even a much weaker army camps before the city: there is no automatic riposte any more (décision du 25 octobre 2026)
 {
+  // G10 : la force d'une ville, ce sont ses armées (la réserve ne défend pas) : 3 000 élites dans une armée à l'arrêt chez B
   const eliteB = unitKeyFor('HUN', 'INFANTRY', 'elite');
-  sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garB}','${eliteB}','elite',3000) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count=3000`);
+  const wardens = mkTrader(B.player.id, cityB.id, 'Custodes', eliteB, 3000);
   const weak = sql(`WITH a AS (INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","targetCityId","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${A.player.id}','${cityA.id}','Petit siège',${cityA.x},${cityA.y},${cityB.x},${cityB.y},'ATTACKING','ATTACK','${cityB.id}',now()-interval '1 minute',now()-interval '1 second') RETURNING id) INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) SELECT gen_random_uuid(), a.id, u.k, u.t, u.c FROM a, (VALUES ('${infKey}','base',10), ('${siegeKey}','siege',1)) AS u(k,t,c) RETURNING "armyId"`).split('\n')[0];
   await waitTick('weak army camps', () => sql(`SELECT status FROM "Army" WHERE id='${weak}'`) === 'BESIEGING');
   assert('no riposte: the weak army camps like any other', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='RIPOSTE' AND x=${cityB.x} AND y=${cityB.y}`)) === 0 && sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 't');
   sql(`DELETE FROM "Army" WHERE id='${weak}'`);
   sql(`UPDATE "City" SET "isSieged"=false WHERE id='${cityB.id}'`);
-  sql(`DELETE FROM "ArmyUnit" WHERE "armyId"='${garB}' AND "unitKey"='${eliteB}'`);
+  sql(`DELETE FROM "Army" WHERE id='${wardens}'`);
 }
 
 // ---------- CITY FALL ----------
@@ -1903,12 +2010,13 @@ if (MAIL_LOG) {
   const b0 = await call('bastion: A sees the rules', 'GET', '/api/bastion', tA);
   assert('bastion: none yet, the leader may place it, 15 members needed', b0?.inAlliance && b0.canPlace && !b0.bastion && b0.minMembers === 15, JSON.stringify(b0).slice(0, 160));
   // D9 (décision du 31 octobre 2026, rapport de vérification, choix final du propriétaire) : façon fort barbare de Rise of
-  // Kingdoms, mur bouclier 3 fois un mur 20 (60 000 PV), 10 armées au plus en garnison (celles en route et en sortie
-  // comprises), un assaut = un rassemblement ou une armée seule ; 10 vies qui remontent en 72 h. Règles données même sans
-  // alliance
+  // Kingdoms, 10 armées au plus en garnison (celles en route et en sortie comprises), un assaut = un rassemblement ou une
+  // armée seule ; 10 vies qui remontent en 72 h. G1 et G2 (décisions du 2 novembre 2026, deuxième simulation de 200 jours) :
+  // garnison gardée à 10 ; mur bouclier 1,8 fois un mur 20 (36 000 PV, 3 fois et 60 000 avant), qui garde ses dégâts et
+  // redevient plein 12 h après le dernier. Règles données même sans alliance
   const BR = CONF().bastion;
-  const rulesOk = (r) => r?.maxGarrisonArmies === 10 && r.wallMultiplier === 3 && r.wallReferenceLevel === 20 && r.assaults === 10 && r.regenHours === 72;
-  assert('bastion rules: wall 3 × a wall 20, garrison of 10 armies at most, 10 lives back in 72 h', BR.maxGarrisonArmies === 10 && BR.wallMultiplier === 3 && rulesOk(b0?.rules), JSON.stringify(b0?.rules));
+  const rulesOk = (r) => r?.maxGarrisonArmies === 10 && r.wallMultiplier === 1.8 && r.wallReferenceLevel === 20 && r.wallMaxHp === 36000 && r.wallRepairHours === 12 && r.assaults === 10 && r.regenHours === 72;
+  assert('bastion rules (G1, G2): wall 1.8 × a wall 20 (36 000 HP) repaired in 12 h, garrison of 10 armies at most, 10 lives back in 72 h', BR.maxGarrisonArmies === 10 && BR.wallMultiplier === 1.8 && BR.wallRepairHours === 12 && rulesOk(b0?.rules), JSON.stringify(b0?.rules));
   const noAlliance = await call('bastion: the rules for a player without alliance', 'GET', '/api/bastion', D.token);
   assert('bastion rules: given without an alliance too', noAlliance?.inAlliance === false && rulesOk(noAlliance?.rules), JSON.stringify(noAlliance));
   await call('bastion: place with 1 member -> 400', 'POST', '/api/bastion/place', tA, { x: cityA.x + 6, y: cityA.y + 6 }, 400);
@@ -1961,7 +2069,7 @@ if (MAIL_LOG) {
   await waitTick('garrison stationed', () => sql(`SELECT status FROM "Army" WHERE id='${gar}'`) === 'STATIONED');
   const bA = await call('bastion: A sees the garrison', 'GET', '/api/bastion', tA);
   assert('bastion: the garrison is listed', (bA?.bastion?.garrison || []).some(g => g.id === gar && g.status === 'STATIONED'));
-  assert('bastion: its shield wall has 60 000 HP (3 × a wall 20)', bA?.bastion?.wallMaxHp === 60000 && bA.bastion.maxGarrisonArmies === 10, JSON.stringify({ hp: bA?.bastion?.wallMaxHp, max: bA?.bastion?.maxGarrisonArmies }));
+  assert('bastion: its shield wall has 36 000 HP (1.8 × a wall 20), full and with no repair pending (G2)', bA?.bastion?.wallMaxHp === 36000 && bA.bastion.wallHp === 36000 && bA.bastion.wallFullAt === null && bA.bastion.maxGarrisonArmies === 10, JSON.stringify({ hp: bA?.bastion?.wallHp, max: bA?.bastion?.wallMaxHp, fullAt: bA?.bastion?.wallFullAt, garrison: bA?.bastion?.maxGarrisonArmies }));
   {
     // garnison pleine : 10 armées (Praesidium y est déjà) ; une 11e est refusée, le plafond dit ; une place libre, elle part
     const fillers = [];
@@ -2004,8 +2112,25 @@ if (MAIL_LOG) {
   await waitTick('first assault', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`)) >= 2);
   const lives1 = sql(`SELECT loot->'lives'->>'after' FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`);
   assert('bastion: assault won, 9 lives left of 10, a report for each side', lives1 === '9' && Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'bastionId'='${bId}'`)) === 1, lives1);
-  assert('bastion: the assault met the 60 000 HP shield wall', sql(`SELECT loot->>'wallMaxHp' FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`) === '60000');
+  assert('bastion: the assault met the 36 000 HP shield wall', sql(`SELECT loot->>'wallMaxHp' FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`) === '36000');
   assert('bastion: the attacker goes home and the siege is lifted', sql(`SELECT status FROM "Army" WHERE id='${siege}'`) === 'RETURNING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'false');
+  { // G2 (décision du 2 novembre 2026, deuxième simulation de 200 jours) : le mur garde les dégâts de l'assaut (20 000 engins
+    // l'ont mis à 0) et se répare en ligne droite, plein 12 h après le dernier dégât ; le rapport, le panneau du Bastion et la
+    // carte le disent (wallHpStart / wallHpEnd / wallFullAt, wallHp / wallMaxHp / wallFullAt). Le temps est avancé en base
+    const rep = JSON.parse(sql(`SELECT loot::text FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`) || '{}');
+    const hoursTo = (iso) => (Date.parse(iso) - Date.now()) / 3600000;
+    const panelWall = async (label) => (await call(label, 'GET', '/api/bastion', tA))?.bastion;
+    const mapWall = async (label) => ((await call(label, 'GET', `/api/map/viewport?x=${spot?.x}&y=${spot?.y}&radius=8`, tB))?.bastions || []).find(b => b.id === bId);
+    assert('G2: the report gives the wall before and after the assault, and when it will be full again (12 h)', rep.wallHpStart === 36000 && rep.wallHpEnd === 0 && rep.wallMaxHp === 36000 && hoursTo(rep.wallFullAt) > BR.wallRepairHours - 0.1 && hoursTo(rep.wallFullAt) <= BR.wallRepairHours, JSON.stringify({ start: rep.wallHpStart, end: rep.wallHpEnd, fullAt: rep.wallFullAt }));
+    const w0 = await panelWall('G2: the Bastion panel right after the assault');
+    assert('G2: right after the assault the wall is down and the panel says when it will be full', w0?.wallHp < 300 && w0.wallMaxHp === 36000 && hoursTo(w0.wallFullAt) > BR.wallRepairHours - 0.1, JSON.stringify({ hp: w0?.wallHp, fullAt: w0?.wallFullAt }));
+    sql(`UPDATE "Bastion" SET "wallAt"=now()-interval '6 hours' WHERE id='${bId}'`);
+    const w1 = await panelWall('G2: the panel 6 h after the damage'), m1 = await mapWall('G2: the map 6 h after the damage');
+    assert('G2: 6 h later the wall is half repaired (18 000 / 36 000), on the panel and on the map', Math.abs(w1?.wallHp - 18000) <= 200 && Math.abs(m1?.wallHp - 18000) <= 200 && m1.wallMaxHp === 36000 && hoursTo(w1.wallFullAt) > 5.9 && hoursTo(w1.wallFullAt) <= 6.01, JSON.stringify({ panel: w1?.wallHp, map: m1?.wallHp, fullAt: w1?.wallFullAt }));
+    sql(`UPDATE "Bastion" SET "wallAt"=now()-interval '12 hours' WHERE id='${bId}'`);
+    const w2 = await panelWall('G2: the panel 12 h after the damage'), m2 = await mapWall('G2: the map 12 h after the damage');
+    assert('G2: 12 h after the last damage the wall is full again (panel and map), no repair pending', w2?.wallHp === 36000 && w2.wallFullAt === null && m2?.wallHp === 36000 && m2.wallFullAt === null, JSON.stringify({ panel: w2?.wallHp, map: m2?.wallHp }));
+  }
   { // E3 (décision du 1er novembre 2026, simulation de 200 jours) : une vie ne revient qu'après 24 h sans assaut gagné, puis
     // une toutes les 7,2 h (72 h pour 10 vies) ; le panneau du Bastion et la carte disent la fin de la pause et la prochaine vie
     const pauseH = BR.regenPauseHours, lifeH = BR.regenHours / BR.assaults;
@@ -2065,6 +2190,9 @@ if (MAIL_LOG) {
     await waitTick('both camps fought', () => camps.every(id => sql(`SELECT status FROM "Army" WHERE id='${id}'`) !== 'BESIEGING'));
     const lives = sql(`SELECT string_agg(l, ',' ORDER BY t) FROM (SELECT loot->'lives'->>'after' AS l, "createdAt" AS t FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 2) r`);
     assert('bastion: two camps of the same alliance outside a rally fight two assaults (two reports, two lives)', reportsOfB() === before + 2 && lives === '8,7', `${reportsOfB() - before} reports, lives ${lives}`);
+    // G2 : le mur n'est plus remis à neuf entre deux assauts : le second a trouvé le mur tel que le premier l'a laissé
+    const walls = sql(`SELECT string_agg(s, ',' ORDER BY t) FROM (SELECT loot->>'wallHpStart' AS s, "createdAt" AS t FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 2) r`).split(',').map(Number);
+    assert('G2: the second assault met the wall as the first left it (no reset between assaults)', walls[0] === 36000 && walls[1] < 1000, `wall at the start of each assault: ${walls.join(' then ')}`);
     // E3 : chaque assaut gagné relance la pause de 24 h
     const restarted = (await call('E3: the panel after two more won assaults', 'GET', '/api/bastion', tA))?.bastion;
     const left = (Date.parse(restarted?.regenPausedUntil) - Date.now()) / 3600000;
@@ -2088,15 +2216,21 @@ if (MAIL_LOG) {
   sql(`UPDATE "Rally" SET "arrivalAt"=now()-interval '1 second' WHERE id='${r1?.rally?.id}'`);
   await waitTick('bastion rally camps', () => sql(`SELECT status FROM "Army" WHERE id='${agmen}'`) === 'BESIEGING');
   assert('bastion rally: the group camps 1 h before the Bastion, which is besieged', sql(`SELECT "missionType"||':'||round(extract(epoch FROM "arrivalAt"-now())/60)::int||':'||("rallyId" IS NULL) FROM "Army" WHERE id='${agmen}'`) === 'BASTION_ATTACK:60:false' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'true', sql(`SELECT "missionType"||':'||"arrivalAt" FROM "Army" WHERE id='${agmen}'`));
-  // l'assaut du rassemblement : mené par l'armée du lanceur (son héros), le lien au rassemblement est ensuite effacé
+  // l'assaut du rassemblement : mené par l'armée du lanceur (son héros), le lien au rassemblement est ensuite effacé.
+  // Le mur a été réparé depuis les deux assauts (12 h, G2) : le rassemblement de 5 engins le trouve plein
+  sql(`UPDATE "Bastion" SET "wallAt"=now()-interval '12 hours' WHERE id='${bId}'`);
   const reports0 = Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`));
   const structureAt0 = sql(`SELECT "structureAt"::text FROM "Bastion" WHERE id='${bId}'`);
   sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${agmen}'`);
   await waitTick('bastion rally assault', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`)) > reports0);
   assert('bastion rally: one assault, then the army leaves the rally', sql(`SELECT ("rallyId" IS NULL)::text||':'||status FROM "Army" WHERE id='${agmen}'`).startsWith('true:') && sql(`SELECT status FROM "Army" WHERE id='${agmen}'`) !== 'BESIEGING', sql(`SELECT ("rallyId" IS NULL)::text||':'||status FROM "Army" WHERE id='${agmen}'`));
-  { // E3 : un assaut repoussé (5 engins contre le mur de 60 000 PV) ne relance pas la pause
+  { // E3 : un assaut repoussé (5 engins contre le mur de 36 000 PV) ne relance pas la pause
     const winner = sql(`SELECT winner FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`);
     assert('E3: a repelled assault leaves the lives and the pause as they were', winner === 'DEFENDER' && sql(`SELECT "structureAt"::text FROM "Bastion" WHERE id='${bId}'`) === structureAt0, `${winner}, ${structureAt0} -> ${sql(`SELECT "structureAt"::text FROM "Bastion" WHERE id='${bId}'`)}`);
+    // G2 : repoussé, l'assaut laisse quand même ses dégâts au mur (5 engins l'ont entamé) et la réparation de 12 h repart
+    const worn = JSON.parse(sql(`SELECT loot::text FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`) || '{}');
+    const pw = (await call('G2: the panel after the repelled assault', 'GET', '/api/bastion', tA))?.bastion;
+    assert('G2: a repelled assault leaves its damage on the wall too, repaired within 12 h', worn.wallHpStart === 36000 && worn.wallHpEnd < 36000 && worn.wallHpEnd > 0 && pw?.wallHp < 36000 && pw.wallHp >= worn.wallHpEnd && (Date.parse(pw.wallFullAt) - Date.now()) / 3600000 > BR.wallRepairHours - 0.2, JSON.stringify({ start: worn.wallHpStart, end: worn.wallHpEnd, panel: pw?.wallHp, fullAt: pw?.wallFullAt }));
   }
   sql(`DELETE FROM "Army" WHERE id IN ('${noEngine}','${agmen}')`);
   { // le camp d'un rassemblement devant un Bastion se brise comme un autre (D9, mise à jour finale du propriétaire) : une
@@ -2319,8 +2453,17 @@ if (MAIL_LOG) {
   sql(`UPDATE "WonderPlan" SET "holderId"='${A.player.id}' WHERE "holderId"='${B.player.id}'`);
   await call('wonder: level 51 with the plan', 'POST', `/api/wonder/${wonderId}/build`, tA);
   sql(`UPDATE "City" SET "wonderBuildEndsAt"=NULL WHERE id='${wonderId}'`);
-  // une vague d'Immortels contre une Ville Merveille sans défense lui ôte un niveau
+  // une vague d'Immortels contre une Ville Merveille sans défense lui ôte un niveau. G6 (décision du 2 novembre 2026,
+  // deuxième simulation de 200 jours) : une vague toutes les 24 h (12 h avant), même force : 13 h après la dernière, rien ;
+  // 25 h après, la vague arrive ; la fiche de la Merveille annonce la prochaine 24 h après la dernière
+  const WH = CONF().world.immortalWaveHours;
   sql(`UPDATE "City" SET "lastImmortalWave"=now()-interval '13 hours' WHERE id='${wonderId}'`);
+  const wv13 = await call('G6: the Wonder sheet 13 h after the last wave', 'GET', `/api/wonder/${wonderId}`, tA);
+  const nextIn = (Date.parse(wv13?.nextWaveAt) - Date.now()) / 3600000;
+  assert('G6: waves every 24 h: the next one is announced 24 h after the last (11 h from now)', WH === 24 && nextIn > 10.9 && nextIn <= 11.01 && (wv13?.waveHours === undefined || wv13.waveHours === 24), JSON.stringify({ hours: WH, nextWaveAt: wv13?.nextWaveAt, waveHours: wv13?.waveHours }));
+  await sleep(32000);   // un tick passe
+  assert('G6: 13 h after the last wave, no new wave (one came every 12 h before)', sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='IMMORTALS'`) === '0' && sql(`SELECT "wonderLevel" FROM "City" WHERE id='${wonderId}'`) === '50');
+  sql(`UPDATE "City" SET "lastImmortalWave"=now()-interval '25 hours' WHERE id='${wonderId}'`);
   await waitTick('Immortal wave', () => sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='IMMORTALS'`) !== '0');
   assert('wonder: the undefended Wonder City loses a level to the Immortals', sql(`SELECT "wonderLevel" FROM "City" WHERE id='${wonderId}'`) === '49');
   { // D11 : vague d'Immortels = 14 000 × niveau^1,35 (20 000 avant, 14 500 proposé) : 2,75 M au niveau 50
@@ -2617,6 +2760,11 @@ if (MAIL_LOG) {
   assert('rally: one report per player for a group fight', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${P2?.player?.id}' AND rounds->>'type'='HORDE' AND rounds->>'rally'='true'`)) >= 2);
   const goldBefore = Number(sql(`SELECT gold FROM "Player" WHERE id='${P1?.player?.id}'`)), apBefore2 = Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${P2?.player?.id}'`));
   const goldBefore2 = Number(sql(`SELECT gold FROM "Player" WHERE id='${P2?.player?.id}'`));
+  // G12 (décision du 2 novembre 2026, deuxième simulation de 200 jours) : la part du trésor qui ne tient dans aucune ville du
+  // joueur devient des points d'alliance (1 par 1 000 ressources perdues, au plus 2 fois les points de la part) : les villes
+  // de P1 sont pleines, celle de P2 a de la place
+  const apBefore1 = Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${P1?.player?.id}'`));
+  sql(`UPDATE "City" SET wood="maxStorage", stone="maxStorage", iron="maxStorage", food="maxFoodStorage" WHERE "playerId"='${P1?.player?.id}'`);
   homeAgain(big, cityP1);
   const rChief = await call('rally: launch against the chief', 'POST', '/api/rallies', P1?.token, { armyId: big, nodeId: hNode, waitMinutes: 60 });
   await call('rally: depart against the chief', 'POST', `/api/rallies/${rChief?.rally?.id}/launch`, P1?.token);
@@ -2634,6 +2782,18 @@ if (MAIL_LOG) {
   assert('invasion: the alliance leads the ranking, one dungeon down', st2?.invasion?.alliances?.[0]?.tag === tag && st2.invasion.alliances[0].mine === true && st2.invasion.destroyed >= 1);
   const dead = await call('invasion: a destroyed dungeon keeps its results', 'GET', `/api/invasion/horde/${hNode}`, P1?.token);
   assert('invasion: destroyed, all floors done, shares add up', dead?.destroyed === true && dead.floors.every(f => f.done) && Math.abs(dead.contributors.reduce((t, c) => t + c.share, 0) - 1) < 0.01);
+  { // G12 : P1 (villes pleines) reçoit les points de sa part plus 1 point par 1 000 ressources qui n'ont tenu nulle part (au
+    // plus 2 fois les points de la part), et le message le dit ; P2 (de la place) reçoit juste les points de sa part
+    const O = INV.treasureOverflow, apTotal = Number(view0?.treasure?.alliancePoints || INV.treasure.alliancePoints);
+    const apShare = (p) => Math.floor(apTotal * ((dead?.contributors || []).find(c => c.name === p?.player?.name)?.share || 0));
+    const note1 = sql(`SELECT body FROM "Notification" WHERE "playerId"='${P1?.player?.id}' AND title LIKE '%Donjon barbare détruit%' ORDER BY "createdAt" DESC LIMIT 1`);
+    const overflow = Number((note1.match(/changés en (\d+) points d'alliance/) || [])[1] || 0);
+    const lostTotal = [...note1.matchAll(/([\d   ]+) de (bois|pierre|fer|céréales|nourriture)\b/g)].reduce((t, m) => t + Number(m[1].replace(/[^\d]/g, '')), 0);
+    const gain1 = Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${P1?.player?.id}'`)) - apBefore1;
+    const gain2 = Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${P2?.player?.id}'`)) - apBefore2;
+    assert('G12: full cities: the treasure resources that fit nowhere become alliance points (1 per 1 000, at most twice the share\'s points) and the message says so', O.resourcesPerAlliancePoint === 1000 && O.maxShareMult === 2 && /plus de place dans vos villes/.test(note1) && overflow >= 1 && overflow <= 2 * apShare(P1) && gain1 === apShare(P1) + overflow && Math.abs(overflow - Math.min(Math.floor(lostTotal / 1000), 2 * apShare(P1))) <= 1, JSON.stringify({ gain1, apShare: apShare(P1), overflow, lostTotal, note: note1.slice(-220) }));
+    assert('G12: P1\'s stores stayed full (nothing silently lost), P2 got the plain points of its share', sql(`SELECT count(*) FROM "City" WHERE "playerId"='${P1?.player?.id}' AND wood < "maxStorage" - 1`) === '0' && gain2 === apShare(P2), JSON.stringify({ gain2, apShare2: apShare(P2) }));
+  }
   // fin par l'équipe : les donjons restants repartent
   await call('invasion: the team ends it', 'POST', '/api/admin/invasion/end', Boss?.token);
   assert('invasion: no dungeon left on the map', sql(`SELECT count(*) FROM "ResourceNode" WHERE "resourceType"='HORDE'`) === '0');

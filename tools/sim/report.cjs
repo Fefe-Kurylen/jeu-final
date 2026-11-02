@@ -564,8 +564,6 @@ function decisionsG(L, { metrics, events, CALLS, last, bots = [] }) {
   L.push(`- PV du mur avant l'assaut (médiane) ${nn(median(withWall.map(e => e.wallHpStart)))}, après ${nn(median(withWall.map(e => Number(e.wallHpEnd) || 0)))} ; dégâts d'un assaut (médiane) ${nn(median(nums(ba.map(e => e.wallDamage))))} ; assauts qui ont fait tomber le mur ${withWall.filter(e => Number(e.wallHpEnd) <= 0).length}.`);
   // réparation lue d'un assaut au suivant sur le même Bastion : le mur trouvé au début contre celui que la règle prévoit
   const pairs = [];
-  const byB = {};
-  for (const e of ba.filter(x => x.assaultAt && (x.bastionId || x.bastion))) (byB[x => x][0] ||= []);
   const groups = {};
   for (const e of ba.filter(x => x.assaultAt)) (groups[e.bastionId || e.bastion] ||= []).push(e);
   for (const list of Object.values(groups)) {

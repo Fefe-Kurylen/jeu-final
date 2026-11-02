@@ -19,7 +19,7 @@ test('simulate-colonies: one engine for every tier, wall breach and Bastion figu
   const out = run('simulate-colonies.cjs');
   assert.match(out, /\| Ville Fortifiée \| niveau 20\+ \| [^|]+\| [^|]+\| 1 \|/);
   assert.match(out, /\| niveau 20 \| 20\s000 \| [^|]+\| 110 \/ 165 \/ 330 \|/);   // séparateur des milliers : espace fine
-  assert.match(out, /Bastion \(3 × mur 20\) \| 60\s000 \|/);   // mur bouclier : 3 fois un mur 20 (décision du 31 octobre 2026)
+  assert.match(out, /Bastion \(1\.8 × mur 20\) \| 36\s000 \|/);   // mur bouclier : 1,8 fois un mur 20, 36 000 PV (décision du 2 novembre 2026 (deuxième simulation de 200 jours), G2 ; 3 fois avant)
   assert.match(out, /3\s000 soldats \+ 150 engins \| brèche round \d+, l'attaquant gagne/);
   // rôle des colonies (décisions des 30 et 31 octobre 2026) : spécialité du gisement lue dans les données, Mur sur l'enceinte,
   // anneau à la taille des bâtiments possibles (capitale 18, colonie 12), plafonds Bâtiment principal 20 et Mur de colonie 15
@@ -89,10 +89,10 @@ function writeReport(tweak = (x) => x) {
     ev(1, 'registered', { bot: 'A', group: 'A', asked: 'N', side: 'N' }),
     ev(50, 'bastion_rally', { alliance: 'AQL', leader: 'A', armies: 2, readyMembers: 2, engines: 700, soldiers: 500, wait: 180, chain: 1, gapH: 6.5, wallDamageEstimate: 60000, wallHp: 60000 }),
     ev(50, 'bastion_assault', { by: 'A, B', bastion: 'Bastion [LUP]', won: true, armies: 2, lives: '8/10', garrisonAfter: 9 }),
-    ev(50, 'bastion_chain', { alliance: 'AQL', bastion: 'Bastion [LUP]', lives: '8/10' }),
+    ev(50, 'bastion_chain', { alliance: 'AQL', bastion: 'Bastion [LUP]', lives: '8/10', mode: 'vie' }),
     ev(51, 'bastion_assault', { by: 'A, B', bastion: 'Bastion [LUP]', won: true, armies: 2, lives: '7/10', garrisonAfter: 8 }),
     ev(52, 'bastion_break_sent', { bastion: 'LUP', mode: 'break', camps: 3, campPower: 600, group: 4, armies: 4, sorties: 1, sortie: false, power: 900, spreadS: 3, waitS: 420, missed: 0 }),
-    ev(53, 'bastion_chain_end', { alliance: 'AQL', why: 'pause passée', rallies: 3, wins: 2, losses: 0, lowestLives: 7 }),
+    ev(53, 'bastion_chain_end', { alliance: 'AQL', why: 'pause passée', mode: 'vie', rallies: 3, wins: 2, losses: 0, lowestLives: 7 }),
     ev(60, 'horde_destroyed', { level: 1, floor: 3, armies: 2 }),
     ev(61, 'wonder_site_beaten', { alliance: 'AQL', armies: 11 }),
     ev(61, 'wonder_found_sent', { bot: 'A', reserved: true, freedBy: 'AQL', hoursAfterBattle: 0.5 }),
@@ -168,6 +168,112 @@ test('sim report: D8 and D17 say what they measure, and the open questions get t
   // E5 : les chefs des niveaux 1 à 5, même sans combat
   for (const l of [1, 2, 3, 4, 5]) assert.match(out, new RegExp(`^\\| ${l} \\| \\d+ \\| \\d+ \\| \\d+ \\| \\d+ \\| [^|]+ \\| \\d+ \\|$`, 'm'), `chefs du niveau ${l}`);
   assert.match(out, /^\| 4 \| 1 \| 0 \| 0 \| 0 \| — \| 0 \|$/m);
+});
+
+// Décisions du 2 novembre 2026 (deuxième simulation de 200 jours) : une section G2 à G12 avec les nombres qui la jugent
+// (mur du Bastion et sa réparation, combats au moteur, butin des raids, vagues à 24 h, plans, donjons, échanges, défenseurs
+// contre la réserve, camps d'or, trésor sans place)
+test('sim report: one section per decision G2-G12, with the numbers that judge them', () => {
+  const out = writeReport((x) => {
+    const { ev, day } = x;
+    const h = (d, hours) => new Date(Date.parse(day(d)) + hours * 3600000).toISOString();
+    x.events.push(
+      // G2 : un assaut repoussé laisse le mur à 15 000 PV (plein 12 h plus tard) ; le suivant, 6 h après, le trouve réparé à
+      // moitié (25 500) et le fait tomber
+      { ...ev(70, 'bastion_assault', { bastionId: 'eb', bastion: 'Bastion [LUP]', by: 'A, B', won: false, armies: 13, attackers: 40000, attackerLossRate: 1, wallHpStart: 36000, wallHpEnd: 15000, wallMaxHp: 36000, wallFullAt: h(70, 12), wallDamage: 21000, lives: '10/10', chain: 0, chainMode: null, assaultAt: h(70, 0) }), at: h(70, 0) },
+      { ...ev(70, 'bastion_chain', { alliance: 'AQL', bastion: 'Bastion [LUP]', lives: '10/10', mode: 'mur', wallHp: 15000, wallMaxHp: 36000 }), at: h(70, 0) },
+      { ...ev(70, 'bastion_rally', { alliance: 'AQL', leader: 'A', armies: 12, readyMembers: 12, engines: 700, soldiers: 30000, wait: 30, chain: 1, mode: 'mur', gapH: 6, wallDamageEstimate: 30000, wallHp: 36000, wallNow: 25500 }), at: h(70, 2) },
+      { ...ev(70, 'bastion_assault', { bastionId: 'eb', bastion: 'Bastion [LUP]', by: 'A, B', won: true, armies: 12, attackers: 30000, attackerLossRate: 0.4, wallHpStart: 25500, wallHpEnd: 0, wallMaxHp: 36000, wallFullAt: h(70, 18), wallDamage: 25500, lives: '9/10', chain: 1, chainMode: 'mur', assaultAt: h(70, 6) }), at: h(70, 6) },
+      { ...ev(70, 'bastion_chain_end', { alliance: 'AQL', why: 'assauts repoussés', mode: 'mur', rallies: 1, wins: 1, losses: 1, lowestLives: 9, lowestWall: 0 }), at: h(70, 7) },
+      // G6 : deux vagues à 24 h d'écart sur la même Ville Merveille
+      { ...ev(71, 'wonder_wave', { cityId: 'w1', city: 'Merveille de A', alliance: 'AQL', level: 12, held: true, defenders: 600, posted: 5000, wave: 4000, ratio: 1.25, postedShare: 0.3, waveAt: h(71, 0) }), at: h(71, 0) },
+      { ...ev(72, 'wonder_wave', { cityId: 'w1', city: 'Merveille de A', alliance: 'AQL', level: 13, held: true, defenders: 600, posted: 5000, wave: 4200, ratio: 1.19, postedShare: 0.3, waveAt: h(72, 0) }), at: h(72, 0) },
+      // G7 : deux rassemblements de plan, un repoussé, un plan pris
+      ev(73, 'wonder_rally', { alliance: 'AQL', target: 'PLAN', leader: 'A', armies: 14, power: 8000000, immortals: 5750000 }),
+      ev(73, 'wonder_rally_repelled', { alliance: 'AQL', target: 'PLAN', margin: 1.1 }),
+      ev(74, 'wonder_rally', { alliance: 'AQL', target: 'PLAN', leader: 'A', armies: 16, power: 9200000, immortals: 5750000 }),
+      ev(74, 'wonder_plan_taken', { alliance: 'AQL', armies: 16 })
+    );
+    const last = x.metrics[x.metrics.length - 1];
+    last.week.combat = [{ t: 'RAID', won: true, n: 10, al: 0.1, dl: 0.3, rounds: 2 }, { t: 'RAID', won: false, n: 2, al: 0.3, dl: 0.12, rounds: 2 }, { t: 'TRIBE', won: true, n: 40, al: 0.05, dl: 1, rounds: 4 }];
+    last.week.goldCamps = [{ result: 'WIN', n: 12 }, { result: 'LOSE', n: 2 }];
+    last.defense = { capital: { n: 38, defended: 30, reserve: 20000, defending: 40000, medianDefending: 900 }, colony: { n: 76, defended: 70, reserve: 0, defending: 15000, medianDefending: 200 }, defenseArmies: 30, defenseSoldiers: 9000, reserveShare: 0.2 };
+    last.ledger.treasure = { shares: 10, given: 80000, lost: 20000, lostShares: 4, overflowAp: 20, overflowShares: 4, capped: 1, unconverted: 500, shareAp: 300, from: null };
+    last.endgame.bastions[0] = { ...last.endgame.bastions[0], wallHp: 20000, wallMaxHp: 36000, wallFullAt: h(63, 5) };
+    const mil = x.events.find(e => e.kind === 'military_summary');
+    mil.counters = { ...mil.counters, guardSwaps: 5, guardSwapSoldiers: 300, guardTopUps: 6, guardSwapRefused: 1, guardSwapGaveUp: 0, guardCourierDisbanded: 5, defenseCreated: 30, defenseFills: 40, defenseSoldiers: 9000, defenseNoSlot: 2, defenseWaitSoldiers: 1, goldCampRaids: 12, goldCampExpected: 600, goldCampGold: 500 };
+    const war = x.events.find(e => e.kind === 'war_summary');
+    war.counters = { ...war.counters, raidsWonCounted: 10, raidLoot: 50000, raidCarry: 60000, raidCarryCapped: 7, raidStockCapped: 3, raidStockBefore: 400000, raidSheltered: 120000, raids: 12, raidLootEst: 55000, RAID_won: 10, RAID_lost: 2, raidNoDefender: 6, chainWornWall: 2 };
+    x.state.calls.byRoute['POST /api/army/:id/exchange'] = { 200: 5, 400: 1 };
+    x.state.calls.refusals['POST /api/army/:id/exchange -> 400 Les deux armées doivent se trouver au même endroit'] = 1;
+    return x;
+  });
+  for (let i = 2; i <= 12; i++) assert.match(out, new RegExp(`^### G${i}\\. `, 'm'), `section G${i}`);
+  assert.doesNotMatch(out, /undefined|NaN|\[object Object\]/);
+  // G2 : mur avant et après chaque assaut, réparation lue d'un assaut au suivant, chaînes d'usure, murs à la fin
+  assert.match(out, /Assauts : 4 \(gagnés 3\) ; mur plein au début 1 \(gagnés 0, 0 %\), mur usé au début 1 \(gagnés 1, 100 %\)\. Mur au plus : 36\s000 PV\./);
+  assert.match(out, /Réparation : 1 assauts suivis d'un autre sur le même Bastion ; 1 tombés avant la fin de la réparation du précédent \(écart médian 6,0 h, mur trouvé \(médiane\) 25\s500 PV\) ; écart entre le mur trouvé et la réparation en ligne droite \(médiane des écarts absolus\) 0 PV\./);
+  assert.match(out, /Chaînes d'assauts : 2 commencées \(vie 1, mur 1 ; /);
+  assert.match(out, /2 finies \(pause passée 1, assauts repoussés 1\) ; rassemblements contre un mur usé 2, dont chaînes d'usure 1 ; mur le plus bas d'une chaîne \(médiane\) 0 PV/);
+  assert.match(out, /Murs à la fin : LUP ACTIVE 20\s000 \/ 36\s000 PV, plein le 2027-03-08 /);
+  assert.match(out, /^\| 70 \| Bastion \[LUP\] \| 12 \| oui \| 6,0 \| 15\s000 \| 25\s500 \| 25\s500 \| 0 \| 9\/10 \|$/m);
+  // G3 : combats par type au moteur de bataille
+  assert.match(out, /^\| RAID \| gagné \| 10 \| 10 % \| 30 % \| 2,0 \|$/m);
+  assert.match(out, /^\| TRIBE \| gagné \| 40 \| 5 % \| 100 % \| 4,0 \|$/m);
+  // G4 : butin contre charge des survivants et stock des villes
+  assert.match(out, /Raids gagnés lus : 10 ; butin 50\s000 \(par raid, moyenne 5\s000\) ; charge des survivants \(sans bonus de transport\) 60\s000, butin \/ charge 83 %/);
+  assert.match(out, /la charge 7 raids, la ville \(moitié de ce qui dépasse la cachette\) 3 raids\. Stock des villes pillées avant le raid 400\s000, butin \/ stock 13 %, à l'abri dans la cachette 30 %/);
+  // G5 : pertes d'un assaut repoussé
+  assert.match(out, /Assauts repoussés : 1, part des assaillants tombés \(médiane\) 100 %, soldats engagés \(médiane\) 40\s000 ; assauts gagnés : 3, pertes \(médiane\) 40 %/);
+  // G6 : écart entre deux vagues
+  assert.match(out, /Vagues : 4, tenues 3, perdues 1\./);
+  assert.match(out, /^\| AQL \| 2 \| 2 \| 0 \| 24,0 \| 1,00 \| 30 % \| 1,25 \|$/m);
+  // G7 : plans tentés et pris
+  assert.match(out, /Plans tentés \(rassemblements\) : 2 \(AQL 2\), repoussés 1, pris 1 : 50 % des rassemblements ; puissance du rassemblement \/ Immortels \(médiane\) 1,60, armées \(médiane\) 16\. Sites : rassemblements 0, libérés 1\./);
+  // G8 : chefs par niveau, joueurs d'un rassemblement
+  assert.match(out, /^\| 1 \| 1 \| 1 \| 0 \| 2 \| — \|$/m);
+  // G9 : échanges vers les gardes des colonies
+  assert.match(out, /Gardes des colonies regarnies par échange : 5 échanges, 300 soldats donnés \(demandés 6, refusés 1, abandonnés après trois refus 0\) ; armées vidées par l'échange puis dissoutes à la capitale 5\./);
+  assert.match(out, /Appels POST \/api\/army\/:id\/exchange : 6, refus du serveur 1\. Relèves d'avant \(nouvelle garde, l'ancienne rentre\) : 0 ; renvois à la capitale 3, sans place 1\./);
+  // G10 : défenseurs contre la réserve, armées « Défense »
+  assert.match(out, /capitales défendues par une armée 30 sur 38, colonies 70 sur 76 ; soldats qui défendent \(capitales\) 40\s000, en réserve 20\s000 ; part des soldats d'un joueur en réserve \(médiane\) 20 % ; armées « Défense » 30 \(9\s000 soldats\)/);
+  assert.match(out, /Raids qui n'ont trouvé aucune armée dans la ville : 6 gagnés, 0 perdus/);
+  assert.match(out, /Armées « Défense » \(joueurs automatiques\) : 30 formées, 40 fois regarnies \(9\s000 soldats pris dans la réserve\), 2 fois sans place à la capitale, 1 fois sans soldats/);
+  // G11 : camps d'or, or par joueur et par jour
+  assert.match(out, /Attaques de camps d'or \(rapports de bataille\) : 14 \(gagnées 12, perdues 2\) ; envois des joueurs automatiques 12, or vu dans le camp au départ 600, or vu rapporté 500/);
+  assert.match(out, /Or rapporté par les armées \(mesuré aux étapes du tick\) : 30, soit 0,48 or par joueur et par jour ; toutes sources : 3,8 or par joueur et par jour/);
+  // G12 : parts du trésor, points d'alliance pour ce qui n'a pas tenu
+  assert.match(out, /Parts du trésor : 10 \(points d'alliance de la part : 300\) ; ressources données 80\s000, sans place dans aucune ville 20\s000 \(25 %, 4 parts\)/);
+  assert.match(out, /Points d'alliance donnés pour ce qui n'a pas tenu : 20 \(4 parts ; plafonnés à 2 fois ceux de la part 1 fois\) ; ressources vraiment perdues \(moins de 1\s000, ou au-delà du plafond\) 500 \(1 % du trésor\)/);
+  // sans relevé ni événement d'après le 2 novembre 2026 : les sections disent ce qui manque, sans valeur absente
+  const old = writeReport();
+  assert.match(old, /Aucun combat relevé \(relevés d'avant le 2 novembre 2026\)/);
+  assert.match(old, /Pas de relevé des défenseurs \(relevés d'avant le 2 novembre 2026\)/);
+  assert.match(old, /Aucune part du trésor lue/);
+  assert.doesNotMatch(old, /undefined|NaN|\[object Object\]/);
+});
+
+// G2 : le mur qu'un assaut trouve, prévu depuis le précédent (ses PV laissés, réparés en ligne droite jusqu'au plein)
+test('sim report: the wall the next assault finds follows the straight-line repair of the previous one (G2)', () => {
+  const { repairedWall } = require('../../tools/sim/report.cjs');
+  const prev = { assaultAt: '2027-03-01T00:00:00Z', wallHpEnd: 15000, wallMaxHp: 36000, wallFullAt: '2027-03-01T12:00:00Z' };
+  assert.equal(repairedWall(prev, { assaultAt: '2027-03-01T06:00:00Z' }), 25500);
+  assert.equal(repairedWall(prev, { assaultAt: '2027-03-01T13:00:00Z' }), 36000, 'plein après 12 h');
+  assert.equal(repairedWall({ ...prev, wallFullAt: null }, { assaultAt: '2027-03-01T06:00:00Z' }), 36000, 'sans heure de fin : plein');
+  assert.equal(repairedWall({ assaultAt: '2027-03-01T00:00:00Z' }, { assaultAt: '2027-03-01T06:00:00Z' }), null, 'rapport d\'avant le 2 novembre 2026 : pas de mur');
+});
+
+// G12 : la part d'un joueur dans le trésor d'un donjon, lue dans le texte même que le serveur lui écrit (hordeService)
+test('sim ledger: a treasure share is read from the notification the server writes (G12)', () => {
+  const Ledger = require('../../tools/sim/ledger.cjs');
+  const H = require('../../src/services/hordeService');
+  const head = (n) => `Le donjon de niveau 3 en (10, 12) est tombé. Votre part du trésor (25 % des dégâts) : 120 or, 30 points d'alliance et ${n.toLocaleString('fr-FR')} de chaque ressource, rangées dans votre capitale puis dans vos autres villes`;
+  const lost = { wood: 5000, stone: 5000, iron: 4999, food: 0 };
+  assert.deepEqual(Ledger.parseTreasureNote(`${head(12500)}${H.treasureLostNote(lost, 14)}.`), { ap: 30, gain: 12500, lost: 14999, overflowAp: 14, capped: false });
+  assert.deepEqual(Ledger.parseTreasureNote(`${head(12500)}${H.treasureLostNote(lost, 10)}.`), { ap: 30, gain: 12500, lost: 14999, overflowAp: 10, capped: true });
+  assert.deepEqual(Ledger.parseTreasureNote(`${head(800)}${H.treasureLostNote({ wood: 400 }, 0)}.`), { ap: 30, gain: 800, lost: 400, overflowAp: 0, capped: false });
+  assert.deepEqual(Ledger.parseTreasureNote(`${head(800)}.`), { ap: 30, gain: 800, lost: 0, overflowAp: 0, capped: false }, 'tout a tenu');
+  assert.equal(Ledger.parseTreasureNote('Votre héros trouve un objet.'), null);
 });
 
 test('sim report: publication tax from the bot counters when they exist', () => {

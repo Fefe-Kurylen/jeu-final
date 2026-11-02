@@ -47,6 +47,17 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
     await page.waitForFunction(() => typeof currentCity !== 'undefined' && currentCity && document.getElementById('game-screen').style.display === 'flex', null, { timeout: 30000 });
     await page.waitForTimeout(1500);
     for (const tab of ['fields', 'city', 'map', 'army', 'reports', 'ranking', 'inventory', 'hero', 'alliance', 'market']) { await page.evaluate(t => showTab(t), tab); await page.waitForTimeout(600); const t = await page.evaluate(() => document.getElementById('game-screen').innerText); for (const w of ['undefined', 'NaN', '[object Object]']) if (t.includes(w)) out.push(`${label} ${tab}: contains "${w}"`); }
+    // G10 (décision du 2 novembre 2026, deuxième simulation de 200 jours) : l'onglet Armée dit que la réserve ne défend pas et
+    // que seules les armées défendent la ville ; G9 : l'écran « Échanger » s'ouvre (deux armées au même endroit : ici aucune,
+    // l'écran l'explique)
+    await page.evaluate(() => { showTab('army'); showArmyTab('overview'); }); await page.waitForTimeout(800);
+    const armyText = await page.evaluate(() => (document.getElementById('tab-army')?.innerText || '').replace(/\s+/g, ' '));
+    const okReserve = /en réserve \(ne défend pas\)|Aucun soldat en réserve/.test(armyText) && /Seules les armées défendent la ville/.test(armyText);
+    await page.evaluate(() => showArmyTab('exchange')); await page.waitForTimeout(600);
+    const exchangeText = await page.evaluate(() => (document.getElementById('armies-management')?.innerText || '').replace(/\s+/g, ' '));
+    const okExchange = /Échanger des soldats/.test(exchangeText) && /même endroit/.test(exchangeText);
+    out.push(`${label} army: reserve notice (G10)=${okReserve}, exchange screen (G9)=${okExchange}` + (okReserve && okExchange ? '' : ` contains "army-g9-g10-failure": ${JSON.stringify({ armyText: armyText.slice(0, 160), exchangeText: exchangeText.slice(0, 160) })}`));
+    await page.evaluate(() => showArmyTab('overview')); await page.waitForTimeout(300);
     // marché (décision du 31 octobre 2026) : plus de marchands ni de routes entre ses villes ; « Envoyer » et « Offres »
     // choisissent une armée de la ville (ici aucune : la liste le dit). Stock commun (décision du 1er novembre 2026) :
     // « Envoyer » dit ce qui peut partir, le total de toutes les villes du joueur
