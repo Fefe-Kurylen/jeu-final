@@ -140,6 +140,36 @@ test('E3 : le panneau du Bastion et la carte disent la fin de la pause (24 h san
   assert.match(content.innerHTML, new RegExp(`ses vies ne reviennent qu'après ${B.regenPauseHours} h sans assaut gagné`));
 });
 
+// ---- décisions du 2 novembre 2026 (deuxième simulation de 200 jours) ----
+test('G2 : le panneau du Bastion et la carte montrent les PV du mur sur 36 000 et quand il sera de nouveau plein', { skip }, async () => {
+  assert.equal(WALL_MAX, 36000);
+  const fullAt = new Date(Date.now() + 6 * 3600000).toISOString();
+  // onglet Alliance › Bastion : mur abîmé par un assaut, réparé en 12 h après le dernier dégât (bastionService.wallView)
+  let ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: { ...bastionView(1), wallHp: 18000, wallMaxHp: WALL_MAX, wallFullAt: fullAt } });
+  const box = { innerHTML: '' };
+  await ctx.renderBastionSection(box);
+  assert.match(box.innerHTML, new RegExp(`Mur : <strong>18000 / ${WALL_MAX} PV</strong>, de nouveau plein dans <span class="qd-timer" data-ends-at="${fullAt}">`));
+  assert.match(box.innerHTML, /<div class="bastion-bar"><i style="width:50%"><\/i><\/div>/);
+  assert.match(box.innerHTML, new RegExp(`redevient plein ${B.wallRepairHours} h après le dernier coup`));
+  // mur plein ; chantier (FUNDING) : pas de mur
+  ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: { ...bastionView(1), wallHp: WALL_MAX, wallMaxHp: WALL_MAX, wallFullAt: null } });
+  await ctx.renderBastionSection(box);
+  assert.match(box.innerHTML, new RegExp(`Mur : <strong>${WALL_MAX} / ${WALL_MAX} PV</strong> \\(plein\\)`));
+  ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: { ...bastionView(0), status: 'FUNDING', wallHp: null, wallMaxHp: WALL_MAX, convoys: 0 } });
+  await ctx.renderBastionSection(box);
+  assert.doesNotMatch(box.innerHTML, /Mur :/);
+  // carte : champs donnés par GET /api/map (bastionService.bastionsIn)
+  const map = makeContext({ inAlliance: false, rules: RULES }, { mapRelationOf: () => 'ENEMY', openRallyLaunch() {} });
+  const content = { innerHTML: '', querySelector: () => null };
+  await map.renderBastionMapPanel({ id: 'b1', name: 'Bastion [ENN]', x: 4, y: 5, status: 'ACTIVE', lives: 9, allianceTag: 'ENN', allianceName: 'Ennemis', wallHp: 9000, wallMaxHp: WALL_MAX, wallFullAt: fullAt }, content);
+  assert.match(content.innerHTML, new RegExp(`Mur : <strong>9000 / ${WALL_MAX} PV</strong>, de nouveau plein dans`));
+  assert.match(content.innerHTML, /enchaînez les assauts pour l'user/);
+  // la carte garde les champs du mur pour sa barre (map.js)
+  const mapSrc = fs.readFileSync(path.join(FRONT, '..', 'map.js'), 'utf8');
+  assert.match(mapSrc, /wallHp: b\.wallHp \?\? null, wallMaxHp: b\.wallMaxHp \?\? null, wallFullAt: b\.wallFullAt \|\| null/);
+  assert.match(mapSrc, /tile\.wallHp \/ tile\.wallMaxHp/);
+});
+
 test('E4 : briser le siège, l\'aide dit que les armées de la même minute se battent ensemble', { skip }, async () => {
   const ctx = makeContext({ inAlliance: true, rules: RULES });
   await ctx.loadBastion(true);

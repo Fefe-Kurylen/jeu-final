@@ -65,6 +65,22 @@
 //   ne commence que si toute l'alliance la battrait (sinon les membres gardent leurs missions et l'essai attend 3 jours) ;
 // - une chaîne continue tant que la pause de 24 h court (4 pas sans groupe assez fort au lieu de 2, compteur remis à zéro par
 //   une victoire), contre la garnison restée après l'assaut gagné (toutes ses troupes, plus seulement les 12 premières).
+// Décisions du 2 novembre 2026 (deuxième simulation de 200 jours) :
+// - G2, le mur du Bastion garde les dégâts de chaque assaut, gagné ou repoussé, et redevient plein
+//   config.bastion.wallRepairHours (12 h) après le dernier, en ligne droite ; les vies n'y entrent plus. Les estimations lisent
+//   le mur du serveur à l'heure prévue de l'assaut (bastionService.wallNow, ligne entière du Bastion que montre la carte) ;
+//   un assaut repoussé qui a fait tomber le mur sous WEAR_START de ses PV commence une chaîne d'usure : le suivant doit
+//   tomber avant que le mur ne soit réparé, avec un groupe qui bat la garnison restée derrière le mur prévu ; deux assauts
+//   repoussés de suite, ou le mur de nouveau plein sans pause de vies en cours, l'arrêtent. Une chaîne part avec l'attente
+//   la plus courte qui laisse arriver ses membres (le mur se répare pendant l'attente) ;
+// - G10, seules les armées défendent une ville : la réserve que montre un rapport d'espion (« Réserve (ne défend pas) »,
+//   reserve: true) n'est plus comptée dans la défense d'une ville ; l'armée « Défense » de chaque capitale (30-military.cjs)
+//   ne part jamais (ni vague, ni rassemblement, ni sortie, ni escorte) ;
+// - G4, un raid emporte jusqu'à 100 % de ce que portent les pillards survivants (config.combat.raidLootPctOfCarry), dans la
+//   moitié de ce qui dépasse la cachette : le butin estimé et le butin vrai se comparent à ce que portaient les survivants
+//   et au stock de la ville (bookkeeping, rapport G4) ;
+// - G3, tous les combats au moteur de bataille : les estimations utilisent déjà combatService (resolveCombat est désormais
+//   le moteur, avec la règle du raid : arrêt quand un camp a perdu 30 % de ses soldats).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -92,7 +108,7 @@ const MAX_QUEUE = config.build.maxRunning + config.build.maxQueued;
 const OST = Armies.NAMES.ost;
 // armées d'autres rôles : le convoi du Bastion, les gardes des colonies et de la Ville Merveille, la caravane du marché,
 // l'armée de chasse des invasions
-const RESERVED_NAMES = new Set([Armies.NAMES.convoy, Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.caravan, Armies.NAMES.hunt]);
+const RESERVED_NAMES = new Set([Armies.NAMES.convoy, Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.caravan, Armies.NAMES.hunt, Armies.NAMES.defense]);
 const CALLS = 6;                 // appels par tour de joueur
 // appels par pas pour le conseil et les rassemblements (tous joueurs confondus) : un rassemblement de Bastion compte environ
 // un appel par troupe fondue ou chargée et un pour rejoindre, par membre (220 avant la fusion des armées des membres)
@@ -135,9 +151,24 @@ const SYNC_WAIT_S = 15 * 60;
 // gagné (24 h) ; sans pause (ancienne règle), avant qu'une vie ne remonte (regenHours / assauts)
 const CHAIN_WINDOW_MS = ((Number(config.bastion.regenPauseHours) || 0) > 0 ? config.bastion.regenPauseHours : config.bastion.regenHours / config.bastion.assaults) * 3600000;
 const RALLY_KEEP = 0.3;          // part des soldats de la garnison qui reste en ville quand un membre part en rassemblement
+// Mur du Bastion qui garde ses dégâts (G2, décision du 2 novembre 2026 (deuxième simulation de 200 jours)) : il redevient plein
+// wallRepairHours après le dernier dégât ; un assaut repoussé qui l'a laissé sous 60 % de ses PV commence une chaîne d'usure ;
+// 2 pas (12 h) sans groupe assez fort, ou 2 assauts repoussés de suite, l'arrêtent
+const WALL_WINDOW_MS = (Number(config.bastion.wallRepairHours) || 0) * 3600000;
+const WEAR_START = 0.6;
+const WEAR_SKIPS = 2;
+const CHAIN_LOSS_RUN = 2;
 let STEP_H = 6;                  // heures par pas (ctx.OPT.stepHours)
 
 // ---------- petites aides ----------
+// Mur d'un Bastion à l'heure t (G2) : la règle du serveur (bastionService.wallNow : les dégâts gardés, réparés en ligne
+// droite jusqu'au plein wallRepairHours après le dernier) ; plein quand le serveur ne la connaît pas
+const wallMaxOf = () => { try { return bastionSvc().wallMaxHp(); } catch (e) { return config.combat.wallHpPerLevel * config.bastion.wallReferenceLevel * config.bastion.wallMultiplier; } };
+function wallOf(b, t) {
+  const S = bastionSvc();
+  if (!b || typeof S.wallNow !== 'function') return wallMaxOf();
+  try { return S.wallNow(b, Number.isFinite(t) ? t : Date.now()); } catch (e) { return wallMaxOf(); }
+}
 const hash = (s) => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
 const queuedLvl = (city, key) => (city?.buildQueue || []).reduce((m, q) => (q.buildingKey === key && (q.targetLevel || 0) > m ? q.targetLevel : m), 0);
@@ -259,8 +290,9 @@ async function snapshot(ctx, fresh = false) {
     P.army.findMany({ where: { status: 'BESIEGING' }, select: { id: true, ownerId: true, targetCityId: true, targetBastionId: true, arrivalAt: true, claimedAt: true, units: { select: { unitKey: true, count: true } } } }),
     // les attaques en marche (vues par l'alliance visée sur la carte)
     P.army.findMany({ where: { status: { in: ['ATTACKING', 'RALLY_MARCH'] }, arrivalAt: { gt: new Date(now) } }, select: { id: true, ownerId: true, status: true, missionType: true, targetCityId: true, targetBastionId: true, arrivalAt: true } }),
-    // les Bastions et leurs vies (la carte les montre à tous : bastionService.bastionsIn)
-    P.bastion.findMany({ select: { id: true, allianceId: true, x: true, y: true, status: true, isSieged: true, structure: true, structureAt: true } })
+    // les Bastions, leurs vies et leur mur (la carte les montre à tous : bastionService.bastionsIn) : la ligne entière, lue par
+    // les règles du serveur (structureNow, wallNow), quels que soient les champs qu'elles lisent
+    P.bastion.findMany()
   ]);
   v.allianceOf = new Map(members.map(x => [x.playerId, x.allianceId]));
   v.tagOf = new Map(members.map(x => [x.allianceId, x.alliance?.tag || '?']));
@@ -321,7 +353,8 @@ async function readSpyReports(bot, ctx, v, m) {
     const t = Date.parse(rep.createdAt);
     if (!(t > (m.ra || 0)) || rep.targetType !== 'CITY' || !rep.targetCityId || rep.playerId !== bot.playerId) continue;
     const e = intelSet(side, rep.targetCityId);
-    e.troops = (rep.armies || []).flatMap(a => a.units || []).map(u => ({ unitKey: u.key, count: u.count }));
+    // la réserve ne défend plus la ville (G10) : le rapport la montre à part (reserve: true), elle n'est pas comptée
+    e.troops = (rep.armies || []).filter(a => !a.reserve).flatMap(a => a.units || []).map(u => ({ unitKey: u.key, count: u.count }));
     e.troopsAt = t;
     if (rep.data?.mission === 'DEFENSES' && rep.data.defenses) {
       const d = rep.data.defenses;
@@ -504,7 +537,9 @@ async function spyTurn(bot, ctx, v, m, B, cap) {
 
 // ---------- raids sur les villes ennemies ----------
 // le rapport d'espion « Ressources » montre déjà ce qui dépasse la cachette (part du stockage, par ressource) ; la Forge du
-// pillard compte dans son attaque, celle du défenseur dans le bonus de défense du rapport « Défenses »
+// pillard compte dans son attaque, celle du défenseur dans le bonus de défense du rapport « Défenses ». Un raid emporte
+// jusqu'à 100 % de ce que portent les pillards (G4) : le butin est le plus petit de leur charge et de la moitié de ce qui
+// dépasse la cachette (config.hideout.raidStealRate) ; une ville sans armée chez elle ne se défend plus (G10)
 function raidEstimate(v, side, bot, att, target) {
   const e = intelOf(side, target.id);
   if (!e || ageH(v, e.troopsAt) > SPY_FRESH_H || ageH(v, e.resAt) > SPY_FRESH_H) return null;
@@ -579,7 +614,7 @@ async function recallTurn(bot, ctx, v, m, B) {
 // ---------- armées disponibles d'un joueur (vues du serveur, pour les décisions entre deux tours) ----------
 // Le fondateur de la Ville Merveille qui garde une escorte (bot.mem.wonder.holdEscort, 70-wonder.cjs) : son armée la plus
 // petite qui pourrait escorter le colon (comme foundTurn : au repos dans la capitale, ni garde ni convoi) reste à la maison
-const ESCORT_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.convoy]);
+const ESCORT_NEVER = new Set([Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.convoy, Armies.NAMES.defense]);
 function escortOf(v, bot) {
   if (!holdsWonderEscort(bot)) return null;
   const cap = capitalIn(v, bot.playerId);
@@ -1074,7 +1109,8 @@ const ENGINE_SPEED = 20;         // le groupe marche à la vitesse des engins
 function endChain(ctx, wm, tag, why) {
   const c = wm.chain;
   if (!c) return;
-  ctx.event('bastion_chain_end', { alliance: tag, why, rallies: c.n || 0, wins: c.wins || 0, losses: c.losses || 0, lowestLives: c.low ?? null });
+  // mode : ce qui a commencé la chaîne (« vie » : un assaut gagné ; « mur » : un assaut repoussé qui a usé le mur, G2)
+  ctx.event('bastion_chain_end', { alliance: tag, why, mode: c.mode || 'vie', rallies: c.n || 0, wins: c.wins || 0, losses: c.losses || 0, lowestLives: c.low ?? null, lowestWall: c.lw ?? null });
   const K = stats(ctx);
   K.bastionChains = (K.bastionChains || 0) + 1;
   K.bastionChainRallies = (K.bastionChainRallies || 0) + (c.n || 0);
@@ -1089,27 +1125,29 @@ async function bastionOps(ctx, v, S, g) {
   const wm = memOf(keeper, v);
   const tag = v.tagOf.get(alId);
   const enemies = enemiesOf(v, alId);
-  // la chaîne en cours (bookkeeping la commence après un assaut gagné et l'arrête après un assaut repoussé)
+  // la chaîne en cours (bookkeeping la commence après un assaut gagné, ou après un assaut repoussé qui a usé le mur, G2 ; et
+  // l'arrête après deux assauts repoussés de suite ou un assaut repoussé sans dégât au mur)
   let chain = wm.chain || null;
   if (chain) {
     const cb = v.bastions.find(b => b.id === chain.b);
-    // E3 : la pause lancée par le dernier assaut gagné est passée sans nouvel assaut gagné (les vies remontent de nouveau)
+    // E3 : la pause lancée par le dernier assaut gagné court encore ; G2 : le mur garde des dégâts (réparé en 12 h)
+    const pauseOn = !!chain.tw && v.now <= chain.tw + CHAIN_WINDOW_MS;
+    const worn = !!cb && wallOf(cb, v.now) < wallMaxOf() - 1;
     const why = !cb || !['BUILDING', 'ACTIVE'].includes(cb.status) ? 'Bastion rasé' : !enemies.has(cb.allianceId) ? 'plus ennemi'
-      : (chain.n || 0) >= CHAIN_MAX ? 'assez de rassemblements' : (chain.skip || 0) >= CHAIN_SKIPS ? 'à court d\'armées'
-        : chain.tw && v.now > chain.tw + CHAIN_WINDOW_MS ? 'pause passée' : null;
+      : (chain.n || 0) >= CHAIN_MAX ? 'assez de rassemblements' : (chain.skip || 0) >= (pauseOn ? CHAIN_SKIPS : WEAR_SKIPS) ? 'à court d\'armées'
+        : (chain.lossRun || 0) >= CHAIN_LOSS_RUN ? 'assauts repoussés'
+          : !pauseOn && !worn ? (chain.tw ? 'pause passée' : 'mur réparé') : null;
     if (why) { endChain(ctx, wm, tag, why); chain = null; }
   }
   const eb = chain ? v.bastions.find(b => b.id === chain.b) : v.bastions.find(b => enemies.has(b.allianceId) && ['BUILDING', 'ACTIVE'].includes(b.status) && !b.isSieged);
   if (!eb) return;
   const etag = v.tagOf.get(eb.allianceId);
   // la même formule que l'assaut (mur bouclier du Bastion) : ce que la troupe ferait au mur plein sans garnison ; et si elle
-  // bat une garnison (sa Forge inconnue : +10 % de défense) derrière le mur au niveau de vies prévu à l'heure de l'assaut :
-  // les vies que montre la carte (bastionService.bastionsIn), qui ne remontent pas pendant la pause de 24 h (avant : mur
-  // plein, même à 8 vies)
-  const wallMax = config.combat.wallHpPerLevel * config.bastion.wallReferenceLevel * config.bastion.wallMultiplier;
+  // bat une garnison (sa Forge inconnue : +10 % de défense) derrière le mur tel qu'il sera à l'heure de l'assaut (G2 : les
+  // dégâts des assauts précédents, réparés en ligne droite en wallRepairHours ; avant : PV pleins × vies restantes)
+  const wallMax = wallMaxOf();
   const estimate = (units, faction) => { const r = combat().resolveCombatDetailed(merge(units), [], config.bastion.wallReferenceLevel, 'a', 'b', null, null, faction, null, config.bastion.bonuses.garrisonDefensePct, null, { hp: wallMax, maxHp: wallMax }); return Math.round(wallMax - r.wallHpEnd); };
   const beats = (units, faction, garrison, hp) => !!combat().resolveCombatDetailed(merge(units), garrison, config.bastion.wallReferenceLevel, 'a', 'b', null, null, faction, null, config.bastion.bonuses.garrisonDefensePct + 10, null, { hp, maxHp: wallMax }).attackerWon;
-  const structureAt = (t) => { try { return bastionSvc().structureNow(eb, Number.isFinite(t) ? t : v.now); } catch (e) { return Math.min(1, eb.structure ?? 1); } };
   // la garnison vue au dernier assaut de l'alliance contre ce Bastion (rapport de bataille, lu par bookkeeping)
   const seen = wm.seen?.b === eb.id ? merge(wm.seen.def || []) : [];
   // Avant de garder les armées en ville : toute l'alliance (ses armées de campagne, où qu'elles soient, les engins et 70 % des
@@ -1127,7 +1165,7 @@ async function bastionOps(ctx, v, S, g) {
     }
     const units = merge(...all);
     if (!enginesOf(units)) return { why: 'engines', units };
-    if (seen.length && !beats(units, keeper.faction, scale(seen, SEEN_MARGIN), wallMax * structureAt(v.now))) return { why: 'garrison', units };
+    if (seen.length && !beats(units, keeper.faction, scale(seen, SEEN_MARGIN), wallOf(eb, v.now))) return { why: 'garrison', units };
     return null;
   };
   if (chain) { wm.mb = Math.max(wm.mb || 0, ctx.step + 2); setMuster(wm); }   // la chaîne garde les armées en ville
@@ -1144,7 +1182,7 @@ async function bastionOps(ctx, v, S, g) {
         bump(wm, h.why === 'engines' ? 'bastionNoEngines' : 'bastionHopeless');
         wm.bo = ctx.step + (h.why === 'engines' ? 8 : BASTION_GAP);
         wm.mb = ctx.step; setMuster(wm);
-        if (h.why === 'garrison') ctx.event('bastion_rally_held', { alliance: tag, target: etag, phase: 'muster', soldiers: soldiersOf(h.units), engines: enginesOf(h.units), seenDefenders: soldiersOf(seen), wallHp: Math.round(wallMax * structureAt(v.now)) });
+        if (h.why === 'garrison') ctx.event('bastion_rally_held', { alliance: tag, target: etag, phase: 'muster', soldiers: soldiersOf(h.units), engines: enginesOf(h.units), seenDefenders: soldiersOf(seen), wallHp: Math.round(wallOf(eb, v.now)), wallMaxHp: wallMax });
         return;
       }
       wm.mb = Math.max(wm.mb || 0, Math.max(due, ctx.step + 1) + 1); setMuster(wm);
@@ -1189,17 +1227,18 @@ async function bastionOps(ctx, v, S, g) {
     const march = calculateTravelTime(l.cap.x, l.cap.y, eb.x, eb.y, ENGINE_SPEED, l.b.faction, factionsData, len) * 1000;
     return ceilGrid(ctx, ceilGrid(ctx, ceilGrid(ctx, launchAt) + march) + CAMP_MS);
   };
-  // chaîne : l'assaut le plus tardif déjà joué (dernier assaut gagné, lu dans les rapports) ou prévu (rassemblements de
-  // l'alliance en marche vers ce Bastion et leurs camps, à l'heure que montre la carte). Le suivant doit tomber avant la fin
-  // de la pause (E3 : 24 h ; au-delà, les vies remontent de nouveau). Avant : un « tick de combat » compté en pas de 6 h,
-  // faux avec les ticks d'une heure des pas qui pressent.
+  // chaîne : l'assaut le plus tardif déjà joué (dernier assaut gagné, ou dernier assaut qui a usé le mur, lus dans les
+  // rapports) ou prévu (rassemblements de l'alliance en marche vers ce Bastion et leurs camps, à l'heure que montre la carte).
+  // Le suivant doit tomber avant la fin de la pause (E3 : 24 h ; au-delà, les vies remontent de nouveau), ou, pour une chaîne
+  // d'usure, avant que le mur ne soit réparé (G2 : 12 h). Avant : un « tick de combat » compté en pas de 6 h, faux avec les
+  // ticks d'une heure des pas qui pressent.
   let last = 0;
   if (chain) {
-    last = chain.tw || 0;
+    last = Math.max(chain.tw || 0, chain.ww || 0);
     for (const a of v.incoming) if (a.status === 'RALLY_MARCH' && a.targetBastionId === eb.id && v.allianceOf.get(a.ownerId) === alId) last = Math.max(last, ceilGrid(ctx, ceilGrid(ctx, new Date(a.arrivalAt).getTime()) + CAMP_MS));
     for (const c of v.camps) if (c.targetBastionId === eb.id && v.allianceOf.get(c.ownerId) === alId) last = Math.max(last, ceilGrid(ctx, new Date(c.arrivalAt).getTime()));
   }
-  const limit = last ? last + CHAIN_WINDOW_MS - 10 * 60000 : Infinity;
+  const limit = last ? Math.max(chain.tw ? last + CHAIN_WINDOW_MS : 0, last + WALL_WINDOW_MS) - 10 * 60000 : Infinity;
   const withEngines = parts.filter(p => enginesOf(p.units) > 0).sort((p, q) => dist(p.cap, eb) - dist(q.cap, eb));
   if (!withEngines.length) {
     bump(wm, 'bastionNoEngines');
@@ -1249,7 +1288,7 @@ async function bastionOps(ctx, v, S, g) {
     return;
   }
   const { l: leader, reach, fits, at: plannedAt } = pool[0];
-  const wallHp = wallMax * structureAt(plannedAt);   // le mur à l'heure prévue de l'assaut
+  const wallHp = wallOf(eb, plannedAt);   // le mur à l'heure prévue de l'assaut (dégâts gardés, réparés depuis : G2)
   // taille du rassemblement (décision du 31 octobre 2026) : la Place de rassemblement du lanceur, 5 armées + 1 par niveau
   const capacity = fx.rallyMaxArmies(lvl(leader.cap, 'RALLY_POINT'));
   let joiners = reach.sort((a, b) => a.t - b.t).slice(0, Math.max(0, capacity - 1));
@@ -1261,9 +1300,10 @@ async function bastionOps(ctx, v, S, g) {
   let room = S.left - leader.calls;
   const affordable = (x) => room >= 1 + x.p.calls;
   if (chain) {
-    // chaîne : l'attente la plus longue (le départ a lieu au tick suivant de toute façon) ; le plus petit groupe des membres
-    // qui répondent qui bat la garnison vue au dernier assaut : les autres restent pour les pas suivants (ceux qui sont
-    // partis reviennent environ deux marches plus tard). Aucun groupe ne la bat : ce pas est passé.
+    // chaîne : le plus petit groupe des membres qui répondent qui bat la garnison restée au dernier assaut, derrière le mur
+    // prévu : les autres restent pour les pas suivants (ceux qui sont partis reviennent environ deux marches plus tard). Aucun
+    // groupe ne la bat : ce pas est passé. L'attente : la plus courte qui laisse arriver les membres retenus (G2 : le mur se
+    // répare pendant l'attente ; avant, la plus longue, le départ ayant lieu au tick suivant des pas de 6 h)
     wait = Math.max(...WAITS);
     const garrison = scale(merge(chain.def || []), CHAIN_MARGIN);
     const keep = [];
@@ -1276,6 +1316,8 @@ async function bastionOps(ctx, v, S, g) {
     }
     if (!beats(group, leader.b.faction, garrison, wallHp)) { chain.skip = (chain.skip || 0) + 1; bump(wm, 'chainWait'); return; }
     joiners = keep; rolled = true;
+    wait = WAITS.find(w => w * 60 >= Math.max(0, ...keep.map(x => x.t))) || Math.max(...WAITS);
+    if (wallHp < wallMax - 1) bump(wm, 'chainWornWall');
   } else {
     const need = Math.max(0, ...joiners.map(x => x.t));
     wait = WAITS.find(w => w * 60 >= need) || Math.max(...WAITS);
@@ -1339,10 +1381,31 @@ async function bastionOps(ctx, v, S, g) {
   }
   // fieldSoldiers : soldats des armées de campagne de tous les membres (où qu'elles soient) ; merged : ceux des autres
   // armées fondues dans les armées parties ; seenDefenders : la garnison vue au dernier assaut ; wallNow : le mur prévu
-  ctx.event('bastion_rally', { alliance: tag, target: etag, leader: leader.b.name, wait, armies: joined, capacity: max, readyMembers: parts.length, chain: chain ? chain.n : 0, assaultAt: Number.isFinite(at) ? new Date(at).toISOString() : null, gapH, windowH: CHAIN_WINDOW_MS / 3600000, engines: enginesOf(units), soldiers: soldiersOf(units), fieldSoldiers, merged, seenDefenders: chain ? soldiersOf(chain.def || []) : wm.seen?.b === eb.id ? soldiersOf(wm.seen.def || []) : null, power: Math.round(powerOf(units)), wallDamageEstimate: estimate(units, leader.b.faction), wallHp: wallMax, wallNow: Math.round(wallHp) });
+  // wallHp : le mur plein ; wallNow : le mur prévu à l'heure de l'assaut (G2) ; mode : chaîne de vies (pause de 24 h en cours)
+  // ou d'usure du mur (12 h de réparation)
+  const mode = chain ? (chain.tw && v.now <= chain.tw + CHAIN_WINDOW_MS ? 'vie' : 'mur') : null;
+  ctx.event('bastion_rally', { alliance: tag, target: etag, leader: leader.b.name, wait, armies: joined, capacity: max, readyMembers: parts.length, chain: chain ? chain.n : 0, mode, assaultAt: Number.isFinite(at) ? new Date(at).toISOString() : null, gapH, windowH: CHAIN_WINDOW_MS / 3600000, wallWindowH: WALL_WINDOW_MS / 3600000, engines: enginesOf(units), soldiers: soldiersOf(units), fieldSoldiers, merged, seenDefenders: chain ? soldiersOf(chain.def || []) : wm.seen?.b === eb.id ? soldiersOf(wm.seen.def || []) : null, power: Math.round(powerOf(units)), wallDamageEstimate: estimate(units, leader.b.faction), wallHp: wallMax, wallNow: Math.round(wallHp) });
 }
 
 // ---------- issues des combats (rapports de bataille), événements et renseignements ----------
+// Raid gagné (G4 : jusqu'à 100 % de ce que portent les pillards survivants) : la charge des survivants (lignes « remaining »
+// du rapport, sans les bonus de transport : une estimation basse) et ce qui a limité le butin, la charge (butin à 95 % de
+// la charge ou plus) ou la ville (le reste : la moitié de ce qui dépasse la cachette). G10 : un raid qui n'a trouvé aucune
+// armée dans la ville est compté à part.
+function raidCarry(r) {
+  const finals = r.attackerLosses?.units;
+  const units = Array.isArray(finals) && finals.length ? finals.map(u => ({ unitKey: u.key, count: u.remaining ?? 0 })) : rows(r.attackerUnits || []);
+  return units.reduce((t, u) => t + (UNIT[keyOf(u)]?.stats?.transport || 0) * (Number(u.count) || 0), 0);
+}
+function raidLootStats(K, r) {
+  const loot = RES.reduce((t, k) => t + (Number(r.loot?.[k]) || 0), 0);
+  const carry = raidCarry(r);
+  K.raidCarry = (K.raidCarry || 0) + Math.round(carry);
+  if (carry > 0 && loot >= 0.95 * carry) K.raidCarryCapped = (K.raidCarryCapped || 0) + 1;
+  else K.raidStockCapped = (K.raidStockCapped || 0) + 1;
+  if (!soldiersOf(r.defenderUnits || [])) K.raidNoDefender = (K.raidNoDefender || 0) + 1;
+  return { loot, carry };
+}
 // Cachette (décision du 31 octobre 2026 : 1,5 % du stockage par niveau, 30 % au niveau 20) : ce qu'elle a mis à l'abri
 // pendant un raid gagné, lu sur la ville pillée juste après le tick (son stock et son butin perdu, ses bâtiments)
 async function raidHideout(ctx, K, r) {
@@ -1370,7 +1433,7 @@ async function bookkeeping(ctx, v) {
   // fenêtre de lecture gardée dans l'état (ctx.cursor) : une reprise ne relit rien
   const { since, until } = ctx.cursor ? ctx.cursor('war.reports', v.now) : { since: new Date(SCAN_AT ?? v.now - 6 * 3600000), until: new Date(v.now) };
   SCAN_AT = v.now;
-  const reps = await ctx.prisma.battleReport.findMany({ where: { createdAt: { gt: since, lte: until } }, select: { id: true, playerId: true, attackerId: true, defenderId: true, result: true, winner: true, loot: true, rounds: true, x: true, y: true, createdAt: true, defenderUnits: true, defenderLosses: true } });
+  const reps = await ctx.prisma.battleReport.findMany({ where: { createdAt: { gt: since, lte: until } }, select: { id: true, playerId: true, attackerId: true, defenderId: true, result: true, winner: true, loot: true, rounds: true, x: true, y: true, createdAt: true, attackerUnits: true, attackerLosses: true, defenderUnits: true, defenderLosses: true } });
   const K = stats(ctx);
   const seen = new Set();
   // un assaut de rassemblement : un rapport par joueur du groupe, au même instant ; deux rassemblements qui donnent l'assaut
@@ -1394,8 +1457,11 @@ async function bookkeeping(ctx, v) {
     const who = v.botOf.get(r.attackerId)?.name || r.loot?.attackerName;
     if (type === 'RAID' && won) {
       K.raidLoot = (K.raidLoot || 0) + RES.reduce((t, k) => t + (Number(r.loot?.[k]) || 0), 0);
+      raidLootStats(K, r);
       await raidHideout(ctx, K, r);
     }
+    if (type === 'RAID' && !won && !soldiersOf(r.defenderUnits || [])) K.raidNoDefenderLost = (K.raidNoDefenderLost || 0) + 1;
+    if (type === 'ATTACK' && !soldiersOf(r.defenderUnits || [])) K[`attackNoDefender_${won ? 'won' : 'lost'}`] = (K[`attackNoDefender_${won ? 'won' : 'lost'}`] || 0) + 1;
     if (type === 'ATTACK') {
       const cityId = r.loot?.cityId;
       // la bataille renseigne aussi : la garnison qui reste, les vies du mur
@@ -1446,6 +1512,10 @@ async function bookkeeping(ctx, v) {
       const keeper = g ? ctx.byGroup(g).find(b => b.playerId) : null;
       const wm = keeper ? memOf(keeper, v) : null;
       const lives = r.loot?.lives || null;
+      // le mur (G2) : PV avant et après l'assaut ; il garde ses dégâts, gagné ou repoussé
+      const wallStart = Number(r.loot?.wallHpStart), wallEnd = Number(r.loot?.wallHpEnd), wallFull = Number(r.loot?.wallMaxHp) || wallMaxOf();
+      const damaged = Number.isFinite(wallStart) && Number.isFinite(wallEnd) && wallEnd < wallStart - 1;
+      const at = new Date(r.createdAt).getTime();
       // la garnison que montre le rapport : avant l'assaut (defenderUnits) et ce qui en reste (defenderLosses)
       const before = rows(r.defenderUnits || []).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count }));
       const left = (r.defenderLosses?.units || []).map(u => ({ unitKey: u.key, count: Math.floor(u.remaining ?? 0) })).filter(u => u.count > 0 && UNIT[u.unitKey]);
@@ -1463,14 +1533,31 @@ async function bookkeeping(ctx, v) {
           const c = wm.chain;
           c.wins++;
           c.skip = 0;   // une victoire remet à zéro les pas passés sans groupe assez fort
-          c.tw = Math.max(c.tw || 0, new Date(r.createdAt).getTime());   // l'heure du dernier assaut gagné (le suivant : avant la fin de la pause, 24 h)
+          c.lossRun = 0;
+          c.tw = Math.max(c.tw || 0, at);   // l'heure du dernier assaut gagné (le suivant : avant la fin de la pause, 24 h)
+          if (damaged) { c.ww = Math.max(c.ww || 0, at); c.lw = Math.min(c.lw ?? wallEnd, wallEnd); }
           // la garnison restée après l'assaut gagné, toutes ses troupes (avant : celle d'avant l'assaut, déjà anéantie, et
           // seulement ses 12 premières lignes, 24 à 37 % des défenseurs) ; CHAIN_MARGIN couvre les renforts
           c.def = left;
           if (lives) c.low = Math.min(c.low ?? lives.after, lives.after);
-        } else if (wm.chain && wm.chain.b === bastionId) { wm.chain.losses++; endChain(ctx, wm, tag, 'assaut repoussé'); }
+        } else if (wm.chain && wm.chain.b === bastionId) {
+          // assaut repoussé dans une chaîne (G2) : le mur usé reste à prendre avant d'être réparé ; arrêtée sans dégât au mur,
+          // ou au deuxième assaut repoussé de suite
+          const c = wm.chain;
+          c.losses++; c.lossRun = (c.lossRun || 0) + 1;
+          if (damaged && wallEnd < wallFull - 1 && c.lossRun < CHAIN_LOSS_RUN) { c.ww = Math.max(c.ww || 0, at); c.lw = Math.min(c.lw ?? wallEnd, wallEnd); c.def = left; c.skip = 0; }
+          else endChain(ctx, wm, tag, damaged ? 'assauts repoussés' : 'assaut repoussé');
+        } else if (damaged && wallEnd <= WEAR_START * wallFull) {
+          // assaut repoussé hors chaîne qui a fait tomber le mur sous WEAR_START de ses PV (G2) : chaîne d'usure, le suivant
+          // doit tomber avant la réparation (12 h), contre la garnison restée après celui-ci
+          wm.chain = { b: bastionId, s: ctx.step, n: 0, wins: 0, losses: 1, lossRun: 1, skip: 0, tw: 0, ww: at, lw: wallEnd, def: left, low: lives?.after ?? null, mode: 'mur' };
+          K.bastionWearChains = (K.bastionWearChains || 0) + 1;
+          ctx.event('bastion_chain', { alliance: tag, bastion: r.loot?.defenderName, lives: lives ? `${lives.after}/${lives.total}` : null, mode: 'mur', wallHp: Math.round(wallEnd), wallMaxHp: wallFull });
+        }
       }
-      ctx.event('bastion_assault', { reportId: dkey, by: r.loot?.attackerName, bastion: r.loot?.defenderName, won, armies: groupSize.get(assaultKey(r)) || 1, garrisonAfter: garrison, defenders: (r.defenderUnits || []).reduce((t, u) => t + (u.count || 0), 0), defendersLeft: soldiersOf(left), wallHpStart: r.loot?.wallHpStart, wallHpEnd: r.loot?.wallHpEnd, wallMaxHp: r.loot?.wallMaxHp, wallDamage: r.loot?.wallHpStart != null ? Math.round(r.loot.wallHpStart - (r.loot.wallHpEnd || 0)) : null, lives: lives ? `${lives.after}/${lives.total}` : null, chain: wm?.chain?.b === bastionId ? (wm.chain.n || 0) : 0 });
+      // G2 : le mur avant et après, l'heure où il sera de nouveau plein (wallFullAt du rapport) ; G5 : la part des assaillants
+      // tombés (un assaut repoussé se bat jusqu'au dernier soldat)
+      ctx.event('bastion_assault', { reportId: dkey, bastionId, by: r.loot?.attackerName, bastion: r.loot?.defenderName, won, armies: groupSize.get(assaultKey(r)) || 1, garrisonAfter: garrison, defenders: (r.defenderUnits || []).reduce((t, u) => t + (u.count || 0), 0), defendersLeft: soldiersOf(left), attackers: soldiersOf(r.attackerUnits || []), attackerLossRate: Number.isFinite(Number(r.attackerLosses?.rate)) ? Math.round(Number(r.attackerLosses.rate) * 1000) / 1000 : null, wallHpStart: r.loot?.wallHpStart, wallHpEnd: r.loot?.wallHpEnd, wallMaxHp: r.loot?.wallMaxHp, wallFullAt: r.loot?.wallFullAt ?? null, wallDamage: r.loot?.wallHpStart != null ? Math.round(r.loot.wallHpStart - (r.loot.wallHpEnd || 0)) : null, lives: lives ? `${lives.after}/${lives.total}` : null, chain: wm?.chain?.b === bastionId ? (wm.chain.n || 0) : 0, chainMode: wm?.chain?.b === bastionId ? (wm.chain.mode || 'vie') : null });
       if (lives?.fallen) ctx.event('bastion_destroyed', { by: r.loot?.attackerName, bastion: r.loot?.defenderName });
     }
   }

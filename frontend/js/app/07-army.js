@@ -518,7 +518,7 @@ function openArmyComposition(armyId) {
     showToast('L\'armée doit être en ville pour modifier sa composition', 'warning');
     return;
   }
-  if (armyColonyOf(army)) {   // rattachée à une colonie : pas de garnison où prendre ou poser des troupes (E2)
+  if (armyColonyOf(army)) {   // rattachée à une colonie : pas de réserve où prendre ou poser des troupes (E2) ; « Échanger » (G9)
     showToast(COLONY_ARMY_RULE, 'warning');
     return;
   }

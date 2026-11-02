@@ -214,11 +214,12 @@ test('panneau d\'un site ou d\'un plan gardé : bouton « Rassemblement » pour 
     openRallyLaunch() {}, rallyArmies: () => [{ id: 'a1' }], fillNodeRallies: (box, id) => calls.push(id),
     raidResource() {}, foundCityAt() {}, closeMapPanel() {}
   });
-  vm.runInContext(pick(src('09i-world.js'), ['renderWonderNodePanel']), ctx);
+  vm.runInContext(pick(src('09i-world.js'), ['IMMORTAL_WAVE_HOURS', 'renderWonderNodePanel']), ctx);
   const site = { id: 'n1', resourceType: 'WONDER', x: 1, y: 2, hasDefenders: true, defenderPower: 5000 };
   ctx.player = { allianceId: 'al1' };
   ctx.renderWonderNodePanel(site, content);
   assert.match(content.innerHTML, /openRallyLaunch\('n1', 1, 2, null, 'WONDER'\)/);
+  assert.match(content.innerHTML, /Dès le niveau 1, les Immortels l'attaquent toutes les 24 h/);   // G6 (décision du 2 novembre 2026)
   assert.deepEqual(calls, ['n1']);
   ctx.renderWonderNodePanel({ ...site, id: 'n2', resourceType: 'PLAN' }, content);
   assert.match(content.innerHTML, /openRallyLaunch\('n2', 1, 2, null, 'PLAN'\)/);

@@ -17,7 +17,7 @@ function healingTabHtml(level) {
           <div class="special-tab-content">
             <h4>${resIconHtml('endurance')} Tente de soins</h4>
             <p>${rate} % des pertes de toutes vos villes reviennent blessées${civ ? ` (dont +${civ} % de bonus de civilisation)` : ''}. Un blessé attend qu'on paie son soin, et mange en attendant comme un soldat.</p>
-            <p>Un soin coûte ${W.healCostPct} % du recrutement de l'unité (pris dans toutes vos villes) et dure ${W.healTimePctOfTraining} % de sa formation, ${Math.round((1 - W.healLevelReduction) * 100)} % de moins par niveau de tente ; les soins se suivent. Soin immédiat des blessés au lit : ${gold.base} / ${gold.intermediate} / ${gold.elite} / ${gold.siege} or par unité (base / intermédiaire / élite / engins). Guéris, ils rejoignent la garnison de la capitale.</p>
+            <p>Un soin coûte ${W.healCostPct} % du recrutement de l'unité (pris dans toutes vos villes) et dure ${W.healTimePctOfTraining} % de sa formation, ${Math.round((1 - W.healLevelReduction) * 100)} % de moins par niveau de tente ; les soins se suivent. Soin immédiat des blessés au lit : ${gold.base} / ${gold.intermediate} / ${gold.elite} / ${gold.siege} or par unité (base / intermédiaire / élite / engins). Guéris, ils rejoignent la réserve de la capitale, qui ne défend pas : mettez-les dans une armée.</p>
             <p style="font-size:11px">Capacité : <strong>${formatNum(level * (W.bedsPerLevel || 0))}</strong> lits pour toutes vos villes.</p>
             <div id="wounded-list"><p style="color:var(--text-muted);font-size:11px;text-align:center;">Chargement…</p></div>
           </div>
