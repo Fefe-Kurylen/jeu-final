@@ -1395,6 +1395,9 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       .find(([, x, y]) => foundable(Number(x), Number(y)) && Terrain.findPath(cityA.x, cityA.y, Number(x), Number(y)));
     sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0 WHERE id='${freeNode[0]}'`);
     await call('found-city with B token on A army -> 404', 'POST', `/api/army/${ga}/found-city`, tB, { resourceNodeId: freeNode[0] }, 404);
+    // l'armée de A a perdu le combat pour le gisement : avec le vrai moteur partout (décision G3 du 2 novembre 2026), le
+    // perdant n'est plus plafonné à 30 % de pertes et elle peut revenir vide ; on la regarnit pour escorter le colon
+    if (sql(`SELECT COALESCE(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${ga}'`) === '0') sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${ga}','ROM_INF_MILICIEN','base',10)`);
     const woodBefore = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
     const fc = await call('found-city: settler army leaves the capital', 'POST', `/api/army/${ga}/found-city`, tA, { resourceNodeId: freeNode[0], name: `Colonia${uid}` });
     assert('foundation resources debited and settler embarked', woodBefore - Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`)) === 3000 && sql(`SELECT settlers FROM "City" WHERE id='${cityA.id}'`) === '0' && sql(`SELECT settlers FROM "Army" WHERE id='${ga}'`) === '1', `wood -${woodBefore - Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`))}`);
