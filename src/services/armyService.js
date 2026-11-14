@@ -133,12 +133,21 @@ async function collectResourceLoot(army, node, playerId, tx = prisma, reportId =
   return { [node.resourceType]: taken };
 }
 
-// An army beaten on a node or before a besieged city goes home (idle on the spot when it has no city or no unit left)
+// An army beaten on a node or before a besieged city goes home (idle on the spot when it has no city).
+// Une armée sans soldats (anéantie : avec le vrai moteur partout, le perdant peut tout perdre, décision G3 du 2 novembre
+// 2026) ne reste pas vide sur le champ de bataille : elle rentre aussitôt, comme toute armée sans soldats
+// (armyProcessor.sendArmyHome) ; son retour arrive au tick suivant, qui la pose dans sa ville avec ce qu'elle porte
+// (ressources, blessés, colon) sans verrouiller ici les villes de son propriétaire au milieu du combat d'un autre.
 async function sendArmyHomeTx(tx, army) {
   const city = army.city || (army.cityId ? await tx.city.findUnique({ where: { id: army.cityId } }) : null);
   const units = (army.units || []).filter(u => u.count > 0);
   const reset = { harvestResourceType: null, targetResourceId: null, targetCityId: null, targetBastionId: null, rallyId: null, claimedAt: null };   // also lifts a siege camp
-  if (!city || !units.length) { await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, arrivalAt: null, ...reset } }); return; }
+  if (!city) { await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, arrivalAt: null, ...reset } }); return; }
+  if (!units.length) {
+    const now = new Date();
+    await tx.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: city.x, targetY: city.y, missionType: 'RETURN', arrivalAt: now, departedAt: now, ...reset } });
+    return;
+  }
   const route = await findRoute(army.x, army.y, city.x, city.y, army.owner?.faction).catch(() => null);
   const speed = techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId)) + (await playerMarchPct(tx, army.ownerId));   // + Bastion d'alliance, Irrigation
   const travelTime = getArmyTravelTime(units, army.x, army.y, city.x, city.y, army.owner?.faction, army.hero, route ? route.length : null, speed);

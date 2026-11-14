@@ -462,3 +462,23 @@ test('état du monde (E6) : les sites réservés en ce moment, une fois les site
     } finally { restore(); }
   }
 });
+
+// Sites et plans gardés par les Immortels : config.world en promet 12 et 13. Sur certaines cartes la mer ou un lac couvre tout
+// un secteur de l'anneau (graine 1676859536 : l'est) ; le site manquant est cherché ailleurs sur l'anneau, jamais perdu
+test('sites de Merveille : un secteur noyé ne fait pas perdre de site, tous posés sur l\'anneau, à 4 cases les uns des autres', async () => {
+  const land = (x) => x < -3;   // toute la moitié est de l'anneau sous l'eau
+  for (const [count, rMin, rMax] of [[world.wonderSites, ...world.wonderSiteRing], [world.wonderPlans, ...world.wonderPlanRing]]) {
+    const spots = await W.ringSpots(count, rMin, rMax, true, { land, free: async () => true });
+    assert.equal(spots.length, count, `${count} emplacements attendus`);
+    for (const s of spots) {
+      assert.ok(land(s.x, s.y), 'sur la terre');
+      const r = Math.hypot(s.x, s.y);
+      assert.ok(r >= rMin - 1 && r <= rMax + 1, `sur l'anneau (${r})`);
+    }
+    for (let i = 0; i < spots.length; i++) for (let j = i + 1; j < spots.length; j++) assert.ok(Math.abs(spots[i].x - spots[j].x) >= 4 || Math.abs(spots[i].y - spots[j].y) >= 4, 'espacés');
+  }
+  // une carte sans eau garde un site par secteur (rien ne change)
+  const all = await W.ringSpots(12, 12, 30, true, { land: () => true, free: async () => true });
+  assert.equal(all.length, 12);
+  all.forEach((s, k) => assert.ok(Math.abs(Math.atan2(s.y, s.x) - Math.atan2(Math.sin(2 * Math.PI * k / 12), Math.cos(2 * Math.PI * k / 12))) < 0.25 || k === 6, `secteur ${k}`));
+});

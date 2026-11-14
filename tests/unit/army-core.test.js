@@ -117,3 +117,25 @@ test('stockage au démarrage : Grand dépôt et Grand silo comptent dans maxStor
   assert.deepEqual(vals.slice(i, i + 4), ['GREAT_WAREHOUSE', 20, 480000, 'storage']);
   assert.match(sql.sql, /t\(key, level, cap, kind\)/);
 });
+
+// Une armée anéantie sur un point, dans une rencontre ou devant un siège (vrai moteur partout, décision G3 du 2 novembre
+// 2026 : le perdant peut tout perdre) ne reste pas vide sur le champ de bataille : elle rentre aussitôt (retour arrivé,
+// posé chez elle au tick suivant avec ce qu'elle porte) ; sans ville d'origine, elle reste où elle est
+test('sendArmyHomeTx : une armée sans soldats rentre aussitôt dans sa ville, pas à l\'arrêt sur le champ de bataille', async () => {
+  const { sendArmyHomeTx } = require('../../src/services/armyService');
+  const updates = [];
+  const tx = { army: { update: async (q) => { updates.push(q); return q; } }, city: { findUnique: async () => null } };
+  const before = Date.now();
+  await sendArmyHomeTx(tx, { id: 'a1', x: 12, y: 7, city: { id: 'c1', x: 40, y: 41 }, units: [{ unitKey: 'ROM_INF_MILICIEN', count: 0 }] });
+  const d = updates[0].data;
+  assert.equal(updates[0].where.id, 'a1');
+  assert.equal(d.status, 'RETURNING');
+  assert.equal(d.missionType, 'RETURN');
+  assert.deepEqual([d.targetX, d.targetY], [40, 41], 'vers sa ville');
+  assert.ok(d.arrivalAt instanceof Date && d.arrivalAt.getTime() >= before && d.arrivalAt.getTime() <= Date.now(), 'arrivée immédiate');
+  assert.equal(d.claimedAt, null);
+  assert.equal(d.targetResourceId, null, 'le point est quitté');
+  updates.length = 0;
+  await sendArmyHomeTx(tx, { id: 'a2', x: 3, y: 4, cityId: null, units: [] });
+  assert.equal(updates[0].data.status, 'IDLE', 'sans ville : à l\'arrêt sur place');
+});

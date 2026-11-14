@@ -125,22 +125,34 @@ const immortalPower = (units) => Math.round(calculateArmyPower(immortalLines(uni
 const wavePower = (wonderLevel) => Math.round(W.immortalWaveBase * Math.pow(wonderLevel, W.immortalWaveExp));
 const waveUnits = (wonderLevel) => immortalUnits(wavePower(wonderLevel), WAVE_MIX);
 
-// emplacements libres autour du centre, sur un anneau, pour un point (et pour une ville 2 × 2 sur les sites)
-async function ringSpots(count, rMin, rMax, needBlock) {
-  const { footprintFree } = require('../utils/spawn');
+// emplacements libres autour du centre, sur un anneau, pour un point (et pour une ville 2 × 2 sur les sites) : un par secteur
+// d'abord ; un secteur sans place (la mer, un lac ou le relief le couvre sur certaines cartes) ne fait pas perdre son site :
+// les manquants sont cherchés ensuite sur tout l'anneau (angle d'or), pour en poser toujours `count`. `opts` : sol et
+// place libre remplaçables (tests)
+async function ringSpots(count, rMin, rMax, needBlock, opts = {}) {
+  const land = opts.land || ((x, y) => Terrain.inWorld(x, y) && Terrain.isMainland(x, y));
+  const free = opts.free || (async (x, y) => {
+    const { footprintFree } = require('../utils/spawn');
+    return needBlock ? footprintFree(x, y, {}) : footprintFree(x, y, {}).catch(() => false);
+  });
   const spots = [];
+  const fits = async (x, y) => !spots.some(s => Math.abs(s.x - x) < 4 && Math.abs(s.y - y) < 4) && land(x, y) && (await free(x, y));
+  const radius = (tries) => rMin + ((tries * 7919) % 97) / 97 * (rMax - rMin);
   for (let k = 0; k < count; k++) {
     const angle0 = (2 * Math.PI * k) / count;
     for (let tries = 0; tries < 200; tries++) {
-      const r = rMin + ((tries * 7919) % 97) / 97 * (rMax - rMin);
-      const a = angle0 + ((tries % 11) - 5) * 0.04;
+      const r = radius(tries), a = angle0 + ((tries % 11) - 5) * 0.04;
       const x = Math.round(Math.cos(a) * r), y = Math.round(Math.sin(a) * r);
-      if (spots.some(s => Math.abs(s.x - x) < 4 && Math.abs(s.y - y) < 4)) continue;
-      if (!Terrain.inWorld(x, y) || !Terrain.isMainland(x, y)) continue;
-      if (needBlock ? !(await footprintFree(x, y, {})) : !(await footprintFree(x, y, {}).catch(() => false))) continue;
+      if (!(await fits(x, y))) continue;
       spots.push({ x, y });
       break;
     }
+  }
+  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+  for (let tries = 0; spots.length < count && tries < 4000; tries++) {
+    const r = radius(tries), a = tries * GOLDEN;
+    const x = Math.round(Math.cos(a) * r), y = Math.round(Math.sin(a) * r);
+    if (await fits(x, y)) spots.push({ x, y });
   }
   return spots;
 }
@@ -476,4 +488,4 @@ async function processWonders(now = new Date()) {
   }
 }
 
-module.exports = { SPECIAL, isSpecial, settingsOf, phaseOf, worldState, siteReserve, siteClosedFor, reservedSites, worldRow, registrationBlocked, PREPARING, preparing, syncWorldSeed, isEnded, immortalUnits, immortalPower, immortalLines, WAVE_MIX, wavePower, waveUnits, spawnNodes, onImmortalsBeaten, attackImmortalsGroup, IMMORTAL_NAME, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };
+module.exports = { SPECIAL, isSpecial, settingsOf, phaseOf, worldState, siteReserve, siteClosedFor, reservedSites, worldRow, registrationBlocked, PREPARING, preparing, syncWorldSeed, isEnded, immortalUnits, immortalPower, immortalLines, WAVE_MIX, wavePower, waveUnits, spawnNodes, ringSpots, onImmortalsBeaten, attackImmortalsGroup, IMMORTAL_NAME, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };

@@ -728,6 +728,9 @@ if (defended) {
 } else {
   assert('a defended node exists in the viewport', false, 'no defended node');
 }
+// l'armée a pu perdre tous ses soldats contre la tribu : avec le vrai moteur partout (décision G3 du 2 novembre 2026), le
+// perdant n'est plus plafonné à 30 % de pertes ; on la regarnit (60 fantassins, 10 cavaliers) pour la suite
+if (sql(`SELECT COALESCE(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${armyId}'`) === '0') sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${armyId}','${infKey}','base',60), (gen_random_uuid(),'${armyId}','${unitKeyFor('ROME', 'CAVALRY', 'base')}','base',10)`);
 // collect: two armies cannot harvest the same node
 sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL WHERE "ownerId"='${A.player.id}' AND NOT "isGarrison"`);
 await call('collect-resource (travel)', 'POST', `/api/army/${armyId}/collect-resource`, tA, { resourceNodeId: undefendedId });
@@ -1882,7 +1885,10 @@ if (MAIL_LOG) {
   const back = sql(`WITH a AS (INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${B.player.id}','${cityB.id}','Retour',${cityB.x + 3},${cityB.y},${cityB.x},${cityB.y},'RETURNING','RETURN',now()-interval '5 minutes',now()-interval '1 second') RETURNING id) INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) SELECT gen_random_uuid(), a.id, u.k, u.t, u.c FROM a, (VALUES ('${unitKeyFor('HUN', 'INFANTRY', 'elite')}','elite',500)) AS u(k,t,c) RETURNING "armyId"`).split('\n')[0];
   await waitTick('home army fights its way in', () => sql(`SELECT status||':'||(x=${cityB.x} AND y=${cityB.y}) FROM "Army" WHERE id='${back}'`) === 'IDLE:true');
   assert('the homecoming fight wrote its reports', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='SIEGE_BREAK' AND rounds->>'homecoming'='true' AND "attackerId"='${B.player.id}'`)) >= 4);
-  assert('an army coming home fights its way through the camp and lifts the siege', sql(`SELECT status FROM "Army" WHERE id='${camp}'`) === 'RETURNING' && sql(`SELECT status||':'||(x=${cityB.x} AND y=${cityB.y}) FROM "Army" WHERE id='${back}'`) === 'IDLE:true');
+  // le camp battu rentre ; anéanti (vrai moteur partout, décision G3 du 2 novembre 2026 : le perdant peut tout perdre), il
+  // rentre aussitôt et peut déjà être posé, vide, dans sa ville au tick suivant
+  const campHome = sql(`SELECT status||':'||(x=${cityA.x} AND y=${cityA.y})||':'||(SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${camp}') FROM "Army" WHERE id='${camp}'`);
+  assert('an army coming home fights its way through the camp and lifts the siege', (campHome.startsWith('RETURNING:') || campHome === 'IDLE:true:0') && sql(`SELECT status||':'||(x=${cityB.x} AND y=${cityB.y}) FROM "Army" WHERE id='${back}'`) === 'IDLE:true', campHome);
 }
 
 // ---------- RECALLED CAMP ----------
@@ -1992,7 +1998,10 @@ if (MAIL_LOG) {
   const arrival0 = sql(`SELECT "arrivalAt"::text FROM "Army" WHERE id='${marcher}'`);
   await waitTick('the enemy armies meet', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='ENCOUNTER' AND x=${tx} AND y=${ty}`)) >= 2);
   assert('one report for each side of the encounter', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='ENCOUNTER' AND x=${tx} AND y=${ty}`)) === 2);
-  assert('the loser goes home from the meeting tile', sql(`SELECT status||':'||x||','||y FROM "Army" WHERE id='${stand}'`) === `RETURNING:${tx},${ty}`, sql(`SELECT status||':'||x||','||y FROM "Army" WHERE id='${stand}'`));
+  // anéanti (vrai moteur partout, décision G3 du 2 novembre 2026 : 10 fantassins contre 2 000 élites), le perdant rentre
+  // aussitôt et peut déjà être posé, vide, dans sa ville au tick suivant ; jamais à l'arrêt, vide, sur la case
+  const standHome = sql(`SELECT status||':'||x||','||y FROM "Army" WHERE id='${stand}'`);
+  assert('the loser goes home from the meeting tile', standHome === `RETURNING:${tx},${ty}` || (standHome === `IDLE:${cityB.x},${cityB.y}` && sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${stand}'`) === '0'), standHome);
   assert('the winner goes on its way, untouched', sql(`SELECT status||':'||("arrivalAt"::text)||':'||("claimedAt" IS NULL) FROM "Army" WHERE id='${marcher}'`) === `MOVING:${arrival0}:true`);
   const feed = await call('notifications after the encounter', 'GET', '/api/notifications?limit=10', tA);
   const meet = feed?.items?.find(n => n.title.includes('Rencontre'));
@@ -2128,9 +2137,11 @@ if (MAIL_LOG) {
     const w0 = await panelWall('G2: the Bastion panel right after the assault');
     assert('G2: right after the assault the wall is down and the panel says when it will be full', w0?.wallHp < 300 && w0.wallMaxHp === 36000 && hoursTo(w0.wallFullAt) > BR.wallRepairHours - 0.1, JSON.stringify({ hp: w0?.wallHp, fullAt: w0?.wallFullAt }));
     sql(`UPDATE "Bastion" SET "wallAt"=now()-interval '6 hours' WHERE id='${bId}'`);
+    await sleep(3200);   // le cache de la carte (3 s) : la carte relit le Bastion modifié en base
     const w1 = await panelWall('G2: the panel 6 h after the damage'), m1 = await mapWall('G2: the map 6 h after the damage');
     assert('G2: 6 h later the wall is half repaired (18 000 / 36 000), on the panel and on the map', Math.abs(w1?.wallHp - 18000) <= 200 && Math.abs(m1?.wallHp - 18000) <= 200 && m1.wallMaxHp === 36000 && hoursTo(w1.wallFullAt) > 5.9 && hoursTo(w1.wallFullAt) <= 6.01, JSON.stringify({ panel: w1?.wallHp, map: m1?.wallHp, fullAt: w1?.wallFullAt }));
     sql(`UPDATE "Bastion" SET "wallAt"=now()-interval '12 hours' WHERE id='${bId}'`);
+    await sleep(3200);   // le cache de la carte (3 s), sinon elle redonne le mur d'il y a 6 h
     const w2 = await panelWall('G2: the panel 12 h after the damage'), m2 = await mapWall('G2: the map 12 h after the damage');
     assert('G2: 12 h after the last damage the wall is full again (panel and map), no repair pending', w2?.wallHp === 36000 && w2.wallFullAt === null && m2?.wallHp === 36000 && m2.wallFullAt === null, JSON.stringify({ panel: w2?.wallHp, map: m2?.wallHp }));
   }
@@ -2148,6 +2159,7 @@ if (MAIL_LOG) {
     assert('E3: 23 h 50 later, still 9 lives (90 %): nothing comes back during the pause', p1?.lives === 9 && p1.structurePct === 90 && !!p1.regenPausedUntil, JSON.stringify({ lives: p1?.lives, pct: p1?.structurePct, pausedUntil: p1?.regenPausedUntil }));
     sql(`UPDATE "Bastion" SET "structureAt"=now()-interval '${pauseH} hours'-interval '${Math.round(lifeH * 60) + 5} minutes' WHERE id='${bId}'`);
     const p2 = (await panel('E3: the panel 24 h + 7.2 h after the won assault'))?.bastion;
+    await sleep(3200);   // le cache de la carte (3 s), sinon elle redonne les vies d'avant le recul de structureAt
     const seen = ((await call('E3: the map after the pause', 'GET', `/api/map/viewport?x=${spot?.x}&y=${spot?.y}&radius=8`, tB))?.bastions || []).find(b => b.id === bId);
     assert('E3: after 24 h without a won assault, one life every 7.2 h: 10 lives again (panel and map)', p2?.lives === 10 && p2.regenPausedUntil === null && p2.nextLifeAt === null && seen?.lives === 10, JSON.stringify({ panel: p2?.lives, map: seen?.lives }));
     sql(`UPDATE "Bastion" SET structure=0.9, "structureAt"=now() WHERE id='${bId}'`);   // de nouveau l'état d'après l'assaut

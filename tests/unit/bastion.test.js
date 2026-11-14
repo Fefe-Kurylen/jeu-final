@@ -325,10 +325,11 @@ test('briser le siège : renforts de l\'alliance du Bastion et de ses alliés, s
 
 // Un camp chassé rentre : en marche s'il lui reste des soldats ; anéanti (le moteur de bataille va souvent jusqu'au bout,
 // décision du 2 novembre 2026, G3), il ne marche plus et sendArmyHome le pose aussitôt dans sa ville. Jamais vide devant le Bastion.
+// sendArmyHomeTx le met déjà en retour arrivé (RETURNING, arrivée immédiate) ; ici sendArmyHome est simulé et ne le pose pas.
 function chased(db, id, sentHome) {
   const a = db.army(id);
   const men = (a.units || []).some(u => u.count > 0);
-  return a.rallyId === null && a.targetBastionId === null && (men ? a.status === 'RETURNING' && a.missionType === 'RETURN' : a.status === 'IDLE' && sentHome.includes(id));
+  return a.rallyId === null && a.targetBastionId === null && (men ? a.status === 'RETURNING' && a.missionType === 'RETURN' : ['IDLE', 'RETURNING'].includes(a.status) && sentHome.includes(id));
 }
 
 test('briser le siège gagné : le camp (rassemblement de plusieurs joueurs ou armée seule) rentre, le Bastion n\'est plus assiégé, l\'assaut n\'a pas lieu', async () => {
